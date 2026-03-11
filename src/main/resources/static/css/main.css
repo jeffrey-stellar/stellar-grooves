@@ -1,0 +1,76 @@
+:root {
+    --stellar-blue: #007bff;
+    --stellar-dark: #212529;
+    --stellar-gold: #ffc107;
+    --stellar-white: #ffffff;
+    --stellar-light: #f8f9fa;
+}
+
+body {
+    background-color: var(--stellar-light);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar {
+    background-color: var(--stellar-white);
+    border-bottom: 3px solid var(--stellar-gold);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.navbar-brand img {
+    height: 40px;
+    margin-right: 10px;
+}
+
+.navbar-brand {
+    color: var(--stellar-dark) !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.nav-link {
+    color: var(--stellar-dark) !important;
+}
+
+.nav-link:hover {
+    color: var(--stellar-blue) !important;
+}
+
+.btn-primary {
+    background-color: var(--stellar-blue);
+    border-color: var(--stellar-blue);
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #004a99;
+}
+
+.card {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.card-title {
+    color: var(--stellar-dark);
+    font-weight: bold;
+    border-bottom: 2px solid var(--stellar-gold);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.logo-container img {
+    max-width: 150px;
+}
+
+.genre-badge {
+    background-color: var(--stellar-gold) !important;
+    color: var(--stellar-dark);
+}

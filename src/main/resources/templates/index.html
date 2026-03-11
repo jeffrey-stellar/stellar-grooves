@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Stellar Grooves - Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" th:href="@{/css/main.css}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <img th:src="@{/images/logo.png}" alt="Stellar Logo">
+                Stellar Grooves
+            </a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h2>Welcome to Stellar Grooves</h2>
+                <p>Manage and organize your music library efficiently.</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Scan Directory</h5>
+                        <form id="scanForm">
+                            <div class="mb-3">
+                                <label for="path" class="form-label">Music Directory Path</label>
+                                <input type="text" class="form-control" id="path" name="path" placeholder="C:\Users\Name\Music">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Start Scan</button>
+                        </form>
+                        <div id="scanStatus" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">My Music Library</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped" id="musicTable">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Artist</th>
+                                        <th>Album</th>
+                                        <th>Genre</th>
+                                        <th>Decade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple JS to handle API calls
+        document.getElementById('scanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const path = document.getElementById('path').value;
+            const statusDiv = document.getElementById('scanStatus');
+            statusDiv.innerHTML = '<span class="text-info">Scanning...</span>';
+            
+            try {
+                const response = await fetch('/api/library/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                if (response.ok) {
+                    statusDiv.innerHTML = '<span class="text-success">Scan complete!</span>';
+                    loadLibrary();
+                } else {
+                    statusDiv.innerHTML = '<span class="text-danger">Scan failed.</span>';
+                }
+            } catch (err) {
+                statusDiv.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+            }
+        });
+
+        async function loadLibrary() {
+            try {
+                const response = await fetch('/api/library/files');
+                const files = await response.json();
+                const tbody = document.querySelector('#musicTable tbody');
+                tbody.innerHTML = '';
+                files.forEach(file => {
+                    const row = `<tr>
+                        <td>${file.title || 'Unknown'}</td>
+                        <td>${file.artist || 'Unknown'}</td>
+                        <td>${file.album || 'Unknown'}</td>
+                        <td><span class="badge genre-badge">${file.primaryGenre || 'N/A'}</span></td>
+                        <td>${file.year ? file.year.substring(0, 3) + '0s' : 'Unknown'}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error('Failed to load library', err);
+            }
+        }
+
+        loadLibrary();
+    </script>
+</body>
+</html>
