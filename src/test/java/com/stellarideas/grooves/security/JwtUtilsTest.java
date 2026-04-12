@@ -15,7 +15,6 @@ class JwtUtilsTest {
 
     private JwtUtils jwtUtils;
 
-    // Same key used in application.properties default
     private static final String TEST_SECRET =
             "c3RlbGxhci1ncm9vdmVzLXNlY3JldC1rZXktZm9yLWp3dC1wbGVhc2UtY2hhbmdlLWluLXByb2R1Y3Rpb24tZW52";
 

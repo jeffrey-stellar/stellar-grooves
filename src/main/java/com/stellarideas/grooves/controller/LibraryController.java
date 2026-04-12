@@ -1,5 +1,8 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.MusicFileDTO;
+import com.stellarideas.grooves.dto.ScanRequest;
+import com.stellarideas.grooves.dto.UpdateGenreRequest;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
@@ -8,6 +11,7 @@ import com.stellarideas.grooves.repository.MusicFileRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.MusicScannerService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
@@ -30,6 +34,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/library")
@@ -50,8 +55,8 @@ public class LibraryController extends BaseController {
     }
 
     @PostMapping("/scan")
-    public ResponseEntity<?> scanDirectory(@RequestBody Map<String, String> request) {
-        String path = request.get("path");
+    public ResponseEntity<?> scanDirectory(@Valid @RequestBody ScanRequest request) {
+        String path = request.getPath();
         User user = getCurrentUser();
         try {
             validateScanPath(path);
@@ -66,12 +71,16 @@ public class LibraryController extends BaseController {
         }
     }
 
+    private static final int MAX_PAGE_SIZE = 200;
+
     @GetMapping("/files")
     public ResponseEntity<?> getFiles(
             @RequestParam(required = false) String genre,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false, defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
         User user = getCurrentUser();
+        size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+
         Genre g = null;
         if (genre != null && !genre.isBlank()) {
             try {
@@ -82,20 +91,11 @@ public class LibraryController extends BaseController {
             }
         }
 
-        // When page is not specified, return all results (backwards compatible with frontend)
-        if (page == null) {
-            List<MusicFile> files = (g == null)
-                    ? musicFileRepository.findByUser(user)
-                    : musicFileRepository.findByUserAndGenre(user, g);
-            return ResponseEntity.ok(files);
-        }
-
-        // Paginated response
         Page<MusicFile> result = (g == null)
                 ? musicFileRepository.findByUser(user, PageRequest.of(page, size))
                 : musicFileRepository.findByUserAndGenre(user, g, PageRequest.of(page, size));
         return ResponseEntity.ok(Map.of(
-                "content", result.getContent(),
+                "content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()),
                 "page", result.getNumber(),
                 "size", result.getSize(),
                 "totalElements", result.getTotalElements(),
@@ -149,17 +149,13 @@ public class LibraryController extends BaseController {
     }
 
     @PatchMapping("/files/{id}/genre")
-    public ResponseEntity<?> updateFileGenre(@PathVariable String id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<?> updateFileGenre(@PathVariable String id, @Valid @RequestBody UpdateGenreRequest request) {
         User user = getCurrentUser();
-        String genreStr = request.get("genre");
-        if (genreStr == null || genreStr.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Genre is required"));
-        }
         Genre genre;
         try {
-            genre = Genre.valueOf(genreStr.toUpperCase());
+            genre = Genre.valueOf(request.getGenre().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Unknown genre: " + genreStr));
+            return ResponseEntity.badRequest().body(Map.of("error", "Unknown genre: " + request.getGenre()));
         }
         Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUser(id, user);
         if (fileOpt.isEmpty()) {
@@ -214,20 +210,26 @@ public class LibraryController extends BaseController {
         if (path == null || path.isBlank()) {
             throw new IllegalArgumentException("Directory path must not be empty");
         }
-        Path normalized = Paths.get(path).normalize().toAbsolutePath();
-        if (!normalized.isAbsolute()) {
-            throw new IllegalArgumentException("Path must be an absolute directory path");
-        }
-        if (normalized.toString().contains("..")) {
+
+        Path requested = Paths.get(path).normalize().toAbsolutePath();
+
+        // Block any path traversal sequences that survive normalization
+        if (requested.toString().contains("..")) {
             throw new IllegalArgumentException("Path traversal sequences are not allowed");
         }
-        // Resolve symlinks to prevent escaping via symlinked directories
-        Path canonical = normalized.toRealPath();
-        if (!canonical.equals(normalized) && !canonical.startsWith(normalized.getParent())) {
-            throw new IllegalArgumentException("Path must not contain symbolic links that escape the target directory");
-        }
-        if (!Files.exists(normalized) || !Files.isDirectory(normalized)) {
+
+        // Path must exist and be a directory before we resolve symlinks
+        if (!Files.exists(requested) || !Files.isDirectory(requested)) {
             throw new IllegalArgumentException("Path does not exist or is not a directory");
+        }
+
+        // Resolve symlinks to get the true filesystem path
+        Path canonical = requested.toRealPath();
+
+        // The canonical path must match the requested path — if a symlink
+        // redirects to a different location, the paths will diverge
+        if (!canonical.equals(requested)) {
+            throw new IllegalArgumentException("Path contains symbolic links — use the real path instead");
         }
     }
 

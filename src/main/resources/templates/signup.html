@@ -14,7 +14,7 @@
             <div class="card">
                 <div class="card-body p-4">
                     <div class="logo-container">
-                        <img th:src="@{/images/logo.png}" alt="Stellar Grooves Logo" style="height:80px;width:auto;">
+                        <img th:src="@{/images/logo.png}" alt="Stellar Grooves Logo" class="logo-lg">
                         <h2 class="auth-title mt-2">Stellar Grooves</h2>
                         <p class="auth-subtitle">Create your account</p>
                     </div>
@@ -39,8 +39,8 @@
                             <label for="password" class="form-label">Password</label>
                             <input type="password" id="password" class="form-control"
                                    minlength="8" required autocomplete="new-password"
-                                   placeholder="Minimum 8 characters">
-                            <div class="invalid-feedback">Password must be at least 8 characters.</div>
+                                   placeholder="Min 8 chars, upper + lower + digit">
+                            <div class="invalid-feedback">Password must be at least 8 characters with uppercase, lowercase, and a digit.</div>
                         </div>
                         <button class="btn btn-primary w-100 mt-1" type="submit" id="registerBtn">
                             <span id="registerSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
@@ -48,7 +48,7 @@
                         </button>
                     </form>
 
-                    <p class="text-center mt-3 mb-0" style="font-size: 0.88rem; color: var(--text-secondary)">
+                    <p class="text-center mt-3 mb-0 text-secondary-themed">
                         Already have an account? <a href="/login">Sign In</a>
                     </p>
                 </div>

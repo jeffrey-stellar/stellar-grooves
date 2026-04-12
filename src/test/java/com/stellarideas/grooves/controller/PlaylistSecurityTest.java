@@ -1,5 +1,7 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.AddTrackRequest;
+import com.stellarideas.grooves.dto.PlaylistDTO;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
@@ -93,11 +95,17 @@ class PlaylistSecurityTest {
         verify(playlistRepository, never()).delete(any());
     }
 
+    private AddTrackRequest addTrackRequest(String fileId) {
+        AddTrackRequest req = new AddTrackRequest();
+        req.setFileId(fileId);
+        return req;
+    }
+
     @Test
     void userCannotAddTrackToOtherUsersPlaylist() {
         when(playlistRepository.findByIdAndUser("pl-bob", userA)).thenReturn(Optional.empty());
 
-        ResponseEntity<?> response = controller.addTrack("pl-bob", Map.of("fileId", "f1"));
+        ResponseEntity<?> response = controller.addTrack("pl-bob", addTrackRequest("f1"));
         assertEquals(404, response.getStatusCode().value());
     }
 
@@ -113,7 +121,7 @@ class PlaylistSecurityTest {
         // Bob's file — not found when queried scoped to user A
         when(musicFileRepository.findByIdAndUser("f-bob", userA)).thenReturn(Optional.empty());
 
-        ResponseEntity<?> response = controller.addTrack("pl-alice", Map.of("fileId", "f-bob"));
+        ResponseEntity<?> response = controller.addTrack("pl-alice", addTrackRequest("f-bob"));
         assertEquals(404, response.getStatusCode().value());
     }
 
@@ -127,8 +135,8 @@ class PlaylistSecurityTest {
 
         when(playlistRepository.findByUser(userA)).thenReturn(List.of(alicePlaylist));
 
-        List<Map<String, Object>> playlists = controller.getPlaylists();
-        assertEquals(1, playlists.size());
-        assertEquals("pl-alice", playlists.get(0).get("id"));
+        List<PlaylistDTO> result = controller.getPlaylists();
+        assertEquals(1, result.size());
+        assertEquals("pl-alice", result.get(0).getId());
     }
 }

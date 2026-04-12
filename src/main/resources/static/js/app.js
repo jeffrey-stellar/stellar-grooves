@@ -462,7 +462,10 @@ document.getElementById('scanForm').addEventListener('submit', async (e) => {
 
     btn.disabled = true;
     spinner.classList.remove('d-none');
-    statusDiv.innerHTML = '<span class="status-scanning">\u23F3 Scanning\u2026</span>';
+    const scanningSpan = document.createElement('span');
+    scanningSpan.className = 'status-scanning';
+    scanningSpan.textContent = '\u23F3 Scanning\u2026';
+    statusDiv.replaceChildren(scanningSpan);
 
     try {
         const response = await fetch('/api/library/scan', {
@@ -475,7 +478,10 @@ document.getElementById('scanForm').addEventListener('submit', async (e) => {
             const msg = data.filesFound > 0
                 ? `\u2713 Scan complete \u2014 ${data.filesFound} new file(s) imported.`
                 : `\u2713 Scan complete \u2014 no new files found.`;
-            statusDiv.innerHTML = `<span class="status-success">${msg}</span>`;
+            const successSpan = document.createElement('span');
+            successSpan.className = 'status-success';
+            successSpan.textContent = msg;
+            statusDiv.replaceChildren(successSpan);
             await loadLibrary();
         } else {
             const span = document.createElement('span');
@@ -506,8 +512,10 @@ document.getElementById('clearBtn').addEventListener('click', async () => {
             navigate({ view: 'library', artist: null, album: null, playlistId: null, playlistName: null });
             updateStats();
             renderPlaylistSidebar();
-            document.getElementById('scanStatus').innerHTML =
-                '<span class="status-success">Library cleared.</span>';
+            const clearSpan = document.createElement('span');
+            clearSpan.className = 'status-success';
+            clearSpan.textContent = 'Library cleared.';
+            document.getElementById('scanStatus').replaceChildren(clearSpan);
         }
     } catch (err) {
         console.error('Clear failed', err);
@@ -623,16 +631,16 @@ async function addToPlaylist(playlistId, file) {
         });
         const data = await resp.json();
         if (resp.ok) {
-            statusEl.style.color = 'var(--success)';
+            statusEl.className = 'mt-2 small status-success';
             statusEl.textContent = '\u2713 Added!';
             await loadPlaylists();
             setTimeout(() => addToPlaylistModal && addToPlaylistModal.hide(), 800);
         } else {
-            statusEl.style.color = 'var(--danger)';
+            statusEl.className = 'mt-2 small status-error';
             statusEl.textContent = data.error || 'Failed to add track';
         }
     } catch (err) {
-        statusEl.style.color = 'var(--danger)';
+        statusEl.className = 'mt-2 small status-error';
         statusEl.textContent = 'Network error';
     }
 }
@@ -728,8 +736,16 @@ document.getElementById('addToPlaylistConfirm').addEventListener('click', () => 
 
 async function loadLibrary() {
     try {
-        const response = await fetch('/api/library/files');
-        allFiles = await response.json();
+        allFiles = [];
+        let page = 0;
+        let totalPages = 1;
+        while (page < totalPages) {
+            const response = await fetch(`/api/library/files?page=${page}&size=200`);
+            const data = await response.json();
+            allFiles = allFiles.concat(data.content);
+            totalPages = data.totalPages;
+            page++;
+        }
         updateStats();
         renderCurrentView();
         await loadPlaylists();

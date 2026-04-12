@@ -1,11 +1,16 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.AddTrackRequest;
+import com.stellarideas.grooves.dto.CreatePlaylistRequest;
+import com.stellarideas.grooves.dto.MusicFileDTO;
+import com.stellarideas.grooves.dto.PlaylistDTO;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.MusicFileRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -31,39 +36,22 @@ public class PlaylistController extends BaseController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> getPlaylists() {
+    public List<PlaylistDTO> getPlaylists() {
         User user = getCurrentUser();
         return playlistRepository.findByUser(user).stream()
-                .map(p -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id", p.getId());
-                    m.put("name", p.getName());
-                    m.put("trackCount", p.getTrackIds().size());
-                    return m;
-                })
+                .map(PlaylistDTO::from)
                 .collect(Collectors.toList());
     }
 
     @PostMapping
-    public ResponseEntity<?> createPlaylist(@RequestBody Map<String, String> body) {
-        String name = body.get("name");
-        if (name == null || name.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Playlist name is required"));
-        }
-        if (name.trim().length() > 80) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Playlist name must be 80 characters or less"));
-        }
+    public ResponseEntity<?> createPlaylist(@Valid @RequestBody CreatePlaylistRequest body) {
         User user = getCurrentUser();
         Playlist playlist = new Playlist();
-        playlist.setName(name.trim());
+        playlist.setName(body.getName().trim());
         playlist.setUser(user);
         Playlist saved = playlistRepository.save(playlist);
         logger.info("User '{}' created playlist '{}'", user.getUsername(), saved.getName());
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", saved.getId());
-        result.put("name", saved.getName());
-        result.put("trackCount", 0);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(PlaylistDTO.from(saved));
     }
 
     @DeleteMapping("/{id}")
@@ -77,12 +65,9 @@ public class PlaylistController extends BaseController {
     }
 
     @PostMapping("/{id}/tracks")
-    public ResponseEntity<?> addTrack(@PathVariable String id, @RequestBody Map<String, String> body) {
+    public ResponseEntity<?> addTrack(@PathVariable String id, @Valid @RequestBody AddTrackRequest body) {
         User user = getCurrentUser();
-        String fileId = body.get("fileId");
-        if (fileId == null || fileId.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "fileId is required"));
-        }
+        String fileId = body.getFileId();
         Optional<Playlist> opt = playlistRepository.findByIdAndUser(id, user);
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
         if (musicFileRepository.findByIdAndUser(fileId, user).isEmpty()) {
@@ -121,9 +106,10 @@ public class PlaylistController extends BaseController {
         Map<String, MusicFile> byId = musicFileRepository.findByIdInAndUser(trackIds, user).stream()
                 .collect(Collectors.toMap(MusicFile::getId, f -> f));
         // Preserve playlist ordering, skip deleted tracks
-        List<MusicFile> tracks = trackIds.stream()
+        List<MusicFileDTO> tracks = trackIds.stream()
                 .filter(byId::containsKey)
                 .map(byId::get)
+                .map(MusicFileDTO::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(tracks);
     }

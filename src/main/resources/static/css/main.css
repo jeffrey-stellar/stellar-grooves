@@ -758,6 +758,15 @@ tr:hover .btn-action-sm { opacity: 1; }
     background-color: rgba(255, 110, 180, 0.06) !important;
 }
 
+/* ── Utility classes (replacing inline styles for CSP compliance) ── */
+.logo-lg   { height: 80px; width: auto; }
+.logo-sm   { height: 36px; width: auto; }
+.img-full  { max-width: 100%; }
+.hr-themed { border-color: var(--border-color); }
+.filter-select { max-width: 160px; }
+.filter-input  { max-width: 220px; }
+.text-secondary-themed { font-size: 0.88rem; color: var(--text-secondary); }
+
 /* ── Responsive ── */
 @media (max-width: 767.98px) {
     .main-content { padding: 1rem 0.75rem; }
@@ -772,4 +781,12 @@ tr:hover .btn-action-sm { opacity: 1; }
 @media (max-width: 575.98px) {
     .btn-primary.btn-full-mobile { width: 100%; }
     .hide-xs { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

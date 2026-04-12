@@ -29,7 +29,7 @@ public class WebSecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtUtils jwtUtils;
 
-    @Value("${stellar.grooves.cors.allowedOrigins:http://localhost:*,http://127.0.0.1:*}")
+    @Value("${stellar.grooves.cors.allowedOrigins:http://localhost:8080,http://127.0.0.1:8080}")
     private String allowedOrigins;
 
     public WebSecurityConfig(UserDetailsServiceImpl userDetailsService, JwtUtils jwtUtils) {
@@ -90,13 +90,18 @@ public class WebSecurityConfig {
                 .contentTypeOptions(cto -> {})
                 .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+                // Note: style-src 'unsafe-inline' is required by Bootstrap's dynamic inline styles (modals, tooltips).
+                // All application inline styles have been moved to external CSS.
                 .contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; "
                     + "script-src 'self' https://cdn.jsdelivr.net; "
                     + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
                     + "font-src 'self' https://fonts.gstatic.com; "
                     + "img-src 'self' data:; "
-                    + "connect-src 'self'"
+                    + "connect-src 'self'; "
+                    + "object-src 'none'; "
+                    + "base-uri 'self'; "
+                    + "form-action 'self'"
                 ))
             )
             .authorizeHttpRequests(auth ->

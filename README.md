@@ -15,12 +15,15 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Playlist management** — create playlists, add/remove tracks, browse playlist contents
 - **Browse & filter** — drill-down views by artist, album, and genre; full-text search across title/artist/album; sortable columns
 - **Inline genre editing** — reclassify any track tagged as "Other" directly from the library table
-- **Pagination** — optional paginated API responses for large libraries (`?page=0&size=50`)
+- **Pagination** — paginated API responses for large libraries (`?page=0&size=50`, max 200 per page)
 - **Multi-user** — per-user libraries with session-based (form login) and JWT authentication
-- **Security** — CSRF protection, rate limiting on auth endpoints, configurable CORS origins, path traversal prevention, server-side input validation
+- **Security** — CSRF protection, rate limiting on auth endpoints (with proxy-aware IP detection), configurable CORS origins, path traversal prevention, server-side input validation with typed DTOs, Content Security Policy headers, password complexity requirements
+- **Structured logging** — correlation IDs on every request (`X-Correlation-Id` header), MDC-based log pattern for request tracing
+- **Spring profiles** — `dev` (debug logging, no template cache) and `prod` (strict CORS, proxy trust) profiles
 - **Admin bootstrap** — auto-create an admin user on first startup via environment variables
 - **Health check** — `/actuator/health` endpoint for monitoring (includes MongoDB connectivity)
 - **Admin panel** — admin endpoints for user management and cleanup (with pagination)
+- **Accessibility** — ARIA labels on interactive elements, table scope attributes, `prefers-reduced-motion` support
 - **Jukebox theme** — retro dark UI with neon glow effects, chrome accents, wood grain textures, and "Righteous" display typography
 
 ---
@@ -61,17 +64,26 @@ No additional database setup is needed — MongoDB creates the database and coll
 
 ## Quick Start
 
+A `JWT_SECRET` environment variable is **required** to start the app. Generate one with:
+
+```bash
+export JWT_SECRET=$(openssl rand -base64 64)
+```
+
+Then run:
+
 ```bash
 git clone <repo-url>
 cd stellar-grooves
 
 # Run with Maven (development)
-./mvnw spring-boot:run
+JWT_SECRET=$JWT_SECRET ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 Windows:
 ```powershell
-mvnw.cmd spring-boot:run
+$env:JWT_SECRET = [Convert]::ToBase64String((1..64 | ForEach-Object { Get-Random -Max 256 }) -as [byte[]])
+mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
 The app starts at **http://localhost:8080**.
@@ -80,7 +92,7 @@ The app starts at **http://localhost:8080**.
 
 ```bash
 ./mvnw clean package -DskipTests
-java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar
+JWT_SECRET=$JWT_SECRET java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
 ### Run tests
@@ -100,17 +112,19 @@ All settings live in `src/main/resources/application.properties` and can be over
 | Property | Env var | Default | Description |
 |----------|---------|---------|-------------|
 | `spring.data.mongodb.uri` | `MONGO_URI` | `mongodb://localhost:27017/stellar_grooves` | MongoDB connection string |
-| `stellar.grooves.jwtSecret` | `JWT_SECRET` | *(bundled dev key)* | Base64-encoded JWT signing secret — **must change in production** |
+| `stellar.grooves.jwtSecret` | `JWT_SECRET` | *(none — required)* | Base64-encoded JWT signing secret (minimum 256 bits). App **fails to start** without this. |
 | `stellar.grooves.jwtExpirationMs` | `JWT_EXPIRATION_MS` | `86400000` (24h) | JWT token lifetime in milliseconds |
 | `server.port` | `PORT` | `8080` | HTTP listen port |
 
 ### Security & Rate Limiting
 
-| Property | Default | Description |
-|----------|---------|-------------|
-| `stellar.grooves.cors.allowedOrigins` | `http://localhost:*,http://127.0.0.1:*` | Comma-separated CORS origin patterns |
-| `stellar.grooves.rateLimit.maxRequests` | `10` | Max auth requests per IP per window |
-| `stellar.grooves.rateLimit.windowMs` | `60000` (1 min) | Rate limit window in milliseconds |
+| Property | Env var | Default | Description |
+|----------|---------|---------|-------------|
+| `stellar.grooves.cors.allowedOrigins` | `CORS_ALLOWED_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | Comma-separated CORS origin patterns |
+| `stellar.grooves.rateLimit.maxRequests` | — | `10` | Max auth requests per IP per window |
+| `stellar.grooves.rateLimit.windowMs` | — | `60000` (1 min) | Rate limit window in milliseconds |
+| `stellar.grooves.rateLimit.trustProxy` | `RATE_LIMIT_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` header for client IP detection |
+| `stellar.grooves.rateLimit.trustedProxies` | `RATE_LIMIT_TRUSTED_PROXIES` | *(empty)* | Comma-separated proxy IPs allowed to set `X-Forwarded-For` (only used when `trustProxy=true`) |
 
 ### Scanner
 
@@ -119,16 +133,28 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.scan.maxDepth` | `20` | Max directory depth for recursive scan |
 | `stellar.grooves.catalogPath` | *(bundled catalog.json)* | Path to a custom artist-genre catalog JSON file |
 
+### Spring Profiles
+
+| Profile | Activate with | Description |
+|---------|--------------|-------------|
+| `dev` | `--spring.profiles.active=dev` | Debug logging, Thymeleaf cache disabled, CORS allows `localhost:8080` |
+| `prod` | `--spring.profiles.active=prod` | INFO logging, requires `CORS_ALLOWED_ORIGINS` env var, trusts proxy headers from configured IPs |
+
+When no profile is active, the base `application.properties` defaults apply.
+
 **Example — production deployment:**
 ```bash
 MONGO_URI=mongodb://mongo-host:27017/grooves \
 JWT_SECRET=$(openssl rand -base64 64) \
 PORT=9090 \
-stellar.grooves.cors.allowedOrigins=https://myapp.example.com \
-java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar
+CORS_ALLOWED_ORIGINS=https://myapp.example.com \
+RATE_LIMIT_TRUST_PROXY=true \
+RATE_LIMIT_TRUSTED_PROXIES=127.0.0.1,::1 \
+ADMIN_PASSWORD=changeme \
+java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
-> **Security note:** The bundled JWT secret is for local development only. Always generate a strong secret for any network-accessible deployment.
+> **Security note:** `JWT_SECRET` is required. Generate a strong Base64-encoded key (minimum 32 bytes decoded) with `openssl rand -base64 64`.
 
 ### Admin User
 
@@ -199,21 +225,21 @@ Auth endpoints are rate-limited to 10 requests per minute per IP by default.
 
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/auth/signup` | `{ "username", "email", "password" }` | Register a new user |
+| `POST` | `/api/auth/signup` | `{ "username", "email", "password" }` | Register a new user (password: min 8 chars, requires upper + lower + digit) |
 | `POST` | `/api/auth/signin` | `{ "username", "password" }` | Log in; returns `{ token, username }` |
 
 ### Library
 
 | Method | Endpoint | Body | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/library/files` | — | List all tracks; optional `?genre=HARD_ROCK` filter; optional `?page=0&size=50` for pagination |
+| `GET` | `/api/library/files` | — | List tracks (paginated); `?page=0&size=50` (default); optional `?genre=HARD_ROCK` filter; max 200 per page |
 | `POST` | `/api/library/scan` | `{ "path": "/absolute/path" }` | Scan a directory for audio files |
 | `GET` | `/api/library/files/{id}/stream` | — | Stream audio (supports HTTP Range) |
 | `PATCH` | `/api/library/files/{id}/genre` | `{ "genre": "CLASSIC_ROCK" }` | Update a track's genre |
 | `DELETE` | `/api/library/files/{id}` | — | Delete a single track |
 | `DELETE` | `/api/library/files` | — | Clear the current user's entire library |
 
-When `page` is provided, the response is a paginated object:
+The response is always a paginated object:
 ```json
 {
   "content": [...],
@@ -223,8 +249,6 @@ When `page` is provided, the response is a paginated object:
   "totalPages": 7
 }
 ```
-
-When `page` is omitted, the response is a plain JSON array (backwards compatible).
 
 ### Playlists
 
@@ -256,7 +280,8 @@ src/main/java/com/stellarideas/grooves/
 ├── StellarGroovesApplication.java       # Entry point
 ├── config/
 │   ├── AdminBootstrap.java              # Auto-create admin on first startup
-│   └── RateLimitFilter.java             # Per-IP rate limiting for auth endpoints
+│   ├── RateLimitFilter.java             # Per-IP rate limiting (proxy-aware)
+│   └── RequestCorrelationFilter.java    # MDC correlation ID for request tracing
 ├── controller/
 │   ├── BaseController.java              # Shared getCurrentUser() logic
 │   ├── AuthController.java              # Signup/signin endpoints
@@ -272,13 +297,19 @@ src/main/java/com/stellarideas/grooves/
 │   ├── Genre.java                       # Genre enum
 │   └── Role.java                        # Role enum
 ├── dto/
+│   ├── AddTrackRequest.java             # Add track to playlist request
+│   ├── CreatePlaylistRequest.java       # Create playlist request (validated)
 │   ├── LoginRequest.java                # Login request validation
-│   └── SignupRequest.java               # Signup request validation
+│   ├── MusicFileDTO.java                # Music file response DTO
+│   ├── PlaylistDTO.java                 # Playlist response DTO
+│   ├── ScanRequest.java                 # Directory scan request
+│   ├── SignupRequest.java               # Signup request (with password policy)
+│   └── UpdateGenreRequest.java          # Genre update request
 ├── repository/                          # Spring Data MongoDB repositories
 ├── security/
-│   ├── WebSecurityConfig.java           # Security filter chain + CSRF + CORS
+│   ├── WebSecurityConfig.java           # Security filter chain + CSRF + CORS + CSP
 │   ├── AuthTokenFilter.java             # JWT extraction filter
-│   ├── JwtUtils.java                    # Token generation/validation
+│   ├── JwtUtils.java                    # Token generation/validation (no defaults)
 │   ├── UserDetailsImpl.java             # Spring Security adapter
 │   └── UserDetailsServiceImpl.java      # User loading service
 └── service/
@@ -286,9 +317,12 @@ src/main/java/com/stellarideas/grooves/
     └── MusicScannerService.java         # Directory scanning + batch import
 
 src/main/resources/
-├── application.properties               # All configuration
+├── application.properties               # Shared configuration
+├── application-dev.properties           # Dev profile (debug logging, no cache)
+├── application-prod.properties          # Prod profile (strict CORS, proxy trust)
+├── logback-spring.xml                   # Logging config with correlation IDs
 ├── catalog.json                         # Artist-genre catalog (customizable)
-├── static/css/main.css                  # Jukebox theme stylesheet
+├── static/css/main.css                  # Jukebox theme stylesheet (CSP-compliant)
 ├── static/js/app.js                     # Frontend application logic
 └── templates/                           # Thymeleaf HTML templates
 ```

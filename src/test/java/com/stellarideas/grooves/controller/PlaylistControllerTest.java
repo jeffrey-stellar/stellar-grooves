@@ -1,5 +1,8 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.CreatePlaylistRequest;
+import com.stellarideas.grooves.dto.MusicFileDTO;
+import com.stellarideas.grooves.dto.PlaylistDTO;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
@@ -54,6 +57,12 @@ class PlaylistControllerTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
+    private CreatePlaylistRequest playlistRequest(String name) {
+        CreatePlaylistRequest req = new CreatePlaylistRequest();
+        req.setName(name);
+        return req;
+    }
+
     @Test
     void createPlaylistSucceeds() {
         Playlist saved = new Playlist();
@@ -62,35 +71,13 @@ class PlaylistControllerTest {
         saved.setUser(testUser);
         when(playlistRepository.save(any())).thenReturn(saved);
 
-        ResponseEntity<?> response = controller.createPlaylist(Map.of("name", "My Playlist"));
+        ResponseEntity<?> response = controller.createPlaylist(playlistRequest("My Playlist"));
 
         assertEquals(200, response.getStatusCode().value());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
-        assertEquals("pl1", body.get("id"));
-        assertEquals("My Playlist", body.get("name"));
-        assertEquals(0, body.get("trackCount"));
-    }
-
-    @Test
-    void createPlaylistRejectsBlankName() {
-        ResponseEntity<?> response = controller.createPlaylist(Map.of("name", ""));
-
-        assertEquals(400, response.getStatusCode().value());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
-        assertEquals("Playlist name is required", body.get("error"));
-    }
-
-    @Test
-    void createPlaylistRejectsLongName() {
-        String longName = "A".repeat(81);
-        ResponseEntity<?> response = controller.createPlaylist(Map.of("name", longName));
-
-        assertEquals(400, response.getStatusCode().value());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
-        assertEquals("Playlist name must be 80 characters or less", body.get("error"));
+        PlaylistDTO body = (PlaylistDTO) response.getBody();
+        assertEquals("pl1", body.getId());
+        assertEquals("My Playlist", body.getName());
+        assertEquals(0, body.getTrackCount());
     }
 
     @Test
@@ -102,7 +89,7 @@ class PlaylistControllerTest {
         saved.setUser(testUser);
         when(playlistRepository.save(any())).thenReturn(saved);
 
-        ResponseEntity<?> response = controller.createPlaylist(Map.of("name", name80));
+        ResponseEntity<?> response = controller.createPlaylist(playlistRequest(name80));
         assertEquals(200, response.getStatusCode().value());
     }
 
@@ -131,7 +118,7 @@ class PlaylistControllerTest {
         assertEquals(200, response.getStatusCode().value());
 
         @SuppressWarnings("unchecked")
-        List<MusicFile> tracks = (List<MusicFile>) response.getBody();
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) response.getBody();
         assertEquals(3, tracks.size());
         assertEquals("f1", tracks.get(0).getId());
         assertEquals("f2", tracks.get(1).getId());
@@ -158,7 +145,7 @@ class PlaylistControllerTest {
 
         ResponseEntity<?> response = controller.getPlaylistTracks("pl1");
         @SuppressWarnings("unchecked")
-        List<MusicFile> tracks = (List<MusicFile>) response.getBody();
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) response.getBody();
         assertEquals(2, tracks.size());
         assertEquals("f1", tracks.get(0).getId());
         assertEquals("f3", tracks.get(1).getId());
@@ -185,7 +172,7 @@ class PlaylistControllerTest {
         ResponseEntity<?> response = controller.getPlaylistTracks("pl1");
         assertEquals(200, response.getStatusCode().value());
         @SuppressWarnings("unchecked")
-        List<MusicFile> tracks = (List<MusicFile>) response.getBody();
+        List<?> tracks = (List<?>) response.getBody();
         assertTrue(tracks.isEmpty());
     }
 }
