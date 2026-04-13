@@ -114,7 +114,7 @@ public class WebSecurityConfig {
                     + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
                     + "font-src 'self' https://fonts.gstatic.com; "
                     + "img-src 'self' data:; "
-                    + "connect-src 'self'; "
+                    + "connect-src 'self' https://cdn.jsdelivr.net; "
                     + "object-src 'none'; "
                     + "base-uri 'self'; "
                     + "form-action 'self'"

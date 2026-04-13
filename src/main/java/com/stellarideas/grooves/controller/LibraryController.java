@@ -77,6 +77,8 @@ public class LibraryController {
         try {
             validateScanPath(path);
             auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
+            user.setMusicDirectory(path);
+            userRepository.save(user);
             ScanResult result = scannerService.scanDirectory(user, path);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("message", msg.msg("scan.success"));
