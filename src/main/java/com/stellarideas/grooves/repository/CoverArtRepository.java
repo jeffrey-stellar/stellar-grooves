@@ -13,7 +13,7 @@ public interface CoverArtRepository extends MongoRepository<CoverArt, String> {
 
     @Aggregation(pipeline = {
         "{ '$match': { 'userId': ?0 } }",
-        "{ '$group': { '_id': null, 'totalSize': { '$sum': { '$bsonSize': '$data' } } } }"
+        "{ '$group': { '_id': null, 'totalSize': { '$sum': { '$binarySize': '$data' } } } }"
     })
     Long getTotalCoverArtSizeByUserId(String userId);
 }
