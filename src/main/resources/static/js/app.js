@@ -21,7 +21,8 @@ let selectedIds = new Set(); // bulk selection
 let queue = []; // play queue
 
 const audioEl = document.getElementById('audioPlayer');
-const playerBar = document.getElementById('playerBar');
+const playerBar = document.getElementById('jukeboxPlayer');
+const eqCanvas = document.getElementById('eqCanvas');
 
 // ── CSRF + Helpers ───────────────────────────────────────
 function csrfToken() {
@@ -784,11 +785,14 @@ function playTrack(file, useCrossfade) {
     window._currentTrack = file;
     document.getElementById('playerTitle').textContent = text(file.title);
     document.getElementById('playerArtist').textContent = text(file.artist);
-    playerBar.classList.remove('d-none'); document.body.classList.add('player-open');
+    playerBar.classList.remove('d-none');
     // Cover art
     const artEl = document.getElementById('playerArt');
-    if (file.hasCoverArt) { artEl.src = `/api/v1/library/files/${file.id}/cover`; artEl.classList.remove('d-none'); }
-    else { artEl.classList.add('d-none'); artEl.removeAttribute('src'); }
+    const artPlaceholder = document.getElementById('jukeboxArtPlaceholder');
+    if (file.hasCoverArt) { artEl.src = `/api/v1/library/files/${file.id}/cover`; artEl.classList.remove('d-none'); if (artPlaceholder) artPlaceholder.style.display = 'none'; }
+    else { artEl.classList.add('d-none'); artEl.removeAttribute('src'); if (artPlaceholder) artPlaceholder.style.display = ''; }
+    // Init equalizer on first play
+    initEqualizer();
 
     if (sw && useCrossfade && crossfadeEnabled) {
         // Crossfade: start new track on the inactive audio element, fade volumes
@@ -850,6 +854,9 @@ function syncPlayerBtn() {
     const btn = document.getElementById('playerPlayPause');
     btn.textContent = activeAudio.paused ? '\u25B6' : '\u23F8';
     btn.setAttribute('aria-label', activeAudio.paused ? 'Play' : 'Pause');
+    // Spin album art when playing
+    const art = document.getElementById('playerArt');
+    if (art) art.classList.toggle('spinning', !activeAudio.paused);
     document.querySelectorAll('.btn-play-row').forEach(b => { const tr = b.closest('tr'); const a = tr && tr.dataset.fileId === currentFileId; b.textContent = (a && !activeAudio.paused) ? '\u23F8' : '\u25B6'; b.classList.toggle('playing', a); });
 }
 
@@ -890,6 +897,85 @@ audioEl.addEventListener('loadstart', () => { if (activeAudio === audioEl) _cros
 audioElB.addEventListener('loadstart', () => { if (activeAudio === audioElB) _crossfadeTriggered = false; });
 document.getElementById('playerSeek').addEventListener('input', () => { if (!isNaN(activeAudio.duration)) activeAudio.currentTime = (document.getElementById('playerSeek').value / 100) * activeAudio.duration; });
 document.getElementById('playerVolume').addEventListener('input', () => { activeAudio.volume = document.getElementById('playerVolume').value; });
+
+// ── Visual Equalizer (Web Audio API) ────────────────────
+let audioCtx = null, analyser = null, eqAnimId = null, eqConnected = false;
+const eqSources = new Map(); // track which audio elements have been connected
+
+function initEqualizer() {
+    if (eqConnected) return;
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.8;
+        analyser.connect(audioCtx.destination);
+        // Connect both audio elements (for crossfade support)
+        [audioEl, audioElB].forEach(el => {
+            if (!eqSources.has(el)) {
+                const src = audioCtx.createMediaElementSource(el);
+                src.connect(analyser);
+                eqSources.set(el, src);
+            }
+        });
+        eqConnected = true;
+        if (!eqAnimId) drawEqualizer();
+    } catch (e) { console.warn('Equalizer init failed:', e); }
+}
+
+function drawEqualizer() {
+    if (!analyser || !eqCanvas) return;
+    const ctx = eqCanvas.getContext('2d');
+    const W = eqCanvas.width, H = eqCanvas.height;
+    const bufLen = analyser.frequencyBinCount;
+    const data = new Uint8Array(bufLen);
+
+    function frame() {
+        eqAnimId = requestAnimationFrame(frame);
+        analyser.getByteFrequencyData(data);
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw bars
+        const barCount = 24;
+        const barW = (W / barCount) - 2;
+        const gap = 2;
+        for (let i = 0; i < barCount; i++) {
+            // Sample from frequency data (weighted toward lower freqs for rock/metal)
+            const idx = Math.floor(Math.pow(i / barCount, 1.5) * bufLen);
+            const val = data[Math.min(idx, bufLen - 1)] / 255;
+            const barH = Math.max(2, val * H);
+            const x = i * (barW + gap) + gap / 2;
+            const y = H - barH;
+
+            // Neon gradient: cyan at bottom, amber in middle, pink at top
+            const grad = ctx.createLinearGradient(x, H, x, 0);
+            grad.addColorStop(0, 'rgba(77, 232, 224, 0.9)');   // cyan
+            grad.addColorStop(0.5, 'rgba(255, 179, 71, 0.9)'); // amber
+            grad.addColorStop(1, 'rgba(255, 110, 180, 0.9)');  // pink
+            ctx.fillStyle = grad;
+
+            // Rounded top bars
+            const radius = Math.min(barW / 2, 3);
+            ctx.beginPath();
+            ctx.moveTo(x, H);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.lineTo(x + barW - radius, y);
+            ctx.quadraticCurveTo(x + barW, y, x + barW, y + radius);
+            ctx.lineTo(x + barW, H);
+            ctx.fill();
+
+            // Glow effect on tall bars
+            if (val > 0.6) {
+                ctx.shadowColor = 'rgba(255, 179, 71, 0.4)';
+                ctx.shadowBlur = 6;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+    }
+    frame();
+}
 
 // ── Keyboard shortcuts ───────────────────────────────────
 document.addEventListener('keydown', e => {
