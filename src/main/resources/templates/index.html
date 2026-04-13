@@ -1,122 +1,257 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stellar Grooves - Dashboard</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="icon" th:href="@{/images/logo.png}" type="image/png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <link rel="stylesheet" th:href="@{/css/main.css}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg">
-        <div class="container">
+        <div class="container-fluid px-3">
             <a class="navbar-brand" href="#">
-                <img th:src="@{/images/logo.png}" alt="Stellar Logo">
+                <img th:src="@{/images/logo.png}" alt="Stellar Grooves Logo" class="logo-sm">
                 Stellar Grooves
             </a>
-            <div class="collapse navbar-collapse">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
-                </ul>
+            <div class="ms-auto">
+                <a class="nav-link d-inline" href="/logout">Logout</a>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-12">
-                <h2>Welcome to Stellar Grooves</h2>
-                <p>Manage and organize your music library efficiently.</p>
+    <div class="main-content">
+        <!-- Stats row -->
+        <div class="row g-3 mb-4 d-none" id="statsRow">
+            <div class="col-6 col-md">
+                <div class="card stat-card stat-clickable" id="statCardTotal" title="View all tracks">
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">Total Tracks</div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card stat-card stat-clickable" id="statCardArtists" title="Browse by artist">
+                    <div class="stat-value" id="statArtists">0</div>
+                    <div class="stat-label">Artists</div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card stat-card stat-clickable" id="statCardAlbums" title="Browse by album">
+                    <div class="stat-value" id="statAlbums">0</div>
+                    <div class="stat-label">Albums</div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card stat-card stat-clickable" id="statCardGenres" title="Browse by genre">
+                    <div class="stat-value" id="statGenres">0</div>
+                    <div class="stat-label">Genres</div>
+                </div>
+            </div>
+            <div class="col-6 col-md">
+                <div class="card stat-card" id="statCardDupes">
+                    <div class="stat-value" id="statDupes">0</div>
+                    <div class="stat-label">Duplicated Songs</div>
+                </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card">
+        <div class="row g-4">
+            <!-- Scan Panel -->
+            <div class="col-12 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">Scan Directory</div>
                     <div class="card-body">
-                        <h5 class="card-title">Scan Directory</h5>
-                        <form id="scanForm">
+                        <form id="scanForm" novalidate>
                             <div class="mb-3">
                                 <label for="path" class="form-label">Music Directory Path</label>
-                                <input type="text" class="form-control" id="path" name="path" placeholder="C:\Users\Name\Music">
+                                <input type="text" class="form-control" id="path" name="path"
+                                       placeholder="/home/user/Music" autocomplete="off" required>
+                                <div class="invalid-feedback">Please enter a valid directory path.</div>
                             </div>
-                            <button type="submit" class="btn btn-primary">Start Scan</button>
+                            <button type="submit" class="btn btn-primary btn-full-mobile w-100" id="scanBtn">
+                                <span id="scanSpinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                                Start Scan
+                            </button>
                         </form>
-                        <div id="scanStatus" class="mt-2"></div>
+                        <div id="scanStatus" class="mt-3"></div>
+
+                        <hr class="my-3" class="hr-themed">
+
+                        <button class="btn btn-outline-danger w-100 d-none" id="clearBtn">
+                            Clear Library
+                        </button>
+
+                        <hr class="my-3" class="hr-themed">
+
+                        <div id="playlistSection">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="section-label">MY PLAYLISTS</span>
+                                <button class="btn-icon-sm" id="showNewPlaylistBtn" title="New playlist">+</button>
+                            </div>
+                            <div id="newPlaylistForm" class="d-none mb-2">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="newPlaylistName" class="form-control" placeholder="Playlist name…" maxlength="80">
+                                    <button class="btn btn-primary" id="createPlaylistBtn">Add</button>
+                                </div>
+                            </div>
+                            <ul id="playlistList" class="playlist-list"></ul>
+                        </div>
+
+                        <div class="mt-3 text-center">
+                            <img th:src="@{/images/rocknroll.png}" src="/images/rocknroll.png" alt="Rock and Roll" class="img-fluid rounded img-full">
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-8">
+
+            <!-- Library Panel -->
+            <div class="col-12 col-lg-8">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">My Music Library</h5>
+                    <!-- Card header: breadcrumb + filters -->
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb mb-0" id="breadcrumbList">
+                                <li class="breadcrumb-item active">My Music Library</li>
+                            </ol>
+                        </nav>
+                        <div class="d-flex gap-2 flex-wrap" id="trackFilters">
+                            <select id="genreFilter" class="form-select form-select-sm" class="filter-select">
+                                <option value="">All Genres</option>
+                                <option value="CLASSIC_ROCK">Classic Rock</option>
+                                <option value="HARD_ROCK">Hard Rock</option>
+                                <option value="HAIR_METAL">Hair Metal</option>
+                                <option value="HEAVY_METAL">Heavy Metal</option>
+                                <option value="THRASH_METAL">Thrash Metal</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                            <input type="search" id="searchInput" class="form-control form-control-sm"
+                                   placeholder="Filter title, artist, album…" class="filter-input">
+                        </div>
+                    </div>
+
+                    <!-- Artists view -->
+                    <div id="viewArtists" class="d-none" role="region" aria-label="Artists">
                         <div class="table-responsive">
-                            <table class="table table-striped" id="musicTable">
+                            <table class="table" aria-label="Artists list">
                                 <thead>
                                     <tr>
-                                        <th>Title</th>
-                                        <th>Artist</th>
-                                        <th>Album</th>
-                                        <th>Genre</th>
-                                        <th>Decade</th>
+                                        <th scope="col">Artist</th>
+                                        <th scope="col" class="text-end hide-xs">Albums</th>
+                                        <th scope="col" class="text-end">Tracks</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <!-- Populated by JS -->
-                                </tbody>
+                                <tbody id="artistsBody"></tbody>
                             </table>
                         </div>
+                    </div>
+
+                    <!-- Albums view -->
+                    <div id="viewAlbums" class="d-none" role="region" aria-label="Albums">
+                        <div class="table-responsive">
+                            <table class="table" aria-label="Albums list">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Album</th>
+                                        <th scope="col" class="hide-xs">Artist</th>
+                                        <th scope="col" class="text-end">Tracks</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="albumsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tracks view -->
+                    <div id="viewTracks" class="d-none" role="region" aria-label="Tracks">
+                        <div class="table-responsive">
+                            <table class="table table-collapse-sm" id="musicTable" aria-label="Music tracks">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="col-play"><span class="visually-hidden">Play</span></th>
+                                        <th scope="col" class="col-sortable" data-col="title">Title <span class="sort-icon"></span></th>
+                                        <th scope="col" class="col-sortable" data-col="artist">Artist <span class="sort-icon"></span></th>
+                                        <th scope="col" class="col-sortable hide-xs" data-col="album">Album <span class="sort-icon"></span></th>
+                                        <th scope="col" class="col-sortable" data-col="genre">Genre <span class="sort-icon"></span></th>
+                                        <th scope="col" class="col-sortable hide-xs" data-col="year">Decade <span class="sort-icon"></span></th>
+                                        <th scope="col" class="hide-xs col-actions"><span class="visually-hidden">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="musicTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Playlist view -->
+                    <div id="viewPlaylist" class="d-none" role="region" aria-label="Playlist tracks">
+                        <div class="table-responsive">
+                            <table class="table" aria-label="Playlist tracks">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="col-play"><span class="visually-hidden">Play</span></th>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Artist</th>
+                                        <th scope="col" class="hide-xs">Album</th>
+                                        <th scope="col">Genre</th>
+                                        <th scope="col" class="hide-xs">Decade</th>
+                                        <th scope="col" class="hide-xs col-actions"><span class="visually-hidden">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="playlistTracksBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="playlistEmptyState" class="empty-state d-none">
+                            <div class="empty-state-icon">🎵</div>
+                            <p>No tracks in this playlist yet.<br>Browse your library and click <strong>+</strong> on any track to add it.</p>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div id="emptyState" class="empty-state">
+                        <div class="empty-state-icon">🎵</div>
+                        <p>No music scanned yet.<br>Enter a directory path and click <strong>Start Scan</strong>.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Simple JS to handle API calls
-        document.getElementById('scanForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const path = document.getElementById('path').value;
-            const statusDiv = document.getElementById('scanStatus');
-            statusDiv.innerHTML = '<span class="text-info">Scanning...</span>';
-            
-            try {
-                const response = await fetch('/api/library/scan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: path })
-                });
-                if (response.ok) {
-                    statusDiv.innerHTML = '<span class="text-success">Scan complete!</span>';
-                    loadLibrary();
-                } else {
-                    statusDiv.innerHTML = '<span class="text-danger">Scan failed.</span>';
-                }
-            } catch (err) {
-                statusDiv.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
-            }
-        });
+    <!-- Add to Playlist Modal -->
+    <div class="modal fade" id="addToPlaylistModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content sg-modal">
+                <div class="modal-header sg-modal-header">
+                    <h6 class="modal-title">Add to Playlist</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="addToPlaylistTrackName" class="small mb-2 text-secondary-themed"></p>
+                    <select id="addToPlaylistSelect" class="form-select form-select-sm mb-2"></select>
+                    <button id="addToPlaylistConfirm" class="btn btn-primary w-100 btn-sm">Add Track</button>
+                    <div id="addToPlaylistStatus" class="mt-2 small"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        async function loadLibrary() {
-            try {
-                const response = await fetch('/api/library/files');
-                const files = await response.json();
-                const tbody = document.querySelector('#musicTable tbody');
-                tbody.innerHTML = '';
-                files.forEach(file => {
-                    const row = `<tr>
-                        <td>${file.title || 'Unknown'}</td>
-                        <td>${file.artist || 'Unknown'}</td>
-                        <td>${file.album || 'Unknown'}</td>
-                        <td><span class="badge genre-badge">${file.primaryGenre || 'N/A'}</span></td>
-                        <td>${file.year ? file.year.substring(0, 3) + '0s' : 'Unknown'}</td>
-                    </tr>`;
-                    tbody.innerHTML += row;
-                });
-            } catch (err) {
-                console.error('Failed to load library', err);
-            }
-        }
+    <!-- Audio Player Bar -->
+    <div id="playerBar" class="player-bar d-none" role="region" aria-label="Audio player">
+        <div class="player-info">
+            <div id="playerTitle" class="player-title" aria-live="polite"></div>
+            <div id="playerArtist" class="player-artist"></div>
+        </div>
+        <div class="player-controls">
+            <button id="playerShuffle" class="btn-player-sm" title="Shuffle" aria-label="Toggle shuffle">&#x1F500;</button>
+            <button id="playerPlayPause" class="btn-player" title="Play / Pause" aria-label="Play or pause">&#x25B6;</button>
+            <span id="playerCurrentTime" class="player-time" aria-label="Current time">0:00</span>
+            <input type="range" id="playerSeek" class="player-seek" min="0" max="100" value="0" step="0.1" aria-label="Seek position">
+            <span id="playerDuration" class="player-time" aria-label="Duration">0:00</span>
+            <input type="range" id="playerVolume" class="player-volume" min="0" max="1" step="0.05" value="1" title="Volume" aria-label="Volume">
+        </div>
+        <audio id="audioPlayer" preload="none"></audio>
+    </div>
 
-        loadLibrary();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script th:src="@{/js/app.js}"></script>
 </body>
 </html>

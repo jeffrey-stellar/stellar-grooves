@@ -1,6 +1,11 @@
 package com.stellarideas.grooves.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Set;
@@ -10,26 +15,39 @@ public class User {
     @Id
     private String id;
 
+    @NotBlank
+    @Size(min = 3, max = 20)
+    @Indexed(unique = true)
     private String username;
 
+    @JsonIgnore
     private String password;
 
+    @NotBlank
+    @Email
+    @Indexed(unique = true)
     private String email;
 
     private String musicDirectory;
 
     private Set<Role> roles;
 
+    private boolean accountLocked = false;
+    private boolean enabled = true;
+
     public User() {
     }
 
-    public User(String id, String username, String password, String email, String musicDirectory, Set<Role> roles) {
+    public User(String id, String username, String password, String email, String musicDirectory,
+                Set<Role> roles, boolean accountLocked, boolean enabled) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.email = email;
         this.musicDirectory = musicDirectory;
         this.roles = roles;
+        this.accountLocked = accountLocked;
+        this.enabled = enabled;
     }
 
     public String getId() {
@@ -48,6 +66,7 @@ public class User {
         this.username = username;
     }
 
+    @JsonIgnore
     public String getPassword() {
         return password;
     }
@@ -80,6 +99,22 @@ public class User {
         this.roles = roles;
     }
 
+    public boolean isAccountLocked() {
+        return accountLocked;
+    }
+
+    public void setAccountLocked(boolean accountLocked) {
+        this.accountLocked = accountLocked;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     public static UserBuilder builder() {
         return new UserBuilder();
     }
@@ -91,6 +126,8 @@ public class User {
         private String email;
         private String musicDirectory;
         private Set<Role> roles;
+        private boolean accountLocked = false;
+        private boolean enabled = true;
 
         UserBuilder() {
         }
@@ -125,8 +162,18 @@ public class User {
             return this;
         }
 
+        public UserBuilder accountLocked(boolean accountLocked) {
+            this.accountLocked = accountLocked;
+            return this;
+        }
+
+        public UserBuilder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
         public User build() {
-            return new User(id, username, password, email, musicDirectory, roles);
+            return new User(id, username, password, email, musicDirectory, roles, accountLocked, enabled);
         }
     }
 }
