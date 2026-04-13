@@ -25,10 +25,14 @@ const playerBar = document.getElementById('playerBar');
 
 // ── CSRF + Helpers ───────────────────────────────────────
 function csrfToken() {
-    const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-    return m ? decodeURIComponent(m[1]) : '';
+    const meta = document.querySelector('meta[name="_csrf"]');
+    return meta ? meta.getAttribute('content') : '';
 }
-function csrfHeaders(extra = {}) { return Object.assign({ 'X-XSRF-TOKEN': csrfToken() }, extra); }
+function csrfHeaderName() {
+    const meta = document.querySelector('meta[name="_csrf_header"]');
+    return meta ? meta.getAttribute('content') : 'X-CSRF-TOKEN';
+}
+function csrfHeaders(extra = {}) { const h = {}; h[csrfHeaderName()] = csrfToken(); return Object.assign(h, extra); }
 function text(v) { return (v && v.trim()) ? v.trim() : '\u2014'; }
 function escapeHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(s || '')); return d.innerHTML; }
 function genreBadge(g) { const s = document.createElement('span'); s.className = 'badge ' + (GENRE_CLASSES[g] || 'genre-OTHER'); s.textContent = GENRE_LABELS[g] || 'Other'; return s; }
@@ -309,6 +313,7 @@ document.getElementById('selectAllHead').addEventListener('change', function() {
 document.getElementById('bulkDeleteBtn').addEventListener('click', async function() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} selected track(s)?`)) return;
+    this.classList.add('btn-loading');
     await guardClick(this, async () => {
         const resp = await fetch('/api/v1/library/files/bulk-delete', {
             method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
@@ -316,6 +321,7 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', async functio
         });
         if (resp.ok) { allFiles = allFiles.filter(f => !selectedIds.has(f.id)); selectedIds.clear(); updateStats(); updateBulkBar(); renderTracksView(); await loadPlaylists(); }
     });
+    this.classList.remove('btn-loading');
 });
 
 document.getElementById('bulkPlaylistBtn').addEventListener('click', () => {
@@ -340,10 +346,12 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
         }); break;
         case 'rate': {
             const rating = parseInt(el.dataset.rating);
+            const starWrap = el.closest('.star-rating'); if (starWrap) starWrap.classList.add('loading');
             fetch(`/api/v1/library/files/${file.id}/rating`, {
                 method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ rating })
-            }).then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; renderTracksView(); } });
+            }).then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; } })
+              .finally(() => { if (starWrap) starWrap.classList.remove('loading'); renderTracksView(); });
         } break;
         case 'select': {
             if (el.checked) selectedIds.add(tr.dataset.fileId); else selectedIds.delete(tr.dataset.fileId);
@@ -356,9 +364,11 @@ document.getElementById('musicTableBody').addEventListener('change', function(e)
     const sel = e.target.closest('[data-action="genre"]'); if (!sel) return;
     const file = fileForRow(sel.closest('tr')); if (!file) return;
     const ng = sel.value;
+    sel.classList.add('loading');
     fetch(`/api/v1/library/files/${file.id}/genre`, { method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ genre: ng }) })
         .then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].genre = ng; renderTracksView(); } else sel.value = file.genre; })
-        .catch(() => sel.value = file.genre);
+        .catch(() => sel.value = file.genre)
+        .finally(() => sel.classList.remove('loading'));
 });
 
 // ── Event delegation: playlist tbody (with drag-drop reorder) ──
@@ -491,6 +501,13 @@ async function renderDuplicatesView() {
 }
 
 // ── Queue management ─────────────────────────────────────
+function saveQueue() {
+    try {
+        const minimal = queue.map(f => ({ id: f.id, title: f.title, artist: f.artist, hasCoverArt: f.hasCoverArt }));
+        localStorage.setItem('sg-queue', JSON.stringify(minimal));
+    } catch (e) { /* quota exceeded */ }
+}
+
 function addToQueue(file) {
     queue.push(file);
     renderQueue();
@@ -502,6 +519,7 @@ function renderQueue() {
     if (queue.length === 0) {
         ul.innerHTML = '<li class="playlist-empty-hint">Queue is empty</li>';
         clearBtn.style.display = 'none';
+        saveQueue();
         return;
     }
     clearBtn.style.display = '';
@@ -512,6 +530,14 @@ function renderQueue() {
         rm.addEventListener('click', () => { queue.splice(i, 1); renderQueue(); });
         li.appendChild(title); li.appendChild(rm); ul.appendChild(li);
     });
+    saveQueue();
+}
+
+function loadSavedQueue() {
+    try {
+        const saved = localStorage.getItem('sg-queue');
+        if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) { queue = parsed; renderQueue(); } }
+    } catch (e) { /* corrupted */ }
 }
 
 document.getElementById('clearQueueBtn').addEventListener('click', () => { queue = []; renderQueue(); });
@@ -662,7 +688,14 @@ document.getElementById('exportM3uBtn').addEventListener('click', () => { if (na
 document.getElementById('showNewPlaylistBtn').addEventListener('click', () => { const f = document.getElementById('newPlaylistForm'); f.classList.toggle('d-none'); if (!f.classList.contains('d-none')) document.getElementById('newPlaylistName').focus(); });
 document.getElementById('createPlaylistBtn').addEventListener('click', function() { const n = document.getElementById('newPlaylistName').value.trim(); if (n) guardClick(this, () => createPlaylist(n)); });
 document.getElementById('newPlaylistName').addEventListener('keydown', e => { if (e.key === 'Enter') { const n = e.target.value.trim(); if (n) createPlaylist(n); } });
-document.getElementById('addToPlaylistConfirm').addEventListener('click', function() { const s = document.getElementById('addToPlaylistSelect'); if (s.value && selectedFileForPlaylist) guardClick(this, () => addToPlaylist(s.value, selectedFileForPlaylist)); });
+document.getElementById('addToPlaylistConfirm').addEventListener('click', async function() {
+    const s = document.getElementById('addToPlaylistSelect');
+    if (s.value && selectedFileForPlaylist) {
+        this.classList.add('btn-loading');
+        await guardClick(this, () => addToPlaylist(s.value, selectedFileForPlaylist));
+        this.classList.remove('btn-loading');
+    }
+});
 
 // ── Load library ─────────────────────────────────────────
 async function loadLibrary() {
@@ -736,7 +769,34 @@ document.addEventListener('keydown', e => {
     }
 });
 
+// ── Theme toggle ────────────────────────────────────────
+(function initTheme() {
+    const saved = localStorage.getItem('sg-theme');
+    const btn = document.getElementById('themeToggle');
+    function applyTheme(theme) {
+        if (theme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (btn) btn.textContent = '\u263E'; // moon
+        } else if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (btn) btn.textContent = '\u2606'; // sun
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (btn) btn.textContent = prefersDark ? '\u2606' : '\u263E';
+        }
+    }
+    applyTheme(saved);
+    if (btn) btn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        localStorage.setItem('sg-theme', next);
+        applyTheme(next);
+    });
+})();
+
 // ── Init ─────────────────────────────────────────────────
+loadSavedQueue();
 loadLibrary();
 
 })();

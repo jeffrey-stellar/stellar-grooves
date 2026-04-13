@@ -2,24 +2,20 @@ package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.*;
 import com.stellarideas.grooves.model.*;
-import com.stellarideas.grooves.repository.CoverArtRepository;
-import com.stellarideas.grooves.repository.MusicFileRepository;
-import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.security.CurrentUser;
+import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.AuditService;
-import com.stellarideas.grooves.service.MusicCatalogService;
+import com.stellarideas.grooves.service.LibraryService;
+import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.MessageSource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.*;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -34,34 +30,23 @@ import java.util.stream.Collectors;
 public class LibraryController {
 
     private static final Logger logger = LoggerFactory.getLogger(LibraryController.class);
-    private static final int MAX_PAGE_SIZE = 200;
 
     private final MusicScannerService scannerService;
-    private final MusicFileRepository musicFileRepository;
-    private final PlaylistRepository playlistRepository;
-    private final CoverArtRepository coverArtRepository;
-    private final MessageSource messageSource;
+    private final LibraryService libraryService;
+    private final MessageHelper msg;
     private final AuditService auditService;
-    private final MusicCatalogService catalogService;
+    private final UserRepository userRepository;
 
     public LibraryController(MusicScannerService scannerService,
-                             MusicFileRepository musicFileRepository,
-                             PlaylistRepository playlistRepository,
-                             CoverArtRepository coverArtRepository,
-                             MessageSource messageSource,
+                             LibraryService libraryService,
+                             MessageHelper msg,
                              AuditService auditService,
-                             MusicCatalogService catalogService) {
+                             UserRepository userRepository) {
         this.scannerService = scannerService;
-        this.musicFileRepository = musicFileRepository;
-        this.playlistRepository = playlistRepository;
-        this.coverArtRepository = coverArtRepository;
-        this.messageSource = messageSource;
+        this.libraryService = libraryService;
+        this.msg = msg;
         this.auditService = auditService;
-        this.catalogService = catalogService;
-    }
-
-    private String msg(String code, Object... args) {
-        return messageSource.getMessage(code, args, Locale.getDefault());
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/scan")
@@ -72,7 +57,7 @@ public class LibraryController {
             auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
             ScanResult result = scannerService.scanDirectory(user, path);
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", msg("scan.success"));
+            body.put("message", msg.msg("scan.success"));
             body.put("filesFound", result.getSaved());
             body.put("skipped", result.getSkipped());
             body.put("errors", result.getErrors());
@@ -85,7 +70,7 @@ public class LibraryController {
         } catch (Exception e) {
             logger.error("Scan failed for user '{}' on path '{}': {}", user.getUsername(), path, e.getMessage());
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", msg("scan.failed", e.getMessage())));
+                    .body(Map.of("error", msg.msg("scan.failed", e.getMessage())));
         }
     }
 
@@ -95,20 +80,15 @@ public class LibraryController {
             @RequestParam(required = false) String genre,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-
         Genre g = null;
         if (genre != null && !genre.isBlank()) {
             try {
                 g = Genre.valueOf(genre.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(msg("genre.unknown.hint", genre));
+                throw new IllegalArgumentException(msg.msg("genre.unknown.hint", genre));
             }
         }
-
-        Page<MusicFile> result = (g == null)
-                ? musicFileRepository.findByUserId(user.getId(), PageRequest.of(page, size))
-                : musicFileRepository.findByUserIdAndGenre(user.getId(), g, PageRequest.of(page, size));
+        Page<MusicFile> result = libraryService.getFiles(user.getId(), g, page, size);
         return ResponseEntity.ok(Map.of(
                 "content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()),
                 "page", result.getNumber(),
@@ -127,11 +107,7 @@ public class LibraryController {
         if (q == null || q.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Search query must not be empty"));
         }
-        size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        // Escape regex special characters to prevent injection
-        String escaped = q.replaceAll("([\\\\.*+?^${}()|\\[\\]])", "\\\\$1");
-        Page<MusicFile> result = musicFileRepository.searchByUserIdAndQuery(
-                user.getId(), escaped, PageRequest.of(page, size));
+        Page<MusicFile> result = libraryService.searchFiles(user.getId(), q, page, size);
         return ResponseEntity.ok(Map.of(
                 "content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()),
                 "page", result.getNumber(),
@@ -147,13 +123,21 @@ public class LibraryController {
             @CurrentUser User user,
             @PathVariable String id,
             @RequestHeader HttpHeaders headers) throws IOException {
-        Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUserId(id, user.getId());
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        Path path = Paths.get(fileOpt.get().getFilePath());
+        Path path = Paths.get(fileOpt.get().getFilePath()).normalize();
         if (!Files.exists(path) || !Files.isReadable(path)) {
             return ResponseEntity.notFound().build();
+        }
+        if (user.getMusicDirectory() != null && !user.getMusicDirectory().isBlank()) {
+            Path musicDir = Paths.get(user.getMusicDirectory()).normalize();
+            if (!path.startsWith(musicDir)) {
+                logger.warn("Path traversal blocked: user '{}' attempted to stream '{}' outside music directory '{}'",
+                        user.getUsername(), path, musicDir);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
         }
         Resource resource = new FileSystemResource(path);
         long contentLength = resource.contentLength();
@@ -194,79 +178,44 @@ public class LibraryController {
         try {
             genre = Genre.valueOf(request.getGenre().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg("genre.unknown", request.getGenre())));
+            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("genre.unknown", request.getGenre())));
         }
-        Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUserId(id, user.getId());
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        MusicFile file = fileOpt.get();
-        file.setGenre(genre);
-        musicFileRepository.save(file);
-
-        // Record the correction so future scans of this artist use the corrected genre
-        if (file.getArtist() != null && !file.getArtist().isBlank()) {
-            catalogService.recordCorrection(file.getArtist(), genre, user.getId());
-        }
-
+        libraryService.updateGenre(fileOpt.get(), genre, user.getId());
         auditService.log(user.getUsername(), AuditService.Action.GENRE_UPDATE, id, genre.name());
-        return ResponseEntity.ok(Map.of("message", msg("genre.updated"), "genre", genre.name()));
+        return ResponseEntity.ok(Map.of("message", msg.msg("genre.updated"), "genre", genre.name()));
     }
-
-    // ── Rating ───────────────────────────────────────────
 
     @PatchMapping("/files/{id}/rating")
     public ResponseEntity<?> updateFileRating(@CurrentUser User user, @PathVariable String id,
                                               @Valid @RequestBody UpdateRatingRequest request) {
-        Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUserId(id, user.getId());
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        MusicFile file = fileOpt.get();
-        file.setRating(request.getRating());
-        musicFileRepository.save(file);
+        MusicFile file = libraryService.updateRating(fileOpt.get(), request.getRating());
         auditService.log(user.getUsername(), AuditService.Action.RATING_UPDATE, id, String.valueOf(request.getRating()));
         return ResponseEntity.ok(Map.of("rating", file.getRating()));
     }
 
-    // ── Bulk delete ──────────────────────────────────────
-
-    @Transactional
     @PostMapping("/files/bulk-delete")
     public ResponseEntity<?> bulkDelete(@CurrentUser User user, @Valid @RequestBody BulkDeleteRequest request) {
-        List<String> ids = request.getFileIds();
-        List<MusicFile> files = musicFileRepository.findByIdInAndUserId(ids, user.getId());
-        if (files.isEmpty()) {
-            return ResponseEntity.ok(Map.of("deleted", 0));
-        }
-        musicFileRepository.deleteAll(files);
-        Set<String> deletedIds = files.stream().map(MusicFile::getId).collect(Collectors.toSet());
-        // Remove from playlists
-        List<Playlist> playlists = playlistRepository.findByUserId(user.getId());
-        List<Playlist> modified = new ArrayList<>();
-        for (Playlist p : playlists) {
-            if (p.getTrackIds().removeAll(deletedIds)) {
-                modified.add(p);
-            }
-        }
-        if (!modified.isEmpty()) {
-            playlistRepository.saveAll(modified);
-        }
-        auditService.log(user.getUsername(), AuditService.Action.BULK_DELETE, null, files.size() + " files");
-        return ResponseEntity.ok(Map.of("deleted", files.size()));
+        int deleted = libraryService.bulkDelete(request.getFileIds(), user.getId());
+        auditService.log(user.getUsername(), AuditService.Action.BULK_DELETE, null, deleted + " files");
+        return ResponseEntity.ok(Map.of("deleted", deleted));
     }
-
-    // ── Cover art ────────────────────────────────────────
 
     @GetMapping("/files/{id}/cover")
     public ResponseEntity<byte[]> getCoverArt(@CurrentUser User user, @PathVariable String id) {
-        Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUserId(id, user.getId());
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty() || !fileOpt.get().isHasCoverArt()) {
             return ResponseEntity.notFound().build();
         }
         MusicFile file = fileOpt.get();
-        Optional<CoverArt> artOpt = coverArtRepository.findByUserIdAndArtistAndAlbum(
-                user.getId(), file.getArtist(), file.getAlbum());
+        Optional<CoverArt> artOpt = libraryService.getCoverArt(user.getId(), file.getArtist(), file.getAlbum());
         if (artOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -277,86 +226,158 @@ public class LibraryController {
                 .body(art.getData());
     }
 
-    // ── Duplicates ───────────────────────────────────────
-
     @GetMapping("/duplicates")
     public ResponseEntity<?> getDuplicates(@CurrentUser User user) {
-        List<MusicFile> all = musicFileRepository.findByUserId(user.getId());
-        // Group by lowercase title + artist
-        Map<String, List<MusicFileDTO>> groups = new LinkedHashMap<>();
-        for (MusicFile f : all) {
-            if (f.getTitle() == null || f.getTitle().isBlank()
-                    || f.getArtist() == null || f.getArtist().isBlank()) continue;
-            String key = f.getTitle().toLowerCase() + "|" + f.getArtist().toLowerCase();
-            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(MusicFileDTO.from(f));
-        }
-        // Keep only groups with 2+ entries
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (var entry : groups.entrySet()) {
-            if (entry.getValue().size() > 1) {
-                MusicFileDTO first = entry.getValue().get(0);
-                result.add(Map.of(
-                        "title", first.getTitle(),
-                        "artist", first.getArtist(),
-                        "files", entry.getValue()
-                ));
-            }
-        }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(libraryService.findDuplicates(user.getId()));
     }
 
-    // ── Single delete + clear ────────────────────────────
-
-    @Transactional
     @DeleteMapping("/files/{id}")
     public ResponseEntity<?> deleteFile(@CurrentUser User user, @PathVariable String id) {
-        Optional<MusicFile> fileOpt = musicFileRepository.findByIdAndUserId(id, user.getId());
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        musicFileRepository.delete(fileOpt.get());
-        removeFileFromPlaylists(id, user.getId());
+        libraryService.deleteFile(fileOpt.get(), user.getId());
         auditService.log(user.getUsername(), AuditService.Action.FILE_DELETE, id);
-        return ResponseEntity.ok(Map.of("message", msg("library.file.deleted")));
+        return ResponseEntity.ok(Map.of("message", msg.msg("library.file.deleted")));
     }
 
-    @Transactional
     @DeleteMapping("/files")
     public ResponseEntity<?> clearLibrary(@CurrentUser User user) {
-        long fileCount = musicFileRepository.deleteByUserId(user.getId());
-        playlistRepository.deleteByUserId(user.getId());
-        coverArtRepository.deleteByUserId(user.getId());
+        long fileCount = libraryService.clearLibrary(user.getId());
         auditService.log(user.getUsername(), AuditService.Action.LIBRARY_CLEAR, null, fileCount + " files removed");
-        return ResponseEntity.ok(Map.of("message", msg("library.cleared"), "filesRemoved", fileCount));
+        return ResponseEntity.ok(Map.of("message", msg.msg("library.cleared"), "filesRemoved", fileCount));
     }
 
-    private void removeFileFromPlaylists(String fileId, String userId) {
-        List<Playlist> playlists = playlistRepository.findByUserId(userId);
-        List<Playlist> modified = new ArrayList<>();
-        for (Playlist p : playlists) {
-            if (p.getTrackIds().remove(fileId)) {
-                modified.add(p);
-            }
+    // --- Trash endpoints ---
+
+    @GetMapping("/trash")
+    public ResponseEntity<?> getTrash(@CurrentUser User user) {
+        return ResponseEntity.ok(libraryService.getTrash(user.getId()));
+    }
+
+    @PostMapping("/trash/{id}/restore")
+    public ResponseEntity<?> restoreFile(@CurrentUser User user, @PathVariable String id) {
+        try {
+            libraryService.restoreFile(id, user.getId());
+            auditService.log(user.getUsername(), AuditService.Action.FILE_RESTORE, id);
+            return ResponseEntity.ok(Map.of("message", "File restored"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
         }
-        if (!modified.isEmpty()) {
-            playlistRepository.saveAll(modified);
+    }
+
+    @DeleteMapping("/trash/{id}")
+    public ResponseEntity<?> permanentlyDeleteFile(@CurrentUser User user, @PathVariable String id) {
+        try {
+            libraryService.permanentlyDeleteFile(id, user.getId());
+            auditService.log(user.getUsername(), AuditService.Action.FILE_PERMANENT_DELETE, id);
+            return ResponseEntity.ok(Map.of("message", "File permanently deleted"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
         }
+    }
+
+    @DeleteMapping("/trash")
+    public ResponseEntity<?> emptyTrash(@CurrentUser User user) {
+        libraryService.emptyTrash(user.getId());
+        auditService.log(user.getUsername(), AuditService.Action.TRASH_EMPTY);
+        return ResponseEntity.ok(Map.of("message", "Trash emptied"));
+    }
+
+    // --- Export endpoints ---
+
+    @GetMapping("/export")
+    public ResponseEntity<?> exportLibrary(@CurrentUser User user,
+                                           @RequestParam(defaultValue = "json") String format) {
+        List<MusicFile> files = libraryService.getAllFiles(user.getId());
+        if ("csv".equalsIgnoreCase(format)) {
+            return exportAsCsv(files);
+        }
+        List<MusicFileDTO> dtos = files.stream().map(MusicFileDTO::from).collect(Collectors.toList());
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"library.json\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(dtos);
+    }
+
+    private ResponseEntity<?> exportAsCsv(List<MusicFile> files) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("title,artist,album,year,genre,rating,fileName\n");
+        for (MusicFile f : files) {
+            sb.append(escapeCsv(f.getTitle())).append(",");
+            sb.append(escapeCsv(f.getArtist())).append(",");
+            sb.append(escapeCsv(f.getAlbum())).append(",");
+            sb.append(escapeCsv(f.getYear())).append(",");
+            sb.append(f.getGenre() != null ? f.getGenre().name() : "").append(",");
+            sb.append(f.getRating()).append(",");
+            sb.append(escapeCsv(f.getFileName())).append("\n");
+        }
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"library.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(sb.toString());
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    // --- Scan schedule endpoints ---
+
+    @PutMapping("/scan/schedule")
+    public ResponseEntity<?> setScanSchedule(@CurrentUser User user,
+                                             @Valid @RequestBody com.stellarideas.grooves.dto.ScanScheduleRequest request) {
+        user.setScanSchedule(request.getCronExpression());
+        user.setScanPath(request.getPath());
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("message", "Scan schedule saved",
+                "cronExpression", request.getCronExpression() != null ? request.getCronExpression() : "",
+                "path", request.getPath() != null ? request.getPath() : ""));
+    }
+
+    @GetMapping("/scan/schedule")
+    public ResponseEntity<?> getScanSchedule(@CurrentUser User user) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("cronExpression", user.getScanSchedule());
+        result.put("path", user.getScanPath());
+        result.put("lastScheduledScan", user.getLastScheduledScan());
+        return ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/scan/schedule")
+    public ResponseEntity<?> clearScanSchedule(@CurrentUser User user) {
+        user.setScanSchedule(null);
+        user.setScanPath(null);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("message", "Scan schedule cleared"));
+    }
+
+    // --- Stats endpoint ---
+
+    @GetMapping("/stats")
+    public ResponseEntity<?> getStatistics(@CurrentUser User user) {
+        return ResponseEntity.ok(libraryService.getStatistics(user.getId()));
     }
 
     private void validateScanPath(String path) throws IOException {
         if (path == null || path.isBlank()) {
-            throw new IllegalArgumentException(msg("scan.path.empty"));
+            throw new IllegalArgumentException(msg.msg("scan.path.empty"));
         }
         Path requested = Paths.get(path).normalize().toAbsolutePath();
         if (requested.toString().contains("..")) {
-            throw new IllegalArgumentException(msg("scan.path.traversal"));
+            throw new IllegalArgumentException(msg.msg("scan.path.traversal"));
         }
         if (!Files.exists(requested) || !Files.isDirectory(requested)) {
-            throw new IllegalArgumentException(msg("scan.path.notfound"));
+            throw new IllegalArgumentException(msg.msg("scan.path.notfound"));
         }
         Path canonical = requested.toRealPath();
         if (!canonical.equals(requested)) {
-            throw new IllegalArgumentException(msg("scan.path.symlink"));
+            throw new IllegalArgumentException(msg.msg("scan.path.symlink"));
         }
     }
 }

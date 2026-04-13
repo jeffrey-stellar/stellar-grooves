@@ -1,5 +1,6 @@
 package com.stellarideas.grooves.security;
 
+import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -10,17 +11,23 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JwtUtilsTest {
 
     private JwtUtils jwtUtils;
+    private BlacklistedTokenRepository blacklistedTokenRepository;
 
     private static final String TEST_SECRET =
             "c3RlbGxhci1ncm9vdmVzLXNlY3JldC1rZXktZm9yLWp3dC1wbGVhc2UtY2hhbmdlLWluLXByb2R1Y3Rpb24tZW52";
 
     @BeforeEach
     void setUp() {
-        jwtUtils = new JwtUtils();
+        blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
+        when(blacklistedTokenRepository.existsByJti(anyString())).thenReturn(false);
+        jwtUtils = new JwtUtils(blacklistedTokenRepository);
         ReflectionTestUtils.setField(jwtUtils, "jwtSecret", TEST_SECRET);
         ReflectionTestUtils.setField(jwtUtils, "jwtExpirationMs", 86400000);
     }
@@ -66,7 +73,7 @@ class JwtUtilsTest {
 
     @Test
     void expiredTokenReturnsFalse() {
-        JwtUtils expiredUtils = new JwtUtils();
+        JwtUtils expiredUtils = new JwtUtils(blacklistedTokenRepository);
         ReflectionTestUtils.setField(expiredUtils, "jwtSecret", TEST_SECRET);
         ReflectionTestUtils.setField(expiredUtils, "jwtExpirationMs", -1000); // already expired
         Authentication auth = buildAuthentication("expireduser");

@@ -2,11 +2,9 @@ package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.User;
-import com.stellarideas.grooves.repository.CoverArtRepository;
-import com.stellarideas.grooves.repository.MusicFileRepository;
-import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.service.AuditService;
-import com.stellarideas.grooves.service.MusicCatalogService;
+import com.stellarideas.grooves.service.LibraryService;
+import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +27,7 @@ import static org.mockito.Mockito.when;
 class StreamingTest {
 
     private LibraryController controller;
-    private MusicFileRepository musicFileRepository;
+    private LibraryService libraryService;
     private User testUser;
 
     @TempDir
@@ -37,17 +35,16 @@ class StreamingTest {
 
     @BeforeEach
     void setUp() {
-        musicFileRepository = mock(MusicFileRepository.class);
-        PlaylistRepository playlistRepository = mock(PlaylistRepository.class);
+        libraryService = mock(LibraryService.class);
         MusicScannerService scannerService = mock(MusicScannerService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
+        MessageHelper msgHelper = new MessageHelper(messageSource);
 
-        CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         AuditService auditService = mock(AuditService.class);
-        MusicCatalogService catalogService = mock(MusicCatalogService.class);
-        controller = new LibraryController(scannerService, musicFileRepository, playlistRepository, coverArtRepository, messageSource, auditService, catalogService);
+        com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
 
         testUser = new User();
         testUser.setId("user1");
@@ -65,7 +62,7 @@ class StreamingTest {
         Path audioPath = createTempAudioFile("song.mp3", 1024);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("song.mp3").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
@@ -80,7 +77,7 @@ class StreamingTest {
         Path audioPath = createTempAudioFile("song.mp3", 2048);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("song.mp3").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setRange(java.util.List.of(HttpRange.createByteRange(0, 511)));
@@ -94,7 +91,7 @@ class StreamingTest {
 
     @Test
     void streamFileReturns404ForMissingDatabaseEntry() throws IOException {
-        when(musicFileRepository.findByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
+        when(libraryService.findFileByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "missing", new HttpHeaders());
 
@@ -105,7 +102,7 @@ class StreamingTest {
     void streamFileReturns404WhenFileNotOnDisk() throws IOException {
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("gone.mp3").filePath("/nonexistent/path/gone.mp3").build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
@@ -118,12 +115,11 @@ class StreamingTest {
         audioPath.toFile().setReadable(false);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("locked.mp3").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(404, response.getStatusCode().value());
-        // Restore so @TempDir cleanup succeeds
         audioPath.toFile().setReadable(true);
     }
 
@@ -132,7 +128,7 @@ class StreamingTest {
         Path audioPath = createTempAudioFile("song.flac", 512);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("song.flac").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
@@ -145,7 +141,7 @@ class StreamingTest {
         Path audioPath = createTempAudioFile("song.m4a", 512);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("song.m4a").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
@@ -158,7 +154,7 @@ class StreamingTest {
         Path audioPath = createTempAudioFile("song.wav", 512);
         MusicFile file = MusicFile.builder()
                 .id("f1").fileName("song.wav").filePath(audioPath.toString()).build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 

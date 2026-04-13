@@ -2,6 +2,7 @@ package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.LoginRequest;
 import com.stellarideas.grooves.dto.SignupRequest;
+import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
 import com.stellarideas.grooves.service.AuditService;
@@ -35,6 +36,7 @@ class AuthControllerTest {
     private JwtUtils jwtUtils;
     private LoginAttemptService loginAttemptService;
     private AuditService auditService;
+    private BlacklistedTokenRepository blacklistedTokenRepository;
 
     @BeforeEach
     void setUp() {
@@ -44,12 +46,16 @@ class AuthControllerTest {
         jwtUtils = mock(JwtUtils.class);
         loginAttemptService = mock(LoginAttemptService.class);
         auditService = mock(AuditService.class);
+        blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
+        com.stellarideas.grooves.service.MessageHelper msgHelper = new com.stellarideas.grooves.service.MessageHelper(messageSource);
 
+        com.stellarideas.grooves.repository.RefreshTokenRepository refreshTokenRepository = mock(com.stellarideas.grooves.repository.RefreshTokenRepository.class);
+        com.stellarideas.grooves.repository.PasswordResetTokenRepository passwordResetTokenRepository = mock(com.stellarideas.grooves.repository.PasswordResetTokenRepository.class);
         controller = new AuthController(authenticationManager, userRepository, passwordEncoder, jwtUtils,
-                messageSource, loginAttemptService, auditService);
+                msgHelper, loginAttemptService, auditService, blacklistedTokenRepository, refreshTokenRepository, passwordResetTokenRepository);
     }
 
     private SignupRequest signupRequest(String username, String email, String password) {
@@ -89,7 +95,7 @@ class AuthControllerTest {
     @Test
     void signupRejectsDuplicateEmail() {
         when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(userRepository.existsByEmail("taken@test.com")).thenReturn(true);
+        when(userRepository.existsByEmailIgnoreCase("taken@test.com")).thenReturn(true);
 
         ResponseEntity<?> response = controller.registerUser(signupRequest("newuser", "taken@test.com", "password123"));
 

@@ -22,7 +22,11 @@ public class AuditService {
         LOGIN_SUCCESS,
         LOGIN_FAILED,
         LOGIN_LOCKED,
+        LOGOUT,
+        TOKEN_REFRESH,
         SIGNUP,
+        PASSWORD_RESET_REQUEST,
+        PASSWORD_RESET_COMPLETE,
         SCAN_DIRECTORY,
         FILE_DELETE,
         BULK_DELETE,
@@ -34,7 +38,10 @@ public class AuditService {
         PLAYLIST_TRACK_ADD,
         PLAYLIST_TRACK_REMOVE,
         ADMIN_DELETE_USER,
-        ADMIN_VIEW_USERS
+        ADMIN_VIEW_USERS,
+        FILE_RESTORE,
+        FILE_PERMANENT_DELETE,
+        TRASH_EMPTY
     }
 
     /**

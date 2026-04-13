@@ -8,12 +8,18 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.Instant;
+
 @Document(collection = "music_files")
 @CompoundIndexes({
     @CompoundIndex(name = "user_genre", def = "{'userId': 1, 'genre': 1}"),
     @CompoundIndex(name = "user_filepath", def = "{'userId': 1, 'filePath': 1}", unique = true),
     @CompoundIndex(name = "user_title_artist", def = "{'userId': 1, 'title': 1, 'artist': 1}"),
-    @CompoundIndex(name = "user_rating", def = "{'userId': 1, 'rating': -1}")
+    @CompoundIndex(name = "user_rating", def = "{'userId': 1, 'rating': -1}"),
+    @CompoundIndex(name = "user_search_title", def = "{'userId': 1, 'title': 1}"),
+    @CompoundIndex(name = "user_search_artist", def = "{'userId': 1, 'artist': 1}"),
+    @CompoundIndex(name = "user_search_album", def = "{'userId': 1, 'album': 1}"),
+    @CompoundIndex(name = "user_deleted", def = "{'userId': 1, 'deleted': 1}")
 })
 public class MusicFile {
     @Id
@@ -42,10 +48,14 @@ public class MusicFile {
 
     private boolean hasCoverArt;
 
+    private boolean deleted = false;
+    private Instant deletedAt;
+
     public MusicFile() {}
 
     public MusicFile(String id, String filePath, String fileName, String artist, String album,
-                     String title, String year, Genre genre, String userId, int rating, boolean hasCoverArt) {
+                     String title, String year, Genre genre, String userId, int rating, boolean hasCoverArt,
+                     boolean deleted, Instant deletedAt) {
         this.id = id;
         this.filePath = filePath;
         this.fileName = fileName;
@@ -57,6 +67,8 @@ public class MusicFile {
         this.userId = userId;
         this.rating = rating;
         this.hasCoverArt = hasCoverArt;
+        this.deleted = deleted;
+        this.deletedAt = deletedAt;
     }
 
     public String getId() { return id; }
@@ -94,6 +106,12 @@ public class MusicFile {
     public boolean isHasCoverArt() { return hasCoverArt; }
     public void setHasCoverArt(boolean hasCoverArt) { this.hasCoverArt = hasCoverArt; }
 
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
+    public Instant getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
+
     public static MusicFileBuilder builder() {
         return new MusicFileBuilder();
     }
@@ -110,6 +128,8 @@ public class MusicFile {
         private String userId;
         private int rating;
         private boolean hasCoverArt;
+        private boolean deleted = false;
+        private Instant deletedAt;
 
         MusicFileBuilder() {}
 
@@ -124,9 +144,11 @@ public class MusicFile {
         public MusicFileBuilder userId(String userId) { this.userId = userId; return this; }
         public MusicFileBuilder rating(int rating) { this.rating = rating; return this; }
         public MusicFileBuilder hasCoverArt(boolean hasCoverArt) { this.hasCoverArt = hasCoverArt; return this; }
+        public MusicFileBuilder deleted(boolean deleted) { this.deleted = deleted; return this; }
+        public MusicFileBuilder deletedAt(Instant deletedAt) { this.deletedAt = deletedAt; return this; }
 
         public MusicFile build() {
-            return new MusicFile(id, filePath, fileName, artist, album, title, year, genre, userId, rating, hasCoverArt);
+            return new MusicFile(id, filePath, fileName, artist, album, title, year, genre, userId, rating, hasCoverArt, deleted, deletedAt);
         }
     }
 }

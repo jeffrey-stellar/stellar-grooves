@@ -3,11 +3,9 @@ package com.stellarideas.grooves.controller;
 import com.stellarideas.grooves.dto.ScanRequest;
 import com.stellarideas.grooves.dto.ScanResult;
 import com.stellarideas.grooves.model.User;
-import com.stellarideas.grooves.repository.CoverArtRepository;
-import com.stellarideas.grooves.repository.MusicFileRepository;
-import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.service.AuditService;
-import com.stellarideas.grooves.service.MusicCatalogService;
+import com.stellarideas.grooves.service.LibraryService;
+import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,10 +26,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Tests for scan path validation: symlink attacks, path traversal,
- * nonexistent paths, and edge cases.
- */
 class ScanPathValidationTest {
 
     private LibraryController controller;
@@ -46,17 +40,15 @@ class ScanPathValidationTest {
         try {
             when(scannerService.scanDirectory(any(User.class), anyString())).thenReturn(new ScanResult());
         } catch (Exception ignored) {}
-        MusicFileRepository musicFileRepository = mock(MusicFileRepository.class);
-        PlaylistRepository playlistRepository = mock(PlaylistRepository.class);
-        CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
+        LibraryService libraryService = mock(LibraryService.class);
         AuditService auditService = mock(AuditService.class);
-        MusicCatalogService catalogService = mock(MusicCatalogService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
+        MessageHelper msgHelper = new MessageHelper(messageSource);
 
-        controller = new LibraryController(scannerService, musicFileRepository, playlistRepository,
-                coverArtRepository, messageSource, auditService, catalogService);
+        com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
 
         testUser = new User();
         testUser.setId("user1");
@@ -71,7 +63,6 @@ class ScanPathValidationTest {
 
     @Test
     void rejectsEmptyStringPath() {
-        // Empty string after DTO validation would still reach validateScanPath
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest(""));
         assertEquals(400, response.getStatusCode().value());
     }
@@ -88,7 +79,6 @@ class ScanPathValidationTest {
 
     @Test
     void rejectsPathTraversalWithDotDot() {
-        // Even if normalized, the check catches "../" patterns
         String traversal = tempDir.toString() + "/../../../etc";
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest(traversal));
         assertEquals(400, response.getStatusCode().value());
@@ -104,7 +94,7 @@ class ScanPathValidationTest {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)  // Symlinks require special privileges on Windows
+    @DisabledOnOs(OS.WINDOWS)
     void rejectsSymlinkDirectory() throws IOException {
         Path realDir = tempDir.resolve("real");
         Files.createDirectory(realDir);
@@ -122,7 +112,6 @@ class ScanPathValidationTest {
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void rejectsNestedSymlinkInPath() throws IOException {
-        // Create: tempDir/outer/inner -> /tmp (or some other dir)
         Path outer = tempDir.resolve("outer");
         Files.createDirectory(outer);
         Path innerSymlink = outer.resolve("sneaky");
@@ -134,12 +123,10 @@ class ScanPathValidationTest {
 
     @Test
     void acceptsValidRealDirectory() throws Exception {
-        // Use toRealPath() to resolve any OS-level symlinks (e.g., macOS /var -> /private/var)
         Path validDir = tempDir.toRealPath().resolve("music");
         Files.createDirectory(validDir);
 
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest(validDir.toString()));
-        // With mocked scanner, this should succeed (200) since the path is valid
         assertEquals(200, response.getStatusCode().value());
     }
 }

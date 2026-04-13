@@ -20,7 +20,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableMethodSecurity
@@ -31,6 +33,9 @@ public class WebSecurityConfig {
 
     @Value("${stellar.grooves.cors.allowedOrigins:http://localhost:8080,http://127.0.0.1:8080}")
     private String allowedOrigins;
+
+    @Value("${stellar.grooves.swagger.enabled:true}")
+    private boolean swaggerEnabled;
 
     public WebSecurityConfig(UserDetailsServiceImpl userDetailsService, JwtUtils jwtUtils) {
         this.userDetailsService = userDetailsService;
@@ -63,9 +68,17 @@ public class WebSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        if (origins.isEmpty()) {
+            throw new IllegalStateException(
+                    "CORS allowed origins not configured. Set CORS_ALLOWED_ORIGINS environment variable.");
+        }
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN", "X-CSRF-TOKEN"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -80,9 +93,9 @@ public class WebSecurityConfig {
                 CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
                 requestHandler.setCsrfRequestAttributeName(null); // opt out of deferred loading so the token is always available
                 csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRepository(new CookieCsrfTokenRepository()) // HttpOnly cookie; JS reads token from meta tags
                     .csrfTokenRequestHandler(requestHandler)
-                    .ignoringRequestMatchers("/api/v1/auth/**"); // stateless JWT auth endpoints don't need CSRF
+                    .ignoringRequestMatchers("/api/v1/auth/**", "/api/v1/shared/**"); // stateless JWT auth endpoints and public shared endpoints don't need CSRF
             })
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .headers(headers -> headers
@@ -94,7 +107,7 @@ public class WebSecurityConfig {
                 // All application inline styles have been moved to external CSS.
                 .contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; "
-                    + "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                    + "script-src 'self' https://cdn.jsdelivr.net; "
                     + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
                     + "font-src 'self' https://fonts.gstatic.com; "
                     + "img-src 'self' data:; "
@@ -104,12 +117,17 @@ public class WebSecurityConfig {
                     + "form-action 'self'"
                 ))
             )
-            .authorizeHttpRequests(auth ->
+            .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/v1/auth/**").permitAll()
-                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/actuator/health").permitAll()
-                    .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
-                    .anyRequest().authenticated()
-            )
+                    .requestMatchers("/api/v1/shared/**").permitAll()
+                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/actuator/health").permitAll();
+                if (swaggerEnabled) {
+                    auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll();
+                } else {
+                    auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").denyAll();
+                }
+                auth.anyRequest().authenticated();
+            })
             .formLogin(form -> form
                 .loginPage("/login")
                 .defaultSuccessUrl("/")

@@ -40,12 +40,17 @@ public class User {
     private int failedLoginAttempts = 0;
     private Instant lockoutExpiry;
 
+    private String scanSchedule;
+    private String scanPath;
+    private Instant lastScheduledScan;
+
     public User() {
     }
 
     public User(String id, String username, String password, String email, String musicDirectory,
                 Set<Role> roles, boolean accountLocked, boolean enabled,
-                int failedLoginAttempts, Instant lockoutExpiry) {
+                int failedLoginAttempts, Instant lockoutExpiry,
+                String scanSchedule, String scanPath, Instant lastScheduledScan) {
         this.id = id;
         this.username = username;
         this.password = password;
@@ -56,6 +61,9 @@ public class User {
         this.enabled = enabled;
         this.failedLoginAttempts = failedLoginAttempts;
         this.lockoutExpiry = lockoutExpiry;
+        this.scanSchedule = scanSchedule;
+        this.scanPath = scanPath;
+        this.lastScheduledScan = lastScheduledScan;
     }
 
     public String getId() {
@@ -139,6 +147,30 @@ public class User {
         this.lockoutExpiry = lockoutExpiry;
     }
 
+    public String getScanSchedule() {
+        return scanSchedule;
+    }
+
+    public void setScanSchedule(String scanSchedule) {
+        this.scanSchedule = scanSchedule;
+    }
+
+    public String getScanPath() {
+        return scanPath;
+    }
+
+    public void setScanPath(String scanPath) {
+        this.scanPath = scanPath;
+    }
+
+    public Instant getLastScheduledScan() {
+        return lastScheduledScan;
+    }
+
+    public void setLastScheduledScan(Instant lastScheduledScan) {
+        this.lastScheduledScan = lastScheduledScan;
+    }
+
     public static UserBuilder builder() {
         return new UserBuilder();
     }
@@ -154,6 +186,9 @@ public class User {
         private boolean enabled = true;
         private int failedLoginAttempts = 0;
         private Instant lockoutExpiry;
+        private String scanSchedule;
+        private String scanPath;
+        private Instant lastScheduledScan;
 
         UserBuilder() {
         }
@@ -208,9 +243,24 @@ public class User {
             return this;
         }
 
+        public UserBuilder scanSchedule(String scanSchedule) {
+            this.scanSchedule = scanSchedule;
+            return this;
+        }
+
+        public UserBuilder scanPath(String scanPath) {
+            this.scanPath = scanPath;
+            return this;
+        }
+
+        public UserBuilder lastScheduledScan(Instant lastScheduledScan) {
+            this.lastScheduledScan = lastScheduledScan;
+            return this;
+        }
+
         public User build() {
             return new User(id, username, password, email, musicDirectory, roles, accountLocked, enabled,
-                    failedLoginAttempts, lockoutExpiry);
+                    failedLoginAttempts, lockoutExpiry, scanSchedule, scanPath, lastScheduledScan);
         }
     }
 }

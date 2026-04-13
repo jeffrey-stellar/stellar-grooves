@@ -7,6 +7,7 @@ public class PlaylistDTO {
     private String id;
     private String name;
     private int trackCount;
+    private String shareToken;
 
     public PlaylistDTO() {}
 
@@ -15,6 +16,7 @@ public class PlaylistDTO {
         dto.id = playlist.getId();
         dto.name = playlist.getName();
         dto.trackCount = playlist.getTrackIds().size();
+        dto.shareToken = playlist.getShareToken();
         return dto;
     }
 
@@ -26,4 +28,7 @@ public class PlaylistDTO {
 
     public int getTrackCount() { return trackCount; }
     public void setTrackCount(int trackCount) { this.trackCount = trackCount; }
+
+    public String getShareToken() { return shareToken; }
+    public void setShareToken(String shareToken) { this.shareToken = shareToken; }
 }

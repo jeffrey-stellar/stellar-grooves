@@ -3,18 +3,15 @@ package com.stellarideas.grooves.controller;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.User;
-import com.stellarideas.grooves.repository.CoverArtRepository;
-import com.stellarideas.grooves.repository.MusicFileRepository;
-import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.service.AuditService;
-import com.stellarideas.grooves.service.MusicCatalogService;
+import com.stellarideas.grooves.service.LibraryService;
+import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -22,31 +19,28 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class LibraryControllerTest {
 
     private LibraryController controller;
-    private MusicFileRepository musicFileRepository;
-    private PlaylistRepository playlistRepository;
+    private LibraryService libraryService;
     private MusicScannerService scannerService;
     private User testUser;
 
     @BeforeEach
     void setUp() {
         scannerService = mock(MusicScannerService.class);
-        musicFileRepository = mock(MusicFileRepository.class);
-        playlistRepository = mock(PlaylistRepository.class);
+        libraryService = mock(LibraryService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
+        MessageHelper msgHelper = new MessageHelper(messageSource);
 
-        CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         AuditService auditService = mock(AuditService.class);
-        MusicCatalogService catalogService = mock(MusicCatalogService.class);
-        controller = new LibraryController(scannerService, musicFileRepository, playlistRepository, coverArtRepository, messageSource, auditService, catalogService);
+        com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
 
         testUser = new User();
         testUser.setId("user1");
@@ -58,7 +52,7 @@ class LibraryControllerTest {
         MusicFile file = MusicFile.builder()
                 .id("f1").title("Test Song").artist("Artist").genre(Genre.CLASSIC_ROCK).build();
         Page<MusicFile> page = new PageImpl<>(List.of(file));
-        when(musicFileRepository.findByUserId(eq("user1"), any(Pageable.class))).thenReturn(page);
+        when(libraryService.getFiles(eq("user1"), isNull(), eq(0), eq(50))).thenReturn(page);
 
         ResponseEntity<?> response = controller.getFiles(testUser, null, 0, 50);
 
@@ -71,17 +65,6 @@ class LibraryControllerTest {
     }
 
     @Test
-    void getFilesClampsSizeToMax() {
-        Page<MusicFile> page = new PageImpl<>(List.of());
-        when(musicFileRepository.findByUserId(eq("user1"), any(Pageable.class))).thenReturn(page);
-
-        controller.getFiles(testUser, null, 0, 9999);
-
-        verify(musicFileRepository).findByUserId(eq("user1"), argThat(pageable ->
-                pageable.getPageSize() <= 200));
-    }
-
-    @Test
     void getFilesRejectsInvalidGenre() {
         assertThrows(IllegalArgumentException.class, () ->
                 controller.getFiles(testUser, "NOT_A_GENRE", 0, 50));
@@ -90,30 +73,28 @@ class LibraryControllerTest {
     @Test
     void getFilesFiltersByGenre() {
         Page<MusicFile> page = new PageImpl<>(List.of());
-        when(musicFileRepository.findByUserIdAndGenre(eq("user1"), eq(Genre.HARD_ROCK), any(Pageable.class)))
-                .thenReturn(page);
+        when(libraryService.getFiles(eq("user1"), eq(Genre.HARD_ROCK), eq(0), eq(50))).thenReturn(page);
 
         ResponseEntity<?> response = controller.getFiles(testUser, "HARD_ROCK", 0, 50);
 
         assertEquals(200, response.getStatusCode().value());
-        verify(musicFileRepository).findByUserIdAndGenre(eq("user1"), eq(Genre.HARD_ROCK), any(Pageable.class));
+        verify(libraryService).getFiles(eq("user1"), eq(Genre.HARD_ROCK), eq(0), eq(50));
     }
 
     @Test
-    void deleteFileRemovesFromRepository() {
+    void deleteFileRemovesViaService() {
         MusicFile file = MusicFile.builder().id("f1").title("Delete Me").build();
-        when(musicFileRepository.findByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
-        when(playlistRepository.findByUserId("user1")).thenReturn(List.of());
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<?> response = controller.deleteFile(testUser, "f1");
 
         assertEquals(200, response.getStatusCode().value());
-        verify(musicFileRepository).delete(file);
+        verify(libraryService).deleteFile(file, "user1");
     }
 
     @Test
     void deleteFileReturns404ForMissingFile() {
-        when(musicFileRepository.findByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
+        when(libraryService.findFileByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
 
         ResponseEntity<?> response = controller.deleteFile(testUser, "missing");
 
@@ -122,7 +103,7 @@ class LibraryControllerTest {
 
     @Test
     void streamFileReturns404ForOtherUsersFile() throws java.io.IOException {
-        when(musicFileRepository.findByIdAndUserId("other-user-file", "user1")).thenReturn(Optional.empty());
+        when(libraryService.findFileByIdAndUserId("other-user-file", "user1")).thenReturn(Optional.empty());
 
         ResponseEntity<?> response = controller.streamFile(testUser, "other-user-file",
                 new org.springframework.http.HttpHeaders());

@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>Stellar Grooves - Admin</title>
     <link rel="icon" th:href="@{/images/logo.png}" type="image/png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
@@ -16,6 +18,7 @@
                 Stellar Grooves
             </a>
             <div class="ms-auto d-flex gap-3 align-items-center">
+                <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme">&#9788;</button>
                 <a class="nav-link d-inline" th:href="@{/}">Library</a>
                 <a class="nav-link d-inline active" href="#">Admin</a>
                 <a class="nav-link d-inline" href="/logout">Logout</a>
@@ -75,90 +78,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-    <script>
-    (function() {
-    'use strict';
-
-    function csrfToken() {
-        const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-        return match ? decodeURIComponent(match[1]) : '';
-    }
-    function csrfHeaders() { return { 'X-XSRF-TOKEN': csrfToken() }; }
-    function escapeHtml(str) {
-        const d = document.createElement('div');
-        d.appendChild(document.createTextNode(str || ''));
-        return d.innerHTML;
-    }
-
-    let currentPage = 0;
-    let totalPages = 0;
-
-    async function loadStats() {
-        try {
-            const resp = await fetch('/api/v1/admin/stats');
-            const data = await resp.json();
-            document.getElementById('statUsers').textContent = data.totalUsers;
-            document.getElementById('statFiles').textContent = data.totalFiles;
-            document.getElementById('statPlaylists').textContent = data.totalPlaylists;
-        } catch (e) { console.error(e); }
-    }
-
-    async function loadUsers(page) {
-        try {
-            const resp = await fetch(`/api/v1/admin/users?page=${page}&size=25`);
-            const data = await resp.json();
-            currentPage = data.page;
-            totalPages = data.totalPages;
-
-            const tbody = document.getElementById('usersBody');
-            tbody.innerHTML = '';
-            data.content.forEach(u => {
-                const tr = document.createElement('tr');
-                const roles = (u.roles || []).map(r => r.replace('ROLE_', '')).join(', ');
-                tr.innerHTML = `
-                    <td>${escapeHtml(u.username)}</td>
-                    <td class="hide-xs">${escapeHtml(u.email || '')}</td>
-                    <td><span class="badge genre-OTHER">${roles}</span></td>
-                    <td class="text-end">${u.fileCount || 0}</td>
-                    <td class="hide-xs">${u.enabled ? '<span class="status-success">Active</span>' : '<span class="status-error">Disabled</span>'}</td>
-                    <td><button class="btn-action-sm btn-action-remove" data-id="${u.id}" data-name="${escapeHtml(u.username)}" aria-label="Delete user ${escapeHtml(u.username)}">&times;</button></td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            document.getElementById('pageInfo').textContent =
-                `Page ${currentPage + 1} of ${Math.max(totalPages, 1)}`;
-            document.getElementById('prevPage').disabled = currentPage === 0;
-            document.getElementById('nextPage').disabled = currentPage >= totalPages - 1;
-        } catch (e) { console.error(e); }
-    }
-
-    document.getElementById('usersBody').addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-id]');
-        if (!btn) return;
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        if (!confirm(`Delete user "${name}" and all their data? This cannot be undone.`)) return;
-        btn.disabled = true;
-        try {
-            const resp = await fetch(`/api/v1/admin/users/${id}`, { method: 'DELETE', headers: csrfHeaders() });
-            if (resp.ok) {
-                await loadStats();
-                await loadUsers(currentPage);
-            }
-        } finally { btn.disabled = false; }
-    });
-
-    document.getElementById('prevPage').addEventListener('click', () => {
-        if (currentPage > 0) loadUsers(currentPage - 1);
-    });
-    document.getElementById('nextPage').addEventListener('click', () => {
-        if (currentPage < totalPages - 1) loadUsers(currentPage + 1);
-    });
-
-    loadStats();
-    loadUsers(0);
-    })();
-    </script>
+    <script th:src="@{/js/admin.js}"></script>
 </body>
 </html>

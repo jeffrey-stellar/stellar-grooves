@@ -26,6 +26,9 @@ public class Playlist {
 
     private List<String> trackIds = new ArrayList<>();
 
+    @Indexed(unique = true, sparse = true)
+    private String shareToken;
+
     public Playlist() {}
 
     public String getId() { return id; }
@@ -40,4 +43,7 @@ public class Playlist {
 
     public List<String> getTrackIds() { return trackIds; }
     public void setTrackIds(List<String> trackIds) { this.trackIds = trackIds; }
+
+    public String getShareToken() { return shareToken; }
+    public void setShareToken(String shareToken) { this.shareToken = shareToken; }
 }

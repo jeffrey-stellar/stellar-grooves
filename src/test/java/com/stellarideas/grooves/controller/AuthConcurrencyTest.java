@@ -1,6 +1,7 @@
 package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.SignupRequest;
+import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
 import com.stellarideas.grooves.service.AuditService;
@@ -43,11 +44,15 @@ class AuthConcurrencyTest {
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
+        com.stellarideas.grooves.service.MessageHelper msgHelper = new com.stellarideas.grooves.service.MessageHelper(messageSource);
 
         LoginAttemptService loginAttemptService = mock(LoginAttemptService.class);
         AuditService auditService = mock(AuditService.class);
+        BlacklistedTokenRepository blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
+        com.stellarideas.grooves.repository.RefreshTokenRepository refreshTokenRepository = mock(com.stellarideas.grooves.repository.RefreshTokenRepository.class);
+        com.stellarideas.grooves.repository.PasswordResetTokenRepository passwordResetTokenRepository = mock(com.stellarideas.grooves.repository.PasswordResetTokenRepository.class);
         controller = new AuthController(authenticationManager, userRepository, passwordEncoder, jwtUtils,
-                messageSource, loginAttemptService, auditService);
+                msgHelper, loginAttemptService, auditService, blacklistedTokenRepository, refreshTokenRepository, passwordResetTokenRepository);
 
         when(passwordEncoder.encode(any())).thenReturn("encoded");
     }
