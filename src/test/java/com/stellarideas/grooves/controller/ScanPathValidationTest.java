@@ -7,6 +7,7 @@ import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.ScanRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -48,7 +49,11 @@ class ScanPathValidationTest {
         MessageHelper msgHelper = new MessageHelper(messageSource);
 
         com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
+        ScanRateLimiter scanRateLimiter = mock(ScanRateLimiter.class);
+        when(scanRateLimiter.tryAcquire(anyString())).thenReturn(true);
+        com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
+        com.stellarideas.grooves.service.ScanProgressEmitter scanProgressEmitter = mock(com.stellarideas.grooves.service.ScanProgressEmitter.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter);
 
         testUser = new User();
         testUser.setId("user1");
@@ -71,10 +76,10 @@ class ScanPathValidationTest {
     void rejectsNonexistentPath() {
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest("/nonexistent/path/xyz"));
         assertEquals(400, response.getStatusCode().value());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        org.springframework.http.ProblemDetail body = (org.springframework.http.ProblemDetail) response.getBody();
         assertNotNull(body);
-        assertTrue(body.get("error").toString().contains("not exist") || body.get("error").toString().contains("not a directory"));
+        String detail = body.getDetail();
+        assertTrue(detail.contains("not exist") || detail.contains("not a directory"));
     }
 
     @Test
@@ -103,10 +108,10 @@ class ScanPathValidationTest {
 
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest(symlink.toString()));
         assertEquals(400, response.getStatusCode().value());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        org.springframework.http.ProblemDetail body = (org.springframework.http.ProblemDetail) response.getBody();
         assertNotNull(body);
-        assertTrue(body.get("error").toString().contains("symbolic link") || body.get("error").toString().contains("real path"));
+        String detail = body.getDetail();
+        assertTrue(detail.contains("symbolic link") || detail.contains("real path"));
     }
 
     @Test

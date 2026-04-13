@@ -6,6 +6,7 @@ import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.ScanRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +45,10 @@ class StreamingTest {
 
         AuditService auditService = mock(AuditService.class);
         com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
+        ScanRateLimiter scanRateLimiter = mock(ScanRateLimiter.class);
+        com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
+        com.stellarideas.grooves.service.ScanProgressEmitter scanProgressEmitter = mock(com.stellarideas.grooves.service.ScanProgressEmitter.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter);
 
         testUser = new User();
         testUser.setId("user1");

@@ -98,7 +98,8 @@ public class PlaylistController {
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
         Playlist playlist = opt.get();
         if (!playlistService.reorderTracks(playlist, request.getTrackIds())) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Track IDs must match existing playlist tracks"));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(org.springframework.http.HttpStatus.BAD_REQUEST, "Track IDs must match existing playlist tracks"));
         }
         return ResponseEntity.ok(Map.of("message", "Tracks reordered", "trackCount", playlist.getTrackIds().size()));
     }

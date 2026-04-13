@@ -21,6 +21,7 @@ import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,6 +35,8 @@ public class MusicScannerService {
     private static final int HARD_MAX_DEPTH = 50;
     private static final int BATCH_SIZE = 200;
     private static final int MAX_COVER_ART_BYTES = 10 * 1024 * 1024; // 10 MB
+    private static final long DEFAULT_COVER_ART_QUOTA = 500L * 1024 * 1024; // 500 MB
+    private static final int DEFAULT_PER_FILE_TIMEOUT_SECONDS = 30;
 
     @Value("${stellar.grooves.scan.maxDepth:" + DEFAULT_MAX_DEPTH + "}")
     private int maxDepth;
@@ -41,15 +44,29 @@ public class MusicScannerService {
     @Value("${stellar.grooves.scan.timeoutMinutes:5}")
     private int scanTimeoutMinutes = 5;
 
+    @Value("${stellar.grooves.coverArt.maxBytesPerUser:" + DEFAULT_COVER_ART_QUOTA + "}")
+    private long coverArtQuotaBytes;
+
+    @Value("${stellar.grooves.scan.perFileTimeoutSeconds:" + DEFAULT_PER_FILE_TIMEOUT_SECONDS + "}")
+    private int perFileTimeoutSeconds;
+
+    private final ExecutorService fileReadExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "audio-file-reader");
+        t.setDaemon(true);
+        return t;
+    });
+
     private final MusicCatalogService catalogService;
     private final MusicFileRepository repository;
     private final CoverArtRepository coverArtRepository;
+    private final ScanProgressEmitter progressEmitter;
 
     public MusicScannerService(MusicCatalogService catalogService, MusicFileRepository repository,
-                               CoverArtRepository coverArtRepository) {
+                               CoverArtRepository coverArtRepository, ScanProgressEmitter progressEmitter) {
         this.catalogService = catalogService;
         this.repository = repository;
         this.coverArtRepository = coverArtRepository;
+        this.progressEmitter = progressEmitter;
     }
 
     public ScanResult scanDirectory(User user, String directoryPath) throws Exception {
@@ -67,6 +84,11 @@ public class MusicScannerService {
 
         // Track which artist+album combos already have cover art
         Set<String> coverArtKeys = new HashSet<>();
+
+        // Check current cover art usage against quota
+        Long currentUsage = coverArtRepository.getTotalCoverArtSizeByUserId(user.getId());
+        long coverArtUsedBytes = currentUsage != null ? currentUsage : 0;
+        boolean coverArtQuotaExceeded = coverArtUsedBytes >= coverArtQuotaBytes;
 
         ScanResult result = new ScanResult();
         List<MusicFile> batch = new ArrayList<>(BATCH_SIZE);
@@ -93,7 +115,17 @@ public class MusicScannerService {
                         result.incrementSkipped();
                         continue;
                     }
-                    AudioFile f = AudioFileIO.read(path.toFile());
+                    AudioFile f;
+                    try {
+                        Future<AudioFile> future = fileReadExecutor.submit(() -> AudioFileIO.read(path.toFile()));
+                        f = future.get(perFileTimeoutSeconds, TimeUnit.SECONDS);
+                    } catch (TimeoutException te) {
+                        logger.warn("Timed out reading file '{}' after {}s", path.getFileName(), perFileTimeoutSeconds);
+                        result.addError(path.getFileName().toString(), "File read timed out after " + perFileTimeoutSeconds + "s");
+                        continue;
+                    } catch (ExecutionException ee) {
+                        throw ee.getCause() != null ? (Exception) ee.getCause() : ee;
+                    }
                     Tag tag = f.getTag();
 
                     String artist = safeGet(tag, FieldKey.ARTIST);
@@ -113,13 +145,23 @@ public class MusicScannerService {
                             ? genres.stream().filter(g -> g != genre).collect(Collectors.toList())
                             : null;
 
-                    // Extract cover art if available
+                    // Extract cover art if available and within quota
                     boolean hasCover = false;
                     if (!artist.isBlank() && !album.isBlank()) {
                         String artKey = artist.toLowerCase() + "\0" + album.toLowerCase();
                         if (!coverArtKeys.contains(artKey)) {
-                            hasCover = extractCoverArt(tag, user.getId(), artist, album);
-                            if (hasCover) coverArtKeys.add(artKey);
+                            if (coverArtQuotaExceeded) {
+                                logger.debug("Cover art quota exceeded for user '{}', skipping art extraction",
+                                        user.getUsername());
+                            } else {
+                                hasCover = extractCoverArt(tag, user.getId(), artist, album);
+                                if (hasCover) {
+                                    coverArtKeys.add(artKey);
+                                    // Approximate usage tracking within the scan
+                                    coverArtUsedBytes += MAX_COVER_ART_BYTES / 10; // rough estimate
+                                    coverArtQuotaExceeded = coverArtUsedBytes >= coverArtQuotaBytes;
+                                }
+                            }
                         } else {
                             hasCover = true; // already extracted for this album
                         }
@@ -153,6 +195,12 @@ public class MusicScannerService {
                     logger.warn("Skipping file '{}': {}", path.getFileName(), e.getMessage());
                     result.addError(path.getFileName().toString(), e.getMessage());
                 }
+                // Emit progress every 10 files
+                int total = result.getSaved() + result.getSkipped() + result.getErrors();
+                if (total % 10 == 0) {
+                    progressEmitter.sendProgress(user.getId(), result.getSaved(), result.getSkipped(),
+                            result.getErrors(), path.getFileName().toString());
+                }
             }
         }
 
@@ -163,6 +211,7 @@ public class MusicScannerService {
 
         logger.info("Scan complete for user '{}': {} saved, {} skipped, {} errors",
                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
+        progressEmitter.sendComplete(user.getId(), result.getSaved(), result.getSkipped(), result.getErrors());
         return result;
     }
 

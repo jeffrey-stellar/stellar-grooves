@@ -237,7 +237,7 @@ function buildTrackRow(file) {
     // Play
     const tdPlay = document.createElement('td'); tdPlay.className = 'col-play';
     const bp = document.createElement('button'); bp.className = 'btn-play-row' + (currentFileId === file.id ? ' playing' : '');
-    bp.setAttribute('aria-label', 'Play ' + text(file.title)); bp.textContent = (currentFileId === file.id && !audioEl.paused) ? '\u23F8' : '\u25B6';
+    bp.setAttribute('aria-label', 'Play ' + text(file.title)); bp.textContent = (currentFileId === file.id && !activeAudio.paused) ? '\u23F8' : '\u25B6';
     bp.dataset.action = 'play'; tdPlay.appendChild(bp); tr.appendChild(tdPlay);
 
     // Title, Artist, Album
@@ -501,11 +501,31 @@ async function renderDuplicatesView() {
 }
 
 // ── Queue management ─────────────────────────────────────
+let _queueSaveTimer = null;
 function saveQueue() {
+    // Save to localStorage immediately for fast reload
     try {
         const minimal = queue.map(f => ({ id: f.id, title: f.title, artist: f.artist, hasCoverArt: f.hasCoverArt }));
         localStorage.setItem('sg-queue', JSON.stringify(minimal));
     } catch (e) { /* quota exceeded */ }
+    // Debounce server sync (2s) to avoid spamming on rapid changes
+    clearTimeout(_queueSaveTimer);
+    _queueSaveTimer = setTimeout(syncQueueToServer, 2000);
+}
+
+async function syncQueueToServer() {
+    try {
+        const currentTrack = window._currentTrack || null;
+        await fetch('/api/v1/library/queue', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...csrfHeader() },
+            body: JSON.stringify({
+                trackIds: queue.map(f => f.id),
+                currentTrackId: currentTrack ? currentTrack.id : null,
+                shuffle: !!window._shuffleEnabled
+            })
+        });
+    } catch (e) { /* server sync failed, localStorage still has it */ }
 }
 
 function addToQueue(file) {
@@ -533,14 +553,30 @@ function renderQueue() {
     saveQueue();
 }
 
-function loadSavedQueue() {
+async function loadSavedQueue() {
+    // Try server first, fall back to localStorage
+    try {
+        const r = await fetch('/api/v1/library/queue');
+        if (r.ok) {
+            const data = await r.json();
+            if (data.trackIds && data.trackIds.length > 0) {
+                // Resolve track IDs to full objects from allFiles
+                queue = data.trackIds.map(id => allFiles.find(f => f.id === id)).filter(Boolean);
+                if (queue.length > 0) { renderQueue(); return; }
+            }
+        }
+    } catch (e) { /* server unavailable */ }
+    // Fallback to localStorage
     try {
         const saved = localStorage.getItem('sg-queue');
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) { queue = parsed; renderQueue(); } }
     } catch (e) { /* corrupted */ }
 }
 
-document.getElementById('clearQueueBtn').addEventListener('click', () => { queue = []; renderQueue(); });
+document.getElementById('clearQueueBtn').addEventListener('click', async () => {
+    queue = []; renderQueue();
+    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: csrfHeader() }); } catch (e) {}
+});
 
 // ── Scan ─────────────────────────────────────────────────
 document.getElementById('scanForm').addEventListener('submit', async (e) => {
@@ -550,13 +586,33 @@ document.getElementById('scanForm').addEventListener('submit', async (e) => {
     document.getElementById('path').classList.remove('is-invalid');
     btn.disabled = true; sp.classList.remove('d-none');
     const ss = document.createElement('span'); ss.className = 'status-scanning'; ss.textContent = '\u23F3 Scanning\u2026'; sd.replaceChildren(ss);
+
+    // Connect SSE for live progress before starting the scan
+    let eventSource = null;
+    try {
+        eventSource = new EventSource('/api/v1/library/scan/progress');
+        eventSource.addEventListener('progress', (ev) => {
+            try {
+                const p = JSON.parse(ev.data);
+                const msg = `\u23F3 Scanning\u2026 ${p.saved} imported, ${p.skipped} skipped, ${p.errors} error(s)`;
+                ss.textContent = msg;
+            } catch (_) {}
+        });
+        eventSource.addEventListener('complete', (ev) => {
+            try { eventSource.close(); } catch (_) {}
+        });
+        eventSource.addEventListener('error', () => {
+            try { eventSource.close(); } catch (_) {}
+        });
+    } catch (_) { /* SSE not available, will fall back to final result */ }
+
     try {
         const r = await fetch('/api/v1/library/scan', { method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: pv }) });
         const d = await r.json();
         if (r.ok) { let m = d.filesFound > 0 ? `\u2713 ${d.filesFound} imported.` : '\u2713 No new files.'; if (d.skipped > 0) m += ` ${d.skipped} skipped.`; if (d.errors > 0) m += ` ${d.errors} error(s).`; const s = document.createElement('span'); s.className = 'status-success'; s.textContent = m; sd.replaceChildren(s); await loadLibrary(); }
-        else { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 ' + (d.error || 'Scan failed'); sd.replaceChildren(s); }
+        else { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 ' + (d.error || d.detail || 'Scan failed'); sd.replaceChildren(s); }
     } catch (er) { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 Network error'; sd.replaceChildren(s); }
-    finally { btn.disabled = false; sp.classList.add('d-none'); }
+    finally { btn.disabled = false; sp.classList.add('d-none'); if (eventSource) try { eventSource.close(); } catch (_) {} }
 });
 
 // ── Clear library ────────────────────────────────────────
@@ -648,7 +704,7 @@ async function renderPlaylistView() {
                 tdP.appendChild(dh);
             }
             const bp = document.createElement('button'); bp.className = 'btn-play-row' + (currentFileId === file.id ? ' playing' : '');
-            bp.setAttribute('aria-label', 'Play ' + text(file.title)); bp.textContent = (currentFileId === file.id && !audioEl.paused) ? '\u23F8' : '\u25B6'; bp.dataset.action = 'play';
+            bp.setAttribute('aria-label', 'Play ' + text(file.title)); bp.textContent = (currentFileId === file.id && !activeAudio.paused) ? '\u23F8' : '\u25B6'; bp.dataset.action = 'play';
             tdP.appendChild(bp); tr.appendChild(tdP);
 
             const tdT = document.createElement('td'); tdT.textContent = text(file.title); tr.appendChild(tdT);
@@ -707,8 +763,25 @@ async function loadLibrary() {
 }
 
 // ── Audio Player ─────────────────────────────────────────
-function playTrack(file) {
+let crossfadeEnabled = false;
+const CROSSFADE_DURATION = 3; // seconds
+const audioElB = document.getElementById('audioPlayerB');
+let activeAudio = audioEl; // which audio element is currently playing
+let _crossfadeTimer = null;
+window._currentTrack = null;
+window._shuffleEnabled = false;
+
+document.getElementById('playerCrossfade').addEventListener('click', () => {
+    crossfadeEnabled = !crossfadeEnabled;
+    const b = document.getElementById('playerCrossfade');
+    b.classList.toggle('active', crossfadeEnabled);
+    b.setAttribute('aria-pressed', String(crossfadeEnabled));
+    b.title = crossfadeEnabled ? 'Crossfade ON (3s)' : 'Crossfade (3s)';
+});
+
+function playTrack(file, useCrossfade) {
     const sw = currentFileId !== file.id; currentFileId = file.id;
+    window._currentTrack = file;
     document.getElementById('playerTitle').textContent = text(file.title);
     document.getElementById('playerArtist').textContent = text(file.artist);
     playerBar.classList.remove('d-none'); document.body.classList.add('player-open');
@@ -716,20 +789,54 @@ function playTrack(file) {
     const artEl = document.getElementById('playerArt');
     if (file.hasCoverArt) { artEl.src = `/api/v1/library/files/${file.id}/cover`; artEl.classList.remove('d-none'); }
     else { artEl.classList.add('d-none'); artEl.removeAttribute('src'); }
-    if (sw) { audioEl.src = `/api/v1/library/files/${file.id}/stream`; audioEl.load(); }
-    audioEl.play();
+
+    if (sw && useCrossfade && crossfadeEnabled) {
+        // Crossfade: start new track on the inactive audio element, fade volumes
+        const outgoing = activeAudio;
+        const incoming = (activeAudio === audioEl) ? audioElB : audioEl;
+        incoming.src = `/api/v1/library/files/${file.id}/stream`;
+        incoming.volume = 0;
+        incoming.load();
+        incoming.play();
+        activeAudio = incoming;
+
+        // Fade out old, fade in new
+        const steps = 20;
+        const interval = (CROSSFADE_DURATION * 1000) / steps;
+        let step = 0;
+        const targetVolume = outgoing.volume;
+        clearInterval(_crossfadeTimer);
+        _crossfadeTimer = setInterval(() => {
+            step++;
+            const progress = step / steps;
+            incoming.volume = Math.min(1, progress * targetVolume);
+            outgoing.volume = Math.max(0, (1 - progress) * targetVolume);
+            if (step >= steps) {
+                clearInterval(_crossfadeTimer);
+                outgoing.pause();
+                outgoing.removeAttribute('src');
+            }
+        }, interval);
+    } else if (sw) {
+        // Standard play
+        if (activeAudio !== audioEl) { audioElB.pause(); activeAudio = audioEl; }
+        audioEl.src = `/api/v1/library/files/${file.id}/stream`; audioEl.load();
+        audioEl.play();
+    } else {
+        activeAudio.play();
+    }
 }
 
-function playNextTrack() {
+function playNextTrack(useCrossfade) {
     // Check queue first
-    if (queue.length > 0) { const next = queue.shift(); renderQueue(); const full = allFiles.find(f => f.id === next.id) || next; playTrack(full); return; }
+    if (queue.length > 0) { const next = queue.shift(); renderQueue(); const full = allFiles.find(f => f.id === next.id) || next; playTrack(full, useCrossfade); return; }
     if (!currentFileId) return;
     const tracks = getPlayableTrackList(); if (tracks.length === 0) return;
     let nf;
     if (shuffleEnabled) { const o = tracks.filter(f => f.id !== currentFileId); if (o.length === 0) return; nf = o[Math.floor(Math.random() * o.length)]; }
     else { const i = tracks.findIndex(f => f.id === currentFileId); if (i === -1 || i >= tracks.length - 1) return; nf = tracks[i + 1]; }
     const full = allFiles.find(f => f.id === nf.id) || nf;
-    if (full.id) playTrack(full);
+    if (full.id) playTrack(full, useCrossfade);
 }
 
 function getPlayableTrackList() {
@@ -741,31 +848,59 @@ function getPlayableTrackList() {
 
 function syncPlayerBtn() {
     const btn = document.getElementById('playerPlayPause');
-    btn.textContent = audioEl.paused ? '\u25B6' : '\u23F8';
-    btn.setAttribute('aria-label', audioEl.paused ? 'Play' : 'Pause');
-    document.querySelectorAll('.btn-play-row').forEach(b => { const tr = b.closest('tr'); const a = tr && tr.dataset.fileId === currentFileId; b.textContent = (a && !audioEl.paused) ? '\u23F8' : '\u25B6'; b.classList.toggle('playing', a); });
+    btn.textContent = activeAudio.paused ? '\u25B6' : '\u23F8';
+    btn.setAttribute('aria-label', activeAudio.paused ? 'Play' : 'Pause');
+    document.querySelectorAll('.btn-play-row').forEach(b => { const tr = b.closest('tr'); const a = tr && tr.dataset.fileId === currentFileId; b.textContent = (a && !activeAudio.paused) ? '\u23F8' : '\u25B6'; b.classList.toggle('playing', a); });
 }
 
-document.getElementById('playerPlayPause').addEventListener('click', () => { if (audioEl.paused) audioEl.play(); else audioEl.pause(); });
-document.getElementById('playerShuffle').addEventListener('click', () => { shuffleEnabled = !shuffleEnabled; const b = document.getElementById('playerShuffle'); b.classList.toggle('active', shuffleEnabled); b.setAttribute('aria-pressed', String(shuffleEnabled)); });
+document.getElementById('playerPlayPause').addEventListener('click', () => { if (activeAudio.paused) activeAudio.play(); else activeAudio.pause(); });
+document.getElementById('playerShuffle').addEventListener('click', () => { shuffleEnabled = !shuffleEnabled; window._shuffleEnabled = shuffleEnabled; const b = document.getElementById('playerShuffle'); b.classList.toggle('active', shuffleEnabled); b.setAttribute('aria-pressed', String(shuffleEnabled)); });
 audioEl.addEventListener('play', syncPlayerBtn);
 audioEl.addEventListener('pause', syncPlayerBtn);
-audioEl.addEventListener('ended', () => { syncPlayerBtn(); playNextTrack(); });
-audioEl.addEventListener('timeupdate', () => { if (!isNaN(audioEl.duration) && audioEl.duration > 0) { document.getElementById('playerSeek').value = (audioEl.currentTime / audioEl.duration) * 100; document.getElementById('playerCurrentTime').textContent = formatTime(audioEl.currentTime); } });
-audioEl.addEventListener('loadedmetadata', () => { document.getElementById('playerDuration').textContent = formatTime(audioEl.duration); });
-document.getElementById('playerSeek').addEventListener('input', () => { if (!isNaN(audioEl.duration)) audioEl.currentTime = (document.getElementById('playerSeek').value / 100) * audioEl.duration; });
-document.getElementById('playerVolume').addEventListener('input', () => { audioEl.volume = document.getElementById('playerVolume').value; });
+audioElB.addEventListener('play', syncPlayerBtn);
+audioElB.addEventListener('pause', syncPlayerBtn);
+
+let _crossfadeTriggered = false;
+function handleTrackTimeUpdate(el) {
+    if (!isNaN(el.duration) && el.duration > 0 && el === activeAudio) {
+        document.getElementById('playerSeek').value = (el.currentTime / el.duration) * 100;
+        document.getElementById('playerCurrentTime').textContent = formatTime(el.currentTime);
+        // Trigger crossfade before track ends
+        if (crossfadeEnabled && !_crossfadeTriggered && el.duration - el.currentTime <= CROSSFADE_DURATION) {
+            _crossfadeTriggered = true;
+            playNextTrack(true);
+        }
+    }
+}
+function handleTrackEnded(el) {
+    syncPlayerBtn();
+    if (el !== activeAudio) return; // crossfade already switched
+    _crossfadeTriggered = false;
+    if (!crossfadeEnabled) playNextTrack(false);
+}
+
+audioEl.addEventListener('ended', () => handleTrackEnded(audioEl));
+audioElB.addEventListener('ended', () => handleTrackEnded(audioElB));
+audioEl.addEventListener('timeupdate', () => handleTrackTimeUpdate(audioEl));
+audioElB.addEventListener('timeupdate', () => handleTrackTimeUpdate(audioElB));
+audioEl.addEventListener('loadedmetadata', () => { if (activeAudio === audioEl) document.getElementById('playerDuration').textContent = formatTime(audioEl.duration); });
+audioElB.addEventListener('loadedmetadata', () => { if (activeAudio === audioElB) document.getElementById('playerDuration').textContent = formatTime(audioElB.duration); });
+// Reset crossfade trigger on new track load
+audioEl.addEventListener('loadstart', () => { if (activeAudio === audioEl) _crossfadeTriggered = false; });
+audioElB.addEventListener('loadstart', () => { if (activeAudio === audioElB) _crossfadeTriggered = false; });
+document.getElementById('playerSeek').addEventListener('input', () => { if (!isNaN(activeAudio.duration)) activeAudio.currentTime = (document.getElementById('playerSeek').value / 100) * activeAudio.duration; });
+document.getElementById('playerVolume').addEventListener('input', () => { activeAudio.volume = document.getElementById('playerVolume').value; });
 
 // ── Keyboard shortcuts ───────────────────────────────────
 document.addEventListener('keydown', e => {
     if (playerBar.classList.contains('d-none')) return;
     const t = document.activeElement.tagName; if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
     switch (e.key) {
-        case ' ': e.preventDefault(); if (audioEl.paused) audioEl.play(); else audioEl.pause(); break;
-        case 'ArrowRight': e.preventDefault(); if (!isNaN(audioEl.duration)) audioEl.currentTime = Math.min(audioEl.duration, audioEl.currentTime + 5); break;
-        case 'ArrowLeft': e.preventDefault(); audioEl.currentTime = Math.max(0, audioEl.currentTime - 5); break;
-        case 'ArrowUp': e.preventDefault(); audioEl.volume = Math.min(1, audioEl.volume + 0.05); document.getElementById('playerVolume').value = audioEl.volume; break;
-        case 'ArrowDown': e.preventDefault(); audioEl.volume = Math.max(0, audioEl.volume - 0.05); document.getElementById('playerVolume').value = audioEl.volume; break;
+        case ' ': e.preventDefault(); if (activeAudio.paused) activeAudio.play(); else activeAudio.pause(); break;
+        case 'ArrowRight': e.preventDefault(); if (!isNaN(activeAudio.duration)) activeAudio.currentTime = Math.min(activeAudio.duration, activeAudio.currentTime + 5); break;
+        case 'ArrowLeft': e.preventDefault(); activeAudio.currentTime = Math.max(0, activeAudio.currentTime - 5); break;
+        case 'ArrowUp': e.preventDefault(); activeAudio.volume = Math.min(1, activeAudio.volume + 0.05); document.getElementById('playerVolume').value = activeAudio.volume; break;
+        case 'ArrowDown': e.preventDefault(); activeAudio.volume = Math.max(0, activeAudio.volume - 0.05); document.getElementById('playerVolume').value = activeAudio.volume; break;
     }
 });
 

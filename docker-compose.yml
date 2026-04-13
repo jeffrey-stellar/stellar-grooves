@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/stellar_grooves
+      JWT_SECRET: ${JWT_SECRET:-dGhpcyBpcyBhIGRldmVsb3BtZW50IHNlY3JldCBrZXkgdGhhdCBzaG91bGQgYmUgY2hhbmdlZA==}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      MAIL_ENABLED: "false"
+    volumes:
+      - ${MUSIC_DIR:-./music}:/music:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: mongosh --eval "db.adminCommand('ping')" --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional: Redis for distributed rate limiting
+  # Uncomment to enable Redis-backed rate limiting
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped
+
+volumes:
+  mongo-data:

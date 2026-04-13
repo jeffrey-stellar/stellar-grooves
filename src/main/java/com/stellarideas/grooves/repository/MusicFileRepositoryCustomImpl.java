@@ -3,10 +3,16 @@ package com.stellarideas.grooves.repository;
 import com.stellarideas.grooves.dto.MusicFileDTO;
 import com.stellarideas.grooves.model.MusicFile;
 import org.bson.Document;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.TextCriteria;
+import org.springframework.data.mongodb.core.query.TextQuery;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -47,6 +53,58 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
                 aggregation, "music_files", Document.class
         ).getMappedResults();
 
+        return mapDuplicateResults(results);
+    }
+
+    @Override
+    public Map<String, Object> findDuplicatesByUserId(String userId, int skip, int limit) {
+        AggregationOperation groupStage = context -> new Document("$group",
+                new Document("_id", new Document("titleLower", new Document("$toLower", "$title"))
+                        .append("artistLower", new Document("$toLower", "$artist")))
+                        .append("count", new Document("$sum", 1))
+                        .append("title", new Document("$first", "$title"))
+                        .append("artist", new Document("$first", "$artist"))
+                        .append("files", new Document("$push", "$$ROOT")));
+
+        // Count total duplicate groups first
+        Aggregation countAgg = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("userId").is(userId)
+                        .and("title").ne(null).ne("")
+                        .and("artist").ne(null).ne("")),
+                groupStage,
+                Aggregation.match(Criteria.where("count").gt(1)),
+                Aggregation.count().as("total")
+        );
+        List<Document> countResult = mongoTemplate.aggregate(countAgg, "music_files", Document.class).getMappedResults();
+        long total = countResult.isEmpty() ? 0 : countResult.get(0).getInteger("total", 0);
+
+        // Fetch the paginated slice
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("userId").is(userId)
+                        .and("title").ne(null).ne("")
+                        .and("artist").ne(null).ne("")),
+                groupStage,
+                Aggregation.match(Criteria.where("count").gt(1)),
+                Aggregation.sort(org.springframework.data.domain.Sort.Direction.DESC, "count"),
+                Aggregation.skip((long) skip),
+                Aggregation.limit(limit)
+        );
+
+        List<Document> results = mongoTemplate.aggregate(
+                aggregation, "music_files", Document.class
+        ).getMappedResults();
+
+        List<Map<String, Object>> duplicates = mapDuplicateResults(results);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("duplicates", duplicates);
+        response.put("total", total);
+        response.put("page", skip / Math.max(limit, 1));
+        response.put("size", limit);
+        return response;
+    }
+
+    private List<Map<String, Object>> mapDuplicateResults(List<Document> results) {
         List<Map<String, Object>> duplicates = new ArrayList<>();
         for (Document doc : results) {
             Map<String, Object> group = new LinkedHashMap<>();
@@ -65,6 +123,18 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
             duplicates.add(group);
         }
         return duplicates;
+    }
+
+    @Override
+    public Page<MusicFile> textSearch(String userId, String query, Pageable pageable) {
+        TextCriteria textCriteria = TextCriteria.forDefaultLanguage().matchingPhrase(query);
+        Query q = TextQuery.queryText(textCriteria).sortByScore();
+        q.addCriteria(Criteria.where("userId").is(userId).and("deleted").ne(true));
+
+        long total = mongoTemplate.count(q, MusicFile.class);
+        q.with(pageable);
+        List<MusicFile> results = mongoTemplate.find(q, MusicFile.class);
+        return new PageImpl<>(results, pageable, total);
     }
 
     @Override

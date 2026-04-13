@@ -2,6 +2,7 @@ package com.stellarideas.grooves.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -30,13 +31,14 @@ class GlobalExceptionHandlerTest {
         bindingResult.addError(new FieldError("request", "email", "must be a valid email"));
         MethodArgumentNotValidException ex = new MethodArgumentNotValidException(null, bindingResult);
 
-        ResponseEntity<Map<String, Object>> response = handler.handleValidationErrors(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleValidationErrors(ex);
 
         assertEquals(400, response.getStatusCode().value());
-        Map<String, Object> body = response.getBody();
-        assertEquals("Validation failed", body.get("error"));
+        ProblemDetail body = response.getBody();
+        assertEquals("Validation failed", body.getDetail());
+        assertEquals("Validation failed", body.getProperties().get("error"));
         @SuppressWarnings("unchecked")
-        Map<String, String> fields = (Map<String, String>) body.get("fields");
+        Map<String, String> fields = (Map<String, String>) body.getProperties().get("fields");
         assertEquals("must not be blank", fields.get("username"));
         assertEquals("must be a valid email", fields.get("email"));
     }
@@ -45,52 +47,53 @@ class GlobalExceptionHandlerTest {
     void handleIllegalArgumentReturns400() {
         IllegalArgumentException ex = new IllegalArgumentException("Invalid genre: BLUES");
 
-        ResponseEntity<Map<String, String>> response = handler.handleIllegalArgument(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(ex);
 
         assertEquals(400, response.getStatusCode().value());
-        assertEquals("Invalid genre: BLUES", response.getBody().get("error"));
+        assertEquals("Invalid genre: BLUES", response.getBody().getDetail());
+        assertEquals("Invalid genre: BLUES", response.getBody().getProperties().get("error"));
     }
 
     @Test
     void handleBadCredentialsReturns401WithGenericMessage() {
         BadCredentialsException ex = new BadCredentialsException("Bad credentials");
 
-        ResponseEntity<Map<String, String>> response = handler.handleBadCredentials(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleBadCredentials(ex);
 
         assertEquals(401, response.getStatusCode().value());
-        assertEquals("Invalid username or password", response.getBody().get("error"));
+        assertEquals("Invalid username or password", response.getBody().getDetail());
     }
 
     @Test
     void handleUsernameNotFoundReturns401WithGenericMessage() {
         UsernameNotFoundException ex = new UsernameNotFoundException("User not found: admin");
 
-        ResponseEntity<Map<String, String>> response = handler.handleUsernameNotFound(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleUsernameNotFound(ex);
 
         assertEquals(401, response.getStatusCode().value());
         // Must NOT reveal whether the username exists
-        assertEquals("Invalid username or password", response.getBody().get("error"));
+        assertEquals("Invalid username or password", response.getBody().getDetail());
     }
 
     @Test
     void handleAccessDeniedReturns403() {
         AccessDeniedException ex = new AccessDeniedException("Forbidden");
 
-        ResponseEntity<Map<String, String>> response = handler.handleAccessDenied(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(ex);
 
         assertEquals(403, response.getStatusCode().value());
-        assertEquals("Access denied", response.getBody().get("error"));
+        assertEquals("Access denied", response.getBody().getDetail());
     }
 
     @Test
     void handleGenericExceptionReturns500WithoutDetails() {
         Exception ex = new RuntimeException("Database connection failed");
 
-        ResponseEntity<Map<String, String>> response = handler.handleGenericException(ex);
+        ResponseEntity<ProblemDetail> response = handler.handleGenericException(ex);
 
         assertEquals(500, response.getStatusCode().value());
         // Must NOT expose internal error details
-        assertEquals("An unexpected error occurred", response.getBody().get("error"));
-        assertFalse(response.getBody().toString().contains("Database"));
+        assertEquals("An unexpected error occurred", response.getBody().getDetail());
+        assertFalse(response.getBody().getDetail().contains("Database"));
     }
 }

@@ -86,7 +86,7 @@ public class AuthController {
         if (loginAttemptService.isLockedOut(username)) {
             logger.warn("Login attempt for locked account '{}'", username);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", msg.msg("auth.locked")));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.FORBIDDEN, msg.msg("auth.locked")));
         }
 
         try {
@@ -114,11 +114,11 @@ public class AuthController {
             loginAttemptService.loginFailed(username);
             auditService.log(username, AuditService.Action.LOGIN_FAILED);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", msg.msg("auth.bad_credentials")));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, msg.msg("auth.bad_credentials")));
         } catch (LockedException e) {
             auditService.log(username, AuditService.Action.LOGIN_LOCKED);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", msg.msg("auth.locked")));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.FORBIDDEN, msg.msg("auth.locked")));
         }
     }
 
@@ -127,7 +127,8 @@ public class AuthController {
         String normalizedEmail = signUpRequest.getEmail().toLowerCase(java.util.Locale.ROOT);
         if (userRepository.existsByUsername(signUpRequest.getUsername())
                 || userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("auth.duplicate")));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("auth.duplicate")));
         }
 
         User user = User.builder()
@@ -157,7 +158,7 @@ public class AuthController {
                     User user = userRepository.findById(rt.getUserId()).orElse(null);
                     if (user == null) {
                         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                .body((Object) Map.of("error", "Refresh token not found or expired"));
+                                .body((Object) GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired"));
                     }
 
                     // Generate new JWT using a lightweight authentication principal
@@ -180,7 +181,7 @@ public class AuthController {
                             "refreshToken", newRefreshToken.getToken()));
                 })
                 .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Refresh token not found or expired")));
+                        .body(GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired")));
     }
 
     @PostMapping("/password-reset/request")
@@ -206,18 +207,21 @@ public class AuthController {
         Optional<PasswordResetToken> tokenOpt = passwordResetTokenRepository.findByToken(executeRequest.getToken());
 
         if (tokenOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("auth.reset.invalid")));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("auth.reset.invalid")));
         }
 
         PasswordResetToken resetToken = tokenOpt.get();
 
         if (resetToken.isUsed() || resetToken.getExpiresAt().isBefore(Instant.now())) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("auth.reset.invalid")));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("auth.reset.invalid")));
         }
 
         Optional<User> userOpt = userRepository.findById(resetToken.getUserId());
         if (userOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("auth.reset.invalid")));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("auth.reset.invalid")));
         }
 
         User user = userOpt.get();

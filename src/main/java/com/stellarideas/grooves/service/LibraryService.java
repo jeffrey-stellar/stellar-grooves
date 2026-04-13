@@ -4,6 +4,7 @@ import com.stellarideas.grooves.dto.MusicFileDTO;
 import com.stellarideas.grooves.model.*;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import com.stellarideas.grooves.repository.PlaybackQueueRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,15 +23,18 @@ public class LibraryService {
     private final MusicFileRepository musicFileRepository;
     private final PlaylistRepository playlistRepository;
     private final CoverArtRepository coverArtRepository;
+    private final PlaybackQueueRepository playbackQueueRepository;
     private final MusicCatalogService catalogService;
 
     public LibraryService(MusicFileRepository musicFileRepository,
                           PlaylistRepository playlistRepository,
                           CoverArtRepository coverArtRepository,
+                          PlaybackQueueRepository playbackQueueRepository,
                           MusicCatalogService catalogService) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
+        this.playbackQueueRepository = playbackQueueRepository;
         this.catalogService = catalogService;
     }
 
@@ -43,6 +47,16 @@ public class LibraryService {
 
     public Page<MusicFile> searchFiles(String userId, String query, int page, int size) {
         size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        try {
+            // Try text search first (uses MongoDB text index with relevance scoring)
+            Page<MusicFile> results = musicFileRepository.textSearch(userId, query, PageRequest.of(page, size));
+            if (results.getTotalElements() > 0) {
+                return results;
+            }
+        } catch (Exception e) {
+            // Text index may not exist yet — fall through to regex
+        }
+        // Fallback to regex search
         String escaped = query.replaceAll("([\\\\.*+?^${}()|\\[\\]])", "\\\\$1");
         return musicFileRepository.searchByUserIdAndQuery(userId, escaped, PageRequest.of(page, size));
     }
@@ -131,6 +145,7 @@ public class LibraryService {
         long fileCount = musicFileRepository.deleteByUserId(userId);
         playlistRepository.deleteByUserId(userId);
         coverArtRepository.deleteByUserId(userId);
+        playbackQueueRepository.deleteByUserId(userId);
         return fileCount;
     }
 
@@ -140,6 +155,11 @@ public class LibraryService {
 
     public List<Map<String, Object>> findDuplicates(String userId) {
         return musicFileRepository.findDuplicatesByUserId(userId);
+    }
+
+    public Map<String, Object> findDuplicates(String userId, int page, int size) {
+        size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        return musicFileRepository.findDuplicatesByUserId(userId, page * size, size);
     }
 
     public Map<String, Object> getStatistics(String userId) {

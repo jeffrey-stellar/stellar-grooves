@@ -1,5 +1,6 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.ScanRequest;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.User;
@@ -7,6 +8,7 @@ import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.ScanRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -27,6 +29,7 @@ class LibraryControllerTest {
     private LibraryController controller;
     private LibraryService libraryService;
     private MusicScannerService scannerService;
+    private ScanRateLimiter scanRateLimiter;
     private User testUser;
 
     @BeforeEach
@@ -40,7 +43,11 @@ class LibraryControllerTest {
 
         AuditService auditService = mock(AuditService.class);
         com.stellarideas.grooves.repository.UserRepository userRepository = mock(com.stellarideas.grooves.repository.UserRepository.class);
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository);
+        scanRateLimiter = mock(ScanRateLimiter.class);
+        when(scanRateLimiter.tryAcquire(anyString())).thenReturn(true);
+        com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
+        com.stellarideas.grooves.service.ScanProgressEmitter scanProgressEmitter = mock(com.stellarideas.grooves.service.ScanProgressEmitter.class);
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter);
 
         testUser = new User();
         testUser.setId("user1");
@@ -109,5 +116,20 @@ class LibraryControllerTest {
                 new org.springframework.http.HttpHeaders());
 
         assertEquals(404, response.getStatusCode().value());
+    }
+
+    @Test
+    void scanReturns429WhenRateLimited() {
+        when(scanRateLimiter.tryAcquire("user1")).thenReturn(false);
+        when(scanRateLimiter.secondsUntilAllowed("user1")).thenReturn(45L);
+
+        ScanRequest request = new ScanRequest();
+        request.setPath("/some/path");
+        ResponseEntity<?> response = controller.scanDirectory(testUser, request);
+
+        assertEquals(429, response.getStatusCode().value());
+        org.springframework.http.ProblemDetail body = (org.springframework.http.ProblemDetail) response.getBody();
+        assertNotNull(body);
+        assertEquals(45L, body.getProperties().get("retryAfter"));
     }
 }

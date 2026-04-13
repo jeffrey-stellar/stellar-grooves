@@ -2,12 +2,15 @@ package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.*;
 import com.stellarideas.grooves.model.*;
+import com.stellarideas.grooves.repository.PlaybackQueueRepository;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.ScanProgressEmitter;
+import com.stellarideas.grooves.service.ScanRateLimiter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +20,7 @@ import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.data.domain.Page;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,21 +40,39 @@ public class LibraryController {
     private final MessageHelper msg;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final ScanRateLimiter scanRateLimiter;
+    private final PlaybackQueueRepository playbackQueueRepository;
+    private final ScanProgressEmitter scanProgressEmitter;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
                              MessageHelper msg,
                              AuditService auditService,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             ScanRateLimiter scanRateLimiter,
+                             PlaybackQueueRepository playbackQueueRepository,
+                             ScanProgressEmitter scanProgressEmitter) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
         this.auditService = auditService;
         this.userRepository = userRepository;
+        this.scanRateLimiter = scanRateLimiter;
+        this.playbackQueueRepository = playbackQueueRepository;
+        this.scanProgressEmitter = scanProgressEmitter;
     }
 
     @PostMapping("/scan")
     public ResponseEntity<?> scanDirectory(@CurrentUser User user, @Valid @RequestBody ScanRequest request) {
+        if (!scanRateLimiter.tryAcquire(user.getId())) {
+            long retryAfter = scanRateLimiter.secondsUntilAllowed(user.getId());
+            ProblemDetail pd = GlobalExceptionHandler.problem(HttpStatus.TOO_MANY_REQUESTS,
+                    "Scan rate limit exceeded. Please wait before scanning again.",
+                    Map.of("retryAfter", retryAfter));
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header("Retry-After", String.valueOf(retryAfter))
+                    .body(pd);
+        }
         String path = request.getPath();
         try {
             validateScanPath(path);
@@ -66,12 +88,18 @@ public class LibraryController {
             }
             return ResponseEntity.ok(body);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, e.getMessage()));
         } catch (Exception e) {
             logger.error("Scan failed for user '{}' on path '{}': {}", user.getUsername(), path, e.getMessage());
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", msg.msg("scan.failed", e.getMessage())));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.INTERNAL_SERVER_ERROR, msg.msg("scan.failed", e.getMessage())));
         }
+    }
+
+    @GetMapping(value = "/scan/progress", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter scanProgress(@CurrentUser User user) {
+        return scanProgressEmitter.createEmitter(user.getId());
     }
 
     @GetMapping("/files")
@@ -105,7 +133,8 @@ public class LibraryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         if (q == null || q.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Search query must not be empty"));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, "Search query must not be empty"));
         }
         Page<MusicFile> result = libraryService.searchFiles(user.getId(), q, page, size);
         return ResponseEntity.ok(Map.of(
@@ -181,7 +210,8 @@ public class LibraryController {
         try {
             genre = Genre.valueOf(request.getGenre().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", msg.msg("genre.unknown", request.getGenre())));
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("genre.unknown", request.getGenre())));
         }
         Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
@@ -230,8 +260,11 @@ public class LibraryController {
     }
 
     @GetMapping("/duplicates")
-    public ResponseEntity<?> getDuplicates(@CurrentUser User user) {
-        return ResponseEntity.ok(libraryService.findDuplicates(user.getId()));
+    public ResponseEntity<?> getDuplicates(
+            @CurrentUser User user,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(libraryService.findDuplicates(user.getId(), page, size));
     }
 
     @DeleteMapping("/files/{id}")
@@ -298,8 +331,8 @@ public class LibraryController {
         List<MusicFile> files = libraryService.getAllFiles(user.getId());
         if (files.size() > MAX_EXPORT_SIZE) {
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                    .body(Map.of("message", "Library too large to export (" + files.size()
-                            + " tracks). Maximum is " + MAX_EXPORT_SIZE + "."));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
+                            "Library too large to export (" + files.size() + " tracks). Maximum is " + MAX_EXPORT_SIZE + "."));
         }
         if ("csv".equalsIgnoreCase(format)) {
             return exportAsCsv(files);
@@ -372,6 +405,36 @@ public class LibraryController {
     @GetMapping("/stats")
     public ResponseEntity<?> getStatistics(@CurrentUser User user) {
         return ResponseEntity.ok(libraryService.getStatistics(user.getId()));
+    }
+
+    // --- Playback queue endpoints ---
+
+    @GetMapping("/queue")
+    public ResponseEntity<?> getQueue(@CurrentUser User user) {
+        return playbackQueueRepository.findByUserId(user.getId())
+                .map(q -> ResponseEntity.ok((Object) PlaybackQueueDTO.from(q)))
+                .orElse(ResponseEntity.ok(Map.of("trackIds", List.of(), "currentTrackId", "", "shuffle", false)));
+    }
+
+    @PutMapping("/queue")
+    public ResponseEntity<?> saveQueue(@CurrentUser User user, @Valid @RequestBody PlaybackQueueDTO dto) {
+        PlaybackQueue queue = playbackQueueRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    PlaybackQueue q = new PlaybackQueue();
+                    q.setUserId(user.getId());
+                    return q;
+                });
+        queue.setTrackIds(dto.getTrackIds() != null ? dto.getTrackIds() : List.of());
+        queue.setCurrentTrackId(dto.getCurrentTrackId());
+        queue.setShuffle(dto.isShuffle());
+        playbackQueueRepository.save(queue);
+        return ResponseEntity.ok(Map.of("message", "Queue saved"));
+    }
+
+    @DeleteMapping("/queue")
+    public ResponseEntity<?> clearQueue(@CurrentUser User user) {
+        playbackQueueRepository.deleteByUserId(user.getId());
+        return ResponseEntity.ok(Map.of("message", "Queue cleared"));
     }
 
     private void validateScanPath(String path) throws IOException {

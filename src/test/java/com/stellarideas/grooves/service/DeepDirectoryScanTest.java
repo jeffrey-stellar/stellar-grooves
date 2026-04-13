@@ -38,7 +38,8 @@ class DeepDirectoryScanTest {
         repository = mock(MusicFileRepository.class);
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository);
+        ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter);
 
         testUser = new User();
         testUser.setId("user1");

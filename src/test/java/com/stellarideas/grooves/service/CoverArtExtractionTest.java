@@ -41,7 +41,8 @@ class CoverArtExtractionTest {
         repository = mock(MusicFileRepository.class);
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         coverArtRepository = mock(CoverArtRepository.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository);
+        ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter);
         ReflectionTestUtils.setField(scannerService, "maxDepth", 20);
 
         testUser = new User();

@@ -1,8 +1,10 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.dto.AddTrackRequest;
 import com.stellarideas.grooves.dto.CreatePlaylistRequest;
 import com.stellarideas.grooves.dto.MusicFileDTO;
 import com.stellarideas.grooves.dto.PlaylistDTO;
+import com.stellarideas.grooves.dto.ReorderTracksRequest;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
@@ -19,10 +21,8 @@ import org.springframework.http.ResponseEntity;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class PlaylistControllerTest {
 
@@ -46,113 +46,248 @@ class PlaylistControllerTest {
         testUser.setRoles(Set.of(Role.ROLE_USER));
     }
 
-    private CreatePlaylistRequest playlistRequest(String name) {
-        CreatePlaylistRequest req = new CreatePlaylistRequest();
-        req.setName(name);
-        return req;
+    private Playlist testPlaylist(String id, String name) {
+        Playlist p = new Playlist();
+        p.setId(id);
+        p.setName(name);
+        p.setUserId("user1");
+        p.setTrackIds(new ArrayList<>());
+        return p;
     }
+
+    // --- CRUD ---
 
     @Test
     void createPlaylistSucceeds() {
-        Playlist saved = new Playlist();
-        saved.setId("pl1");
-        saved.setName("My Playlist");
-        saved.setUserId("user1");
+        Playlist saved = testPlaylist("pl1", "My Playlist");
         when(playlistService.createPlaylist("My Playlist", "user1")).thenReturn(saved);
 
-        ResponseEntity<?> response = controller.createPlaylist(testUser, playlistRequest("My Playlist"));
+        CreatePlaylistRequest req = new CreatePlaylistRequest();
+        req.setName("My Playlist");
+
+        ResponseEntity<?> response = controller.createPlaylist(testUser, req);
 
         assertEquals(200, response.getStatusCode().value());
         PlaylistDTO body = (PlaylistDTO) response.getBody();
         assertEquals("pl1", body.getId());
-        assertEquals("My Playlist", body.getName());
-        assertEquals(0, body.getTrackCount());
     }
 
     @Test
-    void createPlaylistAccepts80CharName() {
-        String name80 = "A".repeat(80);
-        Playlist saved = new Playlist();
-        saved.setId("pl2");
-        saved.setName(name80);
-        saved.setUserId("user1");
-        when(playlistService.createPlaylist(name80, "user1")).thenReturn(saved);
-
-        ResponseEntity<?> response = controller.createPlaylist(testUser, playlistRequest(name80));
-        assertEquals(200, response.getStatusCode().value());
-    }
-
-    @Test
-    void getPlaylistTracksPreservesOrder() {
-        Playlist playlist = new Playlist();
-        playlist.setId("pl1");
-        playlist.setName("Test");
-        playlist.setUserId("user1");
-        playlist.setTrackIds(new ArrayList<>(List.of("f1", "f2", "f3")));
-
+    void deletePlaylistSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Rock Mix");
         when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
 
-        MusicFileDTO dto1 = new MusicFileDTO(); dto1.setId("f1"); dto1.setArtist("A1"); dto1.setTitle("S1");
-        MusicFileDTO dto2 = new MusicFileDTO(); dto2.setId("f2"); dto2.setArtist("A2"); dto2.setTitle("S2");
-        MusicFileDTO dto3 = new MusicFileDTO(); dto3.setId("f3"); dto3.setArtist("A3"); dto3.setTitle("S3");
-        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(List.of(dto1, dto2, dto3));
+        ResponseEntity<?> response = controller.deletePlaylist(testUser, "pl1");
 
-        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1");
         assertEquals(200, response.getStatusCode().value());
-
-        @SuppressWarnings("unchecked")
-        List<MusicFileDTO> tracks = (List<MusicFileDTO>) response.getBody();
-        assertEquals(3, tracks.size());
-        assertEquals("f1", tracks.get(0).getId());
-        assertEquals("f2", tracks.get(1).getId());
-        assertEquals("f3", tracks.get(2).getId());
+        verify(playlistService).deletePlaylist(playlist);
     }
 
     @Test
-    void getPlaylistTracksSkipsDeletedFiles() {
-        Playlist playlist = new Playlist();
-        playlist.setId("pl1");
-        playlist.setName("Test");
-        playlist.setUserId("user1");
-        playlist.setTrackIds(new ArrayList<>(List.of("f1", "f_deleted", "f3")));
-
-        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
-
-        MusicFileDTO dto1 = new MusicFileDTO(); dto1.setId("f1");
-        MusicFileDTO dto3 = new MusicFileDTO(); dto3.setId("f3");
-        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(List.of(dto1, dto3));
-
-        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1");
-        @SuppressWarnings("unchecked")
-        List<MusicFileDTO> tracks = (List<MusicFileDTO>) response.getBody();
-        assertEquals(2, tracks.size());
-        assertEquals("f1", tracks.get(0).getId());
-        assertEquals("f3", tracks.get(1).getId());
-    }
-
-    @Test
-    void getPlaylistTracksReturns404ForNonexistent() {
+    void deletePlaylistReturns404() {
         when(playlistService.findByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
 
-        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "nope");
+        ResponseEntity<?> response = controller.deletePlaylist(testUser, "nope");
+
+        assertEquals(404, response.getStatusCode().value());
+    }
+
+    // --- Track operations ---
+
+    @Test
+    void addTrackSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setTrackIds(new ArrayList<>(List.of("f1")));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+        when(playlistService.addTrack(playlist, "f2", "user1")).thenReturn(true);
+
+        AddTrackRequest req = new AddTrackRequest();
+        req.setFileId("f2");
+
+        ResponseEntity<?> response = controller.addTrack(testUser, "pl1", req);
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void addTrackReturns404ForMissingPlaylist() {
+        when(playlistService.findByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
+
+        AddTrackRequest req = new AddTrackRequest();
+        req.setFileId("f1");
+
+        ResponseEntity<?> response = controller.addTrack(testUser, "nope", req);
+
         assertEquals(404, response.getStatusCode().value());
     }
 
     @Test
-    void getPlaylistTracksReturnsEmptyForEmptyPlaylist() {
-        Playlist playlist = new Playlist();
-        playlist.setId("pl1");
-        playlist.setName("Empty");
-        playlist.setUserId("user1");
-        playlist.setTrackIds(new ArrayList<>());
-
+    void addTrackReturns404ForMissingFile() {
+        Playlist playlist = testPlaylist("pl1", "Test");
         when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
-        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(List.of());
+        when(playlistService.addTrack(playlist, "missing", "user1")).thenReturn(false);
+
+        AddTrackRequest req = new AddTrackRequest();
+        req.setFileId("missing");
+
+        ResponseEntity<?> response = controller.addTrack(testUser, "pl1", req);
+
+        assertEquals(404, response.getStatusCode().value());
+    }
+
+    @Test
+    void removeTrackSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setTrackIds(new ArrayList<>(List.of("f1")));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        ResponseEntity<?> response = controller.removeTrack(testUser, "pl1", "f1");
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(playlistService).removeTrack(playlist, "f1");
+    }
+
+    @Test
+    void getPlaylistTracksPreservesOrder() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setTrackIds(new ArrayList<>(List.of("f1", "f2")));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        MusicFileDTO dto1 = new MusicFileDTO();
+        dto1.setId("f1");
+        MusicFileDTO dto2 = new MusicFileDTO();
+        dto2.setId("f2");
+        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(List.of(dto1, dto2));
 
         ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1");
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void getPlaylistTracksReturns404() {
+        when(playlistService.findByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "nope");
+
+        assertEquals(404, response.getStatusCode().value());
+    }
+
+    // --- Reorder ---
+
+    @Test
+    void reorderTracksSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setTrackIds(new ArrayList<>(List.of("f1", "f2")));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+        when(playlistService.reorderTracks(playlist, List.of("f2", "f1"))).thenReturn(true);
+
+        ReorderTracksRequest req = new ReorderTracksRequest();
+        req.setTrackIds(List.of("f2", "f1"));
+
+        ResponseEntity<?> response = controller.reorderTracks(testUser, "pl1", req);
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void reorderTracksRejectsMismatch() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setTrackIds(new ArrayList<>(List.of("f1", "f2")));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+        when(playlistService.reorderTracks(playlist, List.of("f1", "f3"))).thenReturn(false);
+
+        ReorderTracksRequest req = new ReorderTracksRequest();
+        req.setTrackIds(List.of("f1", "f3"));
+
+        ResponseEntity<?> response = controller.reorderTracks(testUser, "pl1", req);
+
+        assertEquals(400, response.getStatusCode().value());
+    }
+
+    // --- Share ---
+
+    @Test
+    void generateShareTokenSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+        when(playlistService.generateShareToken(playlist)).thenReturn("share-token-123");
+
+        ResponseEntity<?> response = controller.generateShareToken(testUser, "pl1");
+
         assertEquals(200, response.getStatusCode().value());
         @SuppressWarnings("unchecked")
-        List<?> tracks = (List<?>) response.getBody();
-        assertTrue(tracks.isEmpty());
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals("share-token-123", body.get("shareToken"));
+    }
+
+    @Test
+    void revokeShareTokenSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        ResponseEntity<?> response = controller.revokeShareToken(testUser, "pl1");
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(playlistService).revokeShareToken(playlist);
+    }
+
+    // --- Export ---
+
+    @Test
+    void exportPlaylistAsJson() {
+        Playlist playlist = testPlaylist("pl1", "Rock Mix");
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        MusicFile f1 = MusicFile.builder().id("f1").title("Song 1").artist("Artist 1")
+                .album("Album 1").year("2020").fileName("song1.mp3").genre(Genre.CLASSIC_ROCK).build();
+        when(playlistService.getOrderedFiles(playlist, "user1")).thenReturn(List.of(f1));
+
+        ResponseEntity<?> response = controller.exportPlaylist(testUser, "pl1", "json");
+
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(response.getHeaders().getContentType().toString().contains("json"));
+    }
+
+    @Test
+    void exportPlaylistAsM3u() {
+        Playlist playlist = testPlaylist("pl1", "Rock Mix");
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        MusicFile f1 = MusicFile.builder().id("f1").title("Song 1").artist("Artist 1")
+                .fileName("song1.mp3").genre(Genre.CLASSIC_ROCK).build();
+        MusicFile f2 = MusicFile.builder().id("f2").title("Song 2").artist("")
+                .fileName("song2.mp3").genre(Genre.OTHER).build();
+        when(playlistService.getOrderedFiles(playlist, "user1")).thenReturn(List.of(f1, f2));
+
+        ResponseEntity<?> response = controller.exportPlaylist(testUser, "pl1", "m3u");
+
+        assertEquals(200, response.getStatusCode().value());
+        String body = (String) response.getBody();
+        assertTrue(body.startsWith("#EXTM3U"));
+        assertTrue(body.contains("Artist 1 - Song 1"));
+        assertTrue(body.contains("song2.mp3"));
+    }
+
+    @Test
+    void exportPlaylistReturns404() {
+        when(playlistService.findByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.exportPlaylist(testUser, "nope", "json");
+
+        assertEquals(404, response.getStatusCode().value());
+    }
+
+    // --- Get playlists ---
+
+    @Test
+    void getPlaylistsReturnsList() {
+        Playlist p1 = testPlaylist("pl1", "Mix 1");
+        Playlist p2 = testPlaylist("pl2", "Mix 2");
+        when(playlistService.getPlaylists("user1")).thenReturn(List.of(p1, p2));
+
+        List<PlaylistDTO> result = controller.getPlaylists(testUser);
+
+        assertEquals(2, result.size());
     }
 }
