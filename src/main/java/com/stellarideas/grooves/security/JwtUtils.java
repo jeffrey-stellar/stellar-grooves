@@ -40,6 +40,9 @@ public class JwtUtils {
 
     @PostConstruct
     void validateJwtSecret() {
+        if (jwtSecret != null) {
+            jwtSecret = jwtSecret.replaceAll("\\s+", "");
+        }
         if (jwtSecret == null || jwtSecret.isBlank()) {
             throw new IllegalStateException(
                     "JWT secret is not configured. "
