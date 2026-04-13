@@ -2,6 +2,7 @@ package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.LoginRequest;
 import com.stellarideas.grooves.dto.SignupRequest;
+import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
@@ -20,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -136,9 +138,17 @@ class AuthControllerTest {
         verify(loginAttemptService).loginFailed("baduser");
     }
 
+    private void mockUserLookup() {
+        User user = new User();
+        user.setId("user1");
+        user.setUsername("testuser");
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+    }
+
     @Test
     void signinResetsAttemptsOnSuccess() {
         when(loginAttemptService.isLockedOut("testuser")).thenReturn(false);
+        mockUserLookup();
 
         var userDetails = org.springframework.security.core.userdetails.User
                 .withUsername("testuser")
@@ -161,6 +171,7 @@ class AuthControllerTest {
     @Test
     void signinReturnsToken() {
         when(loginAttemptService.isLockedOut("testuser")).thenReturn(false);
+        mockUserLookup();
 
         var userDetails = org.springframework.security.core.userdetails.User
                 .withUsername("testuser")

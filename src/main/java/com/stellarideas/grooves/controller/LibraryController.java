@@ -131,13 +131,15 @@ public class LibraryController {
         if (!Files.exists(path) || !Files.isReadable(path)) {
             return ResponseEntity.notFound().build();
         }
-        if (user.getMusicDirectory() != null && !user.getMusicDirectory().isBlank()) {
-            Path musicDir = Paths.get(user.getMusicDirectory()).normalize();
-            if (!path.startsWith(musicDir)) {
-                logger.warn("Path traversal blocked: user '{}' attempted to stream '{}' outside music directory '{}'",
-                        user.getUsername(), path, musicDir);
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
+        if (user.getMusicDirectory() == null || user.getMusicDirectory().isBlank()) {
+            logger.warn("Streaming blocked: user '{}' has no music directory configured", user.getUsername());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        Path musicDir = Paths.get(user.getMusicDirectory()).normalize();
+        if (!path.startsWith(musicDir)) {
+            logger.warn("Path traversal blocked: user '{}' attempted to stream '{}' outside music directory '{}'",
+                    user.getUsername(), path, musicDir);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         Resource resource = new FileSystemResource(path);
         long contentLength = resource.contentLength();

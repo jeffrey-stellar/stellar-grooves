@@ -49,6 +49,7 @@ class StreamingTest {
         testUser = new User();
         testUser.setId("user1");
         testUser.setUsername("testuser");
+        testUser.setMusicDirectory(tempDir.toString());
     }
 
     private Path createTempAudioFile(String name, int sizeBytes) throws IOException {
@@ -100,8 +101,10 @@ class StreamingTest {
 
     @Test
     void streamFileReturns404WhenFileNotOnDisk() throws IOException {
+        // File path is within musicDirectory but the file doesn't exist on disk
+        String missingPath = tempDir.resolve("gone.mp3").toString();
         MusicFile file = MusicFile.builder()
-                .id("f1").fileName("gone.mp3").filePath("/nonexistent/path/gone.mp3").build();
+                .id("f1").fileName("gone.mp3").filePath(missingPath).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
         ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());

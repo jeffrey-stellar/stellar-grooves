@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,6 +36,9 @@ public class MusicScannerService {
 
     @Value("${stellar.grooves.scan.maxDepth:" + DEFAULT_MAX_DEPTH + "}")
     private int maxDepth;
+
+    @Value("${stellar.grooves.scan.timeoutMinutes:5}")
+    private int scanTimeoutMinutes = 5;
 
     private final MusicCatalogService catalogService;
     private final MusicFileRepository repository;
@@ -64,6 +69,7 @@ public class MusicScannerService {
 
         ScanResult result = new ScanResult();
         List<MusicFile> batch = new ArrayList<>(BATCH_SIZE);
+        Instant deadline = Instant.now().plus(Duration.ofMinutes(scanTimeoutMinutes));
 
         try (Stream<Path> walk = Files.walk(root, effectiveDepth)) {
             var it = walk
@@ -75,6 +81,11 @@ public class MusicScannerService {
                     .iterator();
 
             while (it.hasNext()) {
+                if (Instant.now().isAfter(deadline)) {
+                    logger.warn("Scan timed out after {} minutes for user '{}' on path '{}'",
+                            scanTimeoutMinutes, user.getUsername(), directoryPath);
+                    break;
+                }
                 Path path = it.next();
                 try {
                     if (existingPaths.contains(path.toString())) {

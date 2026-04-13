@@ -95,9 +95,10 @@ public class AuthController {
             loginAttemptService.loginSucceeded(username);
             auditService.log(username, AuditService.Action.LOGIN_SUCCESS);
 
-            User user = userRepository.findByUsername(username).orElse(null);
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new BadCredentialsException("User not found after authentication"));
             RefreshToken refreshToken = new RefreshToken(
-                    user != null ? user.getId() : username,
+                    user.getId(),
                     jwtUtils.getRefreshTokenExpirationMs());
             refreshTokenRepository.save(refreshToken);
 

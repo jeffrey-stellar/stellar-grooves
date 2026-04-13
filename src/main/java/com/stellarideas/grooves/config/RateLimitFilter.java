@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 /**
  * Simple in-memory rate limiter for auth endpoints.
@@ -37,6 +38,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${stellar.grooves.rateLimit.trustedProxies:}")
     private List<String> trustedProxies;
+
+    private static final Pattern IP_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F.:]{1,45}$");
 
     private final ConcurrentHashMap<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
@@ -89,6 +93,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     String[] ips = forwarded.split(",");
                     for (int i = ips.length - 1; i >= 0; i--) {
                         String ip = ips[i].trim();
+                        if (!isValidIp(ip)) {
+                            continue;
+                        }
                         if (!trustedProxies.contains(ip)) {
                             return ip;
                         }
@@ -97,6 +104,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             }
         }
         return request.getRemoteAddr();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip != null && !ip.isEmpty() && IP_PATTERN.matcher(ip).matches();
     }
 
     private void evictStaleEntries(long now) {
