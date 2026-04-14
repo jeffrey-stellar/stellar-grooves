@@ -472,40 +472,148 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
 .empty-state-icon { font-size: 3rem; margin-bottom: 0.75rem; opacity: 0.5; }
 .empty-state p { font-size: 0.9rem; }
 
-/* ── Wurlitzer 1800 Jukebox Player ── */
+/* ══════════════════════════════════════════════
+   Wurlitzer 1015 "Bubbler" Jukebox Player
+   Authentic 1946 design — cathedral arch, bubble
+   tubes, walnut body, chrome & gold trim
+   ══════════════════════════════════════════════ */
 .jukebox-player { margin-top: 0.25rem; }
 
 .wurlitzer {
     position: relative;
-    border-radius: 20px 20px 10px 10px;
-    overflow: hidden;
+    border-radius: 28px 28px 14px 14px;
+    overflow: visible;
     box-shadow:
-        0 6px 30px rgba(0,0,0,0.7),
-        inset 0 1px 0 rgba(255,255,255,0.1);
-    /* Chrome outer frame */
-    border: 3px solid;
-    border-image: linear-gradient(180deg, #c0c0c0, #888, #aaa, #666) 1;
+        0 10px 50px rgba(0,0,0,0.85),
+        0 0 80px rgba(255, 100, 80, 0.04),
+        0 0 2px rgba(212, 175, 55, 0.4);
+    /* Walnut wood body base color */
+    background: linear-gradient(180deg, #3d2112 0%, #2e1a0e 100%);
+}
+
+/* ── Bubble Tubes (1015 signature — tall glass columns) ── */
+.wurl-bubble-tube {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 18px;
+    z-index: 6;
+    overflow: hidden;
+    background: linear-gradient(180deg,
+        rgba(20, 8, 4, 0.95) 0%,
+        rgba(30, 12, 6, 0.9) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+}
+.wurl-bubble-tube-l {
+    left: 0;
+    border-radius: 28px 0 0 14px;
+    border-right: 1px solid rgba(212, 175, 55, 0.4);
+}
+.wurl-bubble-tube-r {
+    right: 0;
+    border-radius: 0 28px 14px 0;
+    border-left: 1px solid rgba(212, 175, 55, 0.4);
+}
+/* Glass tube inner glow */
+.wurl-tube-glass {
+    position: absolute;
+    inset: 2px;
+    border-radius: inherit;
+    background: linear-gradient(180deg,
+        rgba(255, 60, 40, 0.06) 0%,
+        rgba(255, 100, 60, 0.12) 30%,
+        rgba(255, 180, 80, 0.08) 50%,
+        rgba(80, 200, 120, 0.1) 70%,
+        rgba(60, 120, 255, 0.08) 100%);
+    box-shadow:
+        inset 0 0 12px rgba(255, 100, 80, 0.15),
+        inset 0 0 30px rgba(255, 80, 60, 0.08);
+}
+/* Bubble particles — primary set */
+.wurl-bubbles {
+    position: absolute;
+    inset: 3px;
+    border-radius: inherit;
+    background:
+        radial-gradient(circle 3px at 9px 15%, rgba(255, 100, 70, 0.8) 0%, transparent 100%),
+        radial-gradient(circle 2px at 6px 28%, rgba(255, 180, 80, 0.7) 0%, transparent 100%),
+        radial-gradient(circle 3.5px at 10px 42%, rgba(100, 220, 130, 0.65) 0%, transparent 100%),
+        radial-gradient(circle 2px at 7px 58%, rgba(255, 140, 100, 0.6) 0%, transparent 100%),
+        radial-gradient(circle 2.5px at 11px 72%, rgba(80, 180, 255, 0.6) 0%, transparent 100%),
+        radial-gradient(circle 3px at 8px 88%, rgba(255, 120, 80, 0.7) 0%, transparent 100%);
+    animation: wurl-bubble-rise 5s ease-in-out infinite;
+}
+/* Second bubble layer — offset timing for continuous effect */
+.wurl-bubbles-b {
+    animation-delay: -2.5s;
+    background:
+        radial-gradient(circle 2px at 10px 10%, rgba(255, 160, 100, 0.6) 0%, transparent 100%),
+        radial-gradient(circle 3px at 7px 25%, rgba(100, 200, 140, 0.5) 0%, transparent 100%),
+        radial-gradient(circle 2.5px at 11px 48%, rgba(255, 100, 80, 0.55) 0%, transparent 100%),
+        radial-gradient(circle 2px at 5px 65%, rgba(80, 160, 255, 0.5) 0%, transparent 100%),
+        radial-gradient(circle 3px at 9px 80%, rgba(255, 180, 60, 0.6) 0%, transparent 100%),
+        radial-gradient(circle 2px at 6px 95%, rgba(200, 100, 255, 0.4) 0%, transparent 100%);
+}
+@keyframes wurl-bubble-rise {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    25% { opacity: 1; }
+    50% { transform: translateY(-15px); opacity: 0.85; }
+    75% { opacity: 1; }
+}
+
+/* ── Layered Chrome Arch Crown (1015 rainbow arches) ── */
+.wurl-arch-stack {
+    position: relative;
+    margin-left: 18px;
+    margin-right: 18px;
+}
+.wurl-arch {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.wurl-arch-outer {
+    height: 6px;
+    background: linear-gradient(180deg, #c0c0c0 0%, #e8e8e8 30%, #d0d0d0 50%, #999 70%, #b0b0b0 100%);
+    border-radius: 20px 20px 0 0;
+}
+.wurl-arch-gold {
+    height: 5px;
+    background: linear-gradient(180deg, #d4af37 0%, #f0d060 35%, #e8c840 50%, #d4af37 70%, #a08020 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4), 0 0 10px rgba(212, 175, 55, 0.25);
+}
+.wurl-arch-inner {
+    height: 4px;
+    background: linear-gradient(180deg, #cc4433 0%, #ee6655 35%, #dd5544 50%, #cc4433 70%, #992222 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,180,160,0.3), 0 0 8px rgba(200, 60, 40, 0.15);
 }
 
 /* ── Bubble Dome Top ── */
 .wurl-dome {
     position: relative;
+    margin-left: 18px;
+    margin-right: 18px;
     background:
-        radial-gradient(ellipse at 50% 80%, rgba(200, 60, 60, 0.15) 0%, transparent 60%),
-        radial-gradient(ellipse at 50% 60%, rgba(255, 179, 71, 0.12) 0%, transparent 50%),
-        linear-gradient(180deg, #2a2020 0%, #1a1212 100%);
-    padding: 1.2rem 1rem 0.8rem;
-    border-bottom: 2px solid #888;
+        radial-gradient(ellipse at 50% 80%, rgba(200, 60, 60, 0.2) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 50%, rgba(255, 179, 71, 0.12) 0%, transparent 60%),
+        linear-gradient(180deg, #2a1e18 0%, #1a1210 100%);
+    padding: 1.6rem 1rem 1rem;
     overflow: hidden;
 }
-/* Glass dome curve effect */
+/* Glass dome curve highlight */
 .wurl-dome::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
-    height: 40%;
+    height: 50%;
     background:
-        radial-gradient(ellipse at 50% -20%, rgba(255,255,255,0.08) 0%, transparent 70%);
+        radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.12) 0%, transparent 60%);
+    pointer-events: none;
+}
+/* Inner dome shadow for depth */
+.wurl-dome::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 6px 20px rgba(0,0,0,0.4), inset 0 -4px 15px rgba(0,0,0,0.3);
     pointer-events: none;
 }
 .wurl-dome-inner {
@@ -518,22 +626,109 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
 .wurl-dome-glow {
     position: absolute;
     bottom: 0; left: 10%; right: 10%;
-    height: 40%;
-    background: radial-gradient(ellipse at 50% 100%, rgba(255, 100, 80, 0.12) 0%, transparent 70%);
+    height: 50%;
+    background: radial-gradient(ellipse at 50% 100%, rgba(255, 100, 80, 0.18) 0%, transparent 70%);
     pointer-events: none;
+    z-index: 0;
 }
 
+/* ── Turntable Container ── */
+.wurl-turntable {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* Turntable platter base */
+.wurl-platter {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%,
+        rgba(80, 80, 80, 0.15) 0%,
+        rgba(40, 40, 40, 0.2) 80%,
+        rgba(60, 60, 60, 0.3) 100%);
+    border: 1px solid rgba(100, 100, 100, 0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* ── Tonearm ── */
+.wurl-tonearm {
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    z-index: 10;
+    transform-origin: top right;
+    transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: rotate(-28deg);
+}
+.wurl-tonearm.playing {
+    transform: rotate(-6deg);
+}
+.wurl-tonearm-base {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f0f0f0, #c0c0c0, #888, #666);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.5);
+    z-index: 2;
+    border: 1px solid rgba(100,100,100,0.4);
+}
+.wurl-tonearm-arm {
+    position: absolute;
+    top: 7px;
+    right: 5px;
+    width: 3px;
+    height: 80px;
+    background: linear-gradient(90deg, #888, #d0d0d0, #eee, #d0d0d0, #888);
+    border-radius: 1.5px;
+    transform: rotate(28deg);
+    transform-origin: top center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.2);
+}
+.wurl-tonearm-head {
+    position: absolute;
+    top: 74px;
+    right: -20px;
+    width: 12px;
+    height: 7px;
+    background: linear-gradient(180deg, #bbb, #888, #666);
+    border-radius: 1px 1px 2px 2px;
+    transform: rotate(28deg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+/* Stylus detail */
+.wurl-tonearm-head::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 3px;
+    background: #999;
+}
+
+/* ── Album Art (spinning disc with cover) ── */
 .wurl-art {
-    width: 110px;
-    height: 110px;
+    width: 125px;
+    height: 125px;
     border-radius: 50%;
     object-fit: cover;
-    border: 3px solid rgba(200, 200, 200, 0.3);
+    border: 3px solid rgba(30, 30, 30, 0.9);
     box-shadow:
         0 4px 16px rgba(0,0,0,0.6),
         0 0 25px rgba(255, 179, 71, 0.1),
-        0 0 50px rgba(255, 100, 80, 0.06);
-    animation: wurl-spin 4s linear infinite paused;
+        0 0 50px rgba(255, 100, 80, 0.06),
+        inset 0 0 0 2px rgba(60,60,60,0.5);
+    animation: wurl-spin 3s linear infinite paused;
+    position: relative;
+    z-index: 1;
 }
 .wurl-art.spinning { animation-play-state: running; }
 
@@ -542,40 +737,151 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     to { transform: rotate(360deg); }
 }
 
-.wurl-art-placeholder {
-    width: 110px;
-    height: 110px;
+/* ── Vinyl Record Placeholder (no album art) ── */
+.wurl-vinyl-record {
+    width: 125px;
+    height: 125px;
     border-radius: 50%;
+    position: relative;
+    z-index: 1;
+    background:
+        radial-gradient(circle at 50% 50%, #1a1a1a 0%, #111 20%, #0d0d0d 40%, #1a1a1a 42%, #0a0a0a 60%, #151515 80%, #111 100%);
+    border: 3px solid #222;
+    box-shadow:
+        0 4px 16px rgba(0,0,0,0.7),
+        0 0 25px rgba(255, 179, 71, 0.08),
+        inset 0 0 15px rgba(0,0,0,0.5);
+    animation: wurl-spin 3s linear infinite paused;
+    overflow: hidden;
+}
+.wurl-vinyl-record.spinning { animation-play-state: running; }
+
+/* Vinyl grooves effect */
+.wurl-vinyl-grooves {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+        repeating-radial-gradient(
+            circle at center,
+            transparent 0px,
+            transparent 2px,
+            rgba(255,255,255,0.03) 2.5px,
+            transparent 3px,
+            transparent 5px
+        );
+    mask-image: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,1) 100%);
+    -webkit-mask-image: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,1) 100%);
+}
+
+/* Blood orange center label */
+.wurl-vinyl-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 40% 35%,
+            #ff6a3d 0%,
+            #e8451a 30%,
+            #cc3a15 60%,
+            #b33010 100%);
+    border: 1.5px solid rgba(180, 60, 30, 0.6);
+    box-shadow:
+        inset 0 -2px 4px rgba(0,0,0,0.3),
+        inset 0 1px 2px rgba(255,255,255,0.15),
+        0 0 8px rgba(255, 80, 40, 0.2);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 2.8rem;
-    background:
-        radial-gradient(circle at 50% 50%, rgba(255, 179, 71, 0.1) 0%, rgba(200, 60, 60, 0.05) 50%, transparent 70%);
-    border: 3px solid rgba(200, 200, 200, 0.15);
-    opacity: 0.5;
+    gap: 1px;
 }
 
-/* ── Chrome Divider Strips ── */
+/* Spindle hole */
+.wurl-label-hole {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #0a0a0a;
+    border: 0.5px solid rgba(100,100,100,0.3);
+    box-shadow: inset 0 0 2px rgba(0,0,0,0.8);
+    flex-shrink: 0;
+}
+.wurl-label-text {
+    font-family: 'Righteous', cursive, sans-serif;
+    font-size: 0.28rem;
+    color: rgba(255, 240, 220, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    text-shadow: 0 0.5px 1px rgba(0,0,0,0.4);
+    line-height: 1;
+    white-space: nowrap;
+}
+.wurl-label-subtext {
+    font-size: 0.22rem;
+    color: rgba(255, 230, 200, 0.65);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* ── Art Deco Chrome Dividers ── */
+.wurl-chrome-divider {
+    margin-left: 18px;
+    margin-right: 18px;
+}
 .wurl-chrome-strip {
-    height: 6px;
-    background: linear-gradient(180deg, #aaa 0%, #e0e0e0 30%, #ccc 50%, #888 70%, #666 100%);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+    height: 3px;
+    background: linear-gradient(180deg, #999 0%, #e0e0e0 40%, #ccc 60%, #888 100%);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+/* Gold deco line between chrome strips */
+.wurl-chrome-deco {
+    height: 3px;
+    background: linear-gradient(180deg, #c89830 0%, #e8c040 50%, #c89830 100%);
+    box-shadow: 0 0 6px rgba(212, 175, 55, 0.2);
 }
 
-/* ── Selection Panel (warm amber backlit) ── */
+/* ── Selection Panel (wood grain + amber backlight) ── */
 .wurl-selection {
-    background:
-        linear-gradient(180deg,
-            rgba(60, 30, 10, 0.95) 0%,
-            rgba(40, 20, 8, 0.98) 100%
-        );
-    padding: 0.7rem 0.8rem;
     position: relative;
-    /* Warm amber back-glow */
-    box-shadow: inset 0 0 30px rgba(255, 179, 71, 0.08);
+    margin-left: 18px;
+    margin-right: 18px;
+    padding: 0.7rem 1.2rem;
+    /* Walnut wood grain with amber backlight */
+    background:
+        repeating-linear-gradient(
+            95deg,
+            transparent 0px,
+            transparent 8px,
+            rgba(120, 70, 30, 0.06) 8px,
+            rgba(120, 70, 30, 0.06) 9px
+        ),
+        linear-gradient(180deg,
+            rgba(60, 30, 12, 0.97) 0%,
+            rgba(45, 22, 10, 0.98) 50%,
+            rgba(60, 30, 12, 0.97) 100%
+        );
+    box-shadow: inset 0 0 35px rgba(255, 179, 71, 0.1);
 }
-/* Subtle horizontal lines like the selection grid */
+/* Pilasters — vertical chrome accents on left and right */
+.wurl-pilaster {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #bbb 0%, #e0e0e0 30%, #ccc 50%, #999 70%, #bbb 100%);
+    box-shadow: 0 0 4px rgba(0,0,0,0.3), inset 0 0 1px rgba(255,255,255,0.3);
+    z-index: 2;
+}
+.wurl-pilaster-l { left: 0; }
+.wurl-pilaster-r { right: 0; }
+/* Selection grid lines */
 .wurl-selection::before {
     content: '';
     position: absolute;
@@ -584,8 +890,8 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
         180deg,
         transparent 0px,
         transparent 14px,
-        rgba(255, 179, 71, 0.06) 14px,
-        rgba(255, 179, 71, 0.06) 15px
+        rgba(255, 179, 71, 0.05) 14px,
+        rgba(255, 179, 71, 0.05) 15px
     );
     pointer-events: none;
 }
@@ -607,8 +913,9 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     overflow: hidden;
     text-overflow: ellipsis;
     text-shadow:
-        0 0 8px rgba(255, 200, 100, 0.5),
-        0 0 20px rgba(255, 179, 71, 0.3);
+        0 0 8px rgba(255, 200, 100, 0.6),
+        0 0 20px rgba(255, 179, 71, 0.35),
+        0 0 40px rgba(255, 150, 50, 0.15);
     letter-spacing: 0.5px;
     max-width: 100%;
 }
@@ -619,30 +926,40 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-shadow: 0 0 4px rgba(255, 179, 71, 0.15);
+    text-shadow: 0 0 6px rgba(255, 179, 71, 0.2);
 }
 
 .wurl-eq {
     width: 100%;
     height: 40px;
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 179, 71, 0.12);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 179, 71, 0.15);
     display: block;
     position: relative;
     z-index: 1;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
 }
 
-/* ── Controls Panel ── */
+/* ── Controls Panel (wood grain body) ── */
 .wurl-controls-panel {
+    margin-left: 18px;
+    margin-right: 18px;
     background:
+        repeating-linear-gradient(
+            92deg,
+            transparent 0px,
+            transparent 10px,
+            rgba(100, 60, 25, 0.05) 10px,
+            rgba(100, 60, 25, 0.05) 11px
+        ),
         linear-gradient(180deg,
-            #2a1a10 0%,
-            #1e1208 50%,
-            #2a1a10 100%
+            #2e1a0e 0%,
+            #221208 50%,
+            #2e1a0e 100%
         );
-    padding: 0.6rem 0.8rem 0.7rem;
-    box-shadow: inset 0 1px 4px rgba(0,0,0,0.3);
+    padding: 0.7rem 0.8rem 0.8rem;
+    box-shadow: inset 0 1px 6px rgba(0,0,0,0.4);
 }
 
 .wurl-controls {
@@ -653,11 +970,11 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     margin-bottom: 0.5rem;
 }
 
-/* Wurlitzer play button — large chrome circle */
+/* Wurlitzer play button — gold-rimmed chrome circle */
 .btn-wurl-play {
-    background: linear-gradient(180deg, #bbb 0%, #888 20%, #666 50%, #444 80%, #555 100%);
+    background: linear-gradient(180deg, #ccc 0%, #aaa 15%, #888 40%, #666 60%, #777 80%, #999 100%);
     border: 3px solid;
-    border-color: #aaa #888 #666 #999;
+    border-color: #d4af37 #c89830 #a08020 #d4af37;
     color: var(--neon-amber);
     font-size: 1.4rem;
     cursor: pointer;
@@ -665,44 +982,46 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     line-height: 1;
     transition: all 0.2s;
     box-shadow:
-        0 4px 12px rgba(0,0,0,0.6),
-        0 0 20px rgba(255, 179, 71, 0.08),
-        inset 0 2px 0 rgba(255,255,255,0.3),
-        inset 0 -3px 6px rgba(0,0,0,0.4);
-    width: 50px;
-    height: 50px;
+        0 4px 14px rgba(0,0,0,0.6),
+        0 0 20px rgba(255, 179, 71, 0.1),
+        inset 0 2px 0 rgba(255,255,255,0.35),
+        inset 0 -3px 6px rgba(0,0,0,0.4),
+        0 0 0 1px rgba(212, 175, 55, 0.3);
+    width: 52px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 .btn-wurl-play:hover {
-    background: linear-gradient(180deg, #ccc 0%, #999 20%, #777 50%, #555 80%, #666 100%);
+    background: linear-gradient(180deg, #ddd 0%, #bbb 15%, #999 40%, #777 60%, #888 80%, #aaa 100%);
     color: var(--accent-hover);
     box-shadow:
-        0 4px 14px rgba(0,0,0,0.6),
-        0 0 25px rgba(255, 179, 71, 0.2),
-        inset 0 2px 0 rgba(255,255,255,0.35);
-    border-color: var(--neon-amber);
+        0 4px 16px rgba(0,0,0,0.6),
+        0 0 30px rgba(255, 179, 71, 0.25),
+        inset 0 2px 0 rgba(255,255,255,0.4),
+        0 0 0 1px rgba(212, 175, 55, 0.5);
+    border-color: #e8c840;
 }
 .btn-wurl-play:active {
     transform: scale(0.95);
     box-shadow: 0 1px 4px rgba(0,0,0,0.6), inset 0 3px 8px rgba(0,0,0,0.5);
 }
 
-/* Smaller controls (shuffle, crossfade) */
+/* Smaller controls — chrome with gold trim */
 .btn-wurl-sm {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(200, 200, 200, 0.15);
-    color: #8a7a6a;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    color: #a09080;
     font-size: 0.85rem;
     cursor: pointer;
     padding: 0;
-    border-radius: 8px;
+    border-radius: 50%;
     line-height: 1;
     transition: all 0.2s;
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -710,8 +1029,9 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
 }
 .btn-wurl-sm:hover {
     color: var(--neon-amber);
-    border-color: rgba(255, 179, 71, 0.35);
-    background: rgba(255, 179, 71, 0.08);
+    border-color: rgba(212, 175, 55, 0.5);
+    background: rgba(255, 179, 71, 0.1);
+    box-shadow: 0 0 8px rgba(255, 179, 71, 0.15);
 }
 .btn-wurl-sm.active {
     color: var(--neon-pink);
@@ -755,7 +1075,7 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
 
 .wurl-vol-icon {
     font-size: 0.75rem;
-    color: #8a7a6a;
+    color: #a09080;
     flex-shrink: 0;
 }
 
@@ -767,44 +1087,69 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
     height: 4px;
 }
 
-/* ── Blue Ribbed Lower Body ── */
+/* ── Speaker Grille Lower Body (1015 style) ── */
 .wurl-lower {
     position: relative;
-    height: 60px;
+    height: 65px;
+    margin-left: 18px;
+    margin-right: 18px;
     overflow: hidden;
     background:
         linear-gradient(180deg,
-            #0a1628 0%,
-            #122040 20%,
-            #1a3060 50%,
-            #122040 80%,
-            #0a1628 100%
+            #0a1428 0%,
+            #102040 15%,
+            #183060 40%,
+            #1a3568 50%,
+            #183060 60%,
+            #102040 85%,
+            #0a1428 100%
         );
+    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
 }
 
-/* Vertical ribs effect */
-.wurl-ribs {
+/* Speaker grille pattern — horizontal slats */
+.wurl-grille {
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(
-        90deg,
-        transparent 0px,
-        transparent 3px,
-        rgba(80, 140, 220, 0.08) 3px,
-        rgba(80, 140, 220, 0.15) 5px,
-        rgba(80, 140, 220, 0.08) 7px,
-        transparent 7px,
-        transparent 10px
-    );
-    /* Blue backlight glow */
-    box-shadow: inset 0 0 40px rgba(80, 140, 220, 0.15);
+    background:
+        repeating-linear-gradient(
+            180deg,
+            transparent 0px,
+            transparent 3px,
+            rgba(0, 0, 0, 0.3) 3px,
+            rgba(0, 0, 0, 0.3) 5px,
+            transparent 5px,
+            transparent 8px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0px,
+            transparent 4px,
+            rgba(80, 140, 220, 0.06) 4px,
+            rgba(80, 140, 220, 0.1) 6px,
+            rgba(80, 140, 220, 0.06) 8px,
+            transparent 8px,
+            transparent 12px
+        );
+}
+/* Internal glow behind grille */
+.wurl-grille-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%,
+        rgba(80, 140, 220, 0.2) 0%,
+        rgba(60, 120, 200, 0.1) 40%,
+        transparent 70%);
+    box-shadow: inset 0 0 30px rgba(80, 140, 220, 0.12);
+    pointer-events: none;
 }
 
 /* Starburst decorations */
 .wurl-starburst {
     position: absolute;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     top: 50%;
     transform: translateY(-50%);
 }
@@ -818,52 +1163,79 @@ th.col-sortable:hover { color: var(--accent-hover); text-shadow: 0 0 6px rgba(25
 .wurl-starburst::before {
     background:
         radial-gradient(circle at 50% 50%,
-            rgba(255, 100, 100, 0.7) 0%,
-            rgba(255, 80, 80, 0.3) 30%,
+            rgba(255, 100, 100, 0.8) 0%,
+            rgba(255, 80, 80, 0.35) 30%,
             transparent 60%
         );
-    box-shadow: 0 0 10px rgba(255, 100, 100, 0.3);
+    box-shadow: 0 0 12px rgba(255, 100, 100, 0.35);
 }
 .wurl-starburst::after {
     background:
         conic-gradient(
             from 0deg,
             transparent 0deg,
-            rgba(100, 220, 160, 0.5) 10deg,
+            rgba(100, 220, 160, 0.55) 10deg,
             transparent 20deg,
             transparent 45deg,
-            rgba(100, 220, 160, 0.5) 55deg,
+            rgba(100, 220, 160, 0.55) 55deg,
             transparent 65deg,
             transparent 90deg,
-            rgba(100, 220, 160, 0.5) 100deg,
+            rgba(100, 220, 160, 0.55) 100deg,
             transparent 110deg,
             transparent 135deg,
-            rgba(100, 220, 160, 0.5) 145deg,
+            rgba(100, 220, 160, 0.55) 145deg,
             transparent 155deg,
             transparent 180deg,
-            rgba(100, 220, 160, 0.5) 190deg,
+            rgba(100, 220, 160, 0.55) 190deg,
             transparent 200deg,
             transparent 225deg,
-            rgba(100, 220, 160, 0.5) 235deg,
+            rgba(100, 220, 160, 0.55) 235deg,
             transparent 245deg,
             transparent 270deg,
-            rgba(100, 220, 160, 0.5) 280deg,
+            rgba(100, 220, 160, 0.55) 280deg,
             transparent 290deg,
             transparent 315deg,
-            rgba(100, 220, 160, 0.5) 325deg,
+            rgba(100, 220, 160, 0.55) 325deg,
             transparent 335deg,
             transparent 360deg
         );
     animation: wurl-starburst-spin 8s linear infinite;
 }
-.wurl-starburst-l { left: 12px; }
-.wurl-starburst-r { right: 12px; }
+.wurl-starburst-l { left: 10px; }
+.wurl-starburst-r { right: 10px; }
 .wurl-starburst-r::after { animation-direction: reverse; }
 
 @keyframes wurl-starburst-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* ── Chrome Base Trim with Feet ── */
+.wurl-base-trim {
+    position: relative;
+    height: 10px;
+    background: linear-gradient(180deg,
+        #d4af37 0%, #f0d060 20%, #e8c840 40%,
+        #d4af37 50%,
+        #c89830 60%, #a08020 80%, #d4af37 100%);
+    box-shadow:
+        0 3px 8px rgba(0,0,0,0.5),
+        0 0 12px rgba(212, 175, 55, 0.2),
+        inset 0 1px 0 rgba(255,255,255,0.3);
+    border-radius: 0 0 14px 14px;
+}
+/* Decorative feet */
+.wurl-foot {
+    position: absolute;
+    bottom: -4px;
+    width: 20px;
+    height: 6px;
+    background: linear-gradient(180deg, #c89830 0%, #a08020 50%, #886818 100%);
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+.wurl-foot-l { left: 20%; }
+.wurl-foot-r { right: 20%; }
 
 /* Rocker image — smaller */
 .img-rocker {
@@ -1055,9 +1427,22 @@ tr:hover .btn-action-sm { opacity: 1; }
     .table thead th, .table tbody td { padding: 0.55rem 0.65rem; }
     .auth-title { font-size: 1.4rem; }
     .stat-value { font-size: 1.6rem; }
-    .wurl-art, .wurl-art-placeholder { width: 80px; height: 80px; font-size: 2rem; }
-    .wurl-lower { height: 45px; }
+    .wurl-turntable { width: 105px; height: 105px; }
+    .wurl-art { width: 95px; height: 95px; }
+    .wurl-vinyl-record { width: 95px; height: 95px; }
+    .wurl-vinyl-label { width: 36px; height: 36px; }
+    .wurl-label-text { font-size: 0.22rem; }
+    .wurl-label-subtext { font-size: 0.18rem; }
+    .wurl-tonearm-arm { height: 58px; }
+    .wurl-tonearm-head { top: 52px; right: -16px; }
+    .wurl-lower { height: 50px; }
     .wurl-starburst { width: 22px; height: 22px; }
+    .wurl-bubble-tube { width: 14px; }
+    .wurl-arch-stack, .wurl-dome, .wurl-chrome-divider,
+    .wurl-selection, .wurl-controls-panel, .wurl-lower {
+        margin-left: 14px;
+        margin-right: 14px;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -1172,7 +1557,7 @@ tr:hover .btn-action-sm { opacity: 1; }
 }
 .dupe-file:first-child { border-top: none; }
 
-/* (player-art styles moved to .wurl-art) */
+/* (player-art and vinyl record styles in Wurlitzer section) */
 
 /* ── Drag handle for playlist reorder ── */
 .drag-handle {
@@ -1375,21 +1760,28 @@ input.loading { opacity: 0.6; background-image: url("data:image/svg+xml,%3Csvg x
 [data-theme="light"] body {
     background-image: none;
 }
+[data-theme="light"] .wurlitzer {
+    background: linear-gradient(180deg, #c8a882 0%, #b89870 100%);
+}
 [data-theme="light"] .wurl-dome {
     background: linear-gradient(180deg, #e8ddd5 0%, #d8ccc0 100%);
 }
 [data-theme="light"] .wurl-selection {
-    background: linear-gradient(180deg, #f0e8d8 0%, #e8dcc8 100%);
+    background:
+        repeating-linear-gradient(95deg, transparent 0px, transparent 8px, rgba(160, 120, 70, 0.06) 8px, rgba(160, 120, 70, 0.06) 9px),
+        linear-gradient(180deg, #f0e8d8 0%, #e8dcc8 100%);
     box-shadow: inset 0 0 20px rgba(200, 150, 60, 0.1);
 }
-[data-theme="light"] .wurl-title { color: #a06820; }
+[data-theme="light"] .wurl-title { color: #a06820; text-shadow: 0 0 6px rgba(180, 120, 40, 0.3); }
 [data-theme="light"] .wurl-artist { color: #8a7060; }
 [data-theme="light"] .wurl-eq {
     background: rgba(0,0,0,0.06);
     border-color: rgba(0,0,0,0.1);
 }
 [data-theme="light"] .wurl-controls-panel {
-    background: linear-gradient(180deg, #e0d4c4 0%, #d8c8b8 100%);
+    background:
+        repeating-linear-gradient(92deg, transparent 0px, transparent 10px, rgba(140, 100, 50, 0.05) 10px, rgba(140, 100, 50, 0.05) 11px),
+        linear-gradient(180deg, #e0d4c4 0%, #d8c8b8 100%);
 }
 [data-theme="light"] .wurl-lower {
     background: linear-gradient(180deg, #c0d4e8 0%, #a8c0e0 50%, #c0d4e8 100%);
@@ -1397,7 +1789,21 @@ input.loading { opacity: 0.6; background-image: url("data:image/svg+xml,%3Csvg x
 [data-theme="light"] .wurl-chrome-strip {
     background: linear-gradient(180deg, #ccc 0%, #eee 30%, #ddd 50%, #bbb 100%);
 }
+[data-theme="light"] .wurl-bubble-tube {
+    background: linear-gradient(180deg, rgba(180, 140, 100, 0.5) 0%, rgba(160, 120, 80, 0.6) 100%);
+    border-color: rgba(200, 160, 100, 0.4);
+}
+[data-theme="light"] .wurl-tube-glass {
+    background: linear-gradient(180deg,
+        rgba(255, 80, 60, 0.08) 0%, rgba(255, 120, 80, 0.15) 30%,
+        rgba(255, 200, 80, 0.1) 50%, rgba(100, 220, 140, 0.12) 70%,
+        rgba(80, 140, 255, 0.1) 100%);
+}
+[data-theme="light"] .wurl-pilaster {
+    background: linear-gradient(180deg, #ddd 0%, #f0f0f0 30%, #e0e0e0 50%, #ccc 70%, #ddd 100%);
+}
 @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .wurlitzer { background: linear-gradient(180deg, #c8a882 0%, #b89870 100%); }
     :root:not([data-theme="dark"]) .wurl-dome { background: linear-gradient(180deg, #e8ddd5 0%, #d8ccc0 100%); }
     :root:not([data-theme="dark"]) .wurl-selection { background: linear-gradient(180deg, #f0e8d8 0%, #e8dcc8 100%); box-shadow: inset 0 0 20px rgba(200, 150, 60, 0.1); }
     :root:not([data-theme="dark"]) .wurl-title { color: #a06820; }

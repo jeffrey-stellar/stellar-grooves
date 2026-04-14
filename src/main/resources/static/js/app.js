@@ -803,7 +803,7 @@ function playTrack(file, useCrossfade) {
     const artEl = document.getElementById('playerArt');
     const artPlaceholder = document.getElementById('jukeboxArtPlaceholder');
     if (file.hasCoverArt) { artEl.src = `/api/v1/library/files/${file.id}/cover`; artEl.classList.remove('d-none'); if (artPlaceholder) artPlaceholder.style.display = 'none'; }
-    else { artEl.classList.add('d-none'); artEl.removeAttribute('src'); if (artPlaceholder) artPlaceholder.style.display = ''; }
+    else { artEl.classList.add('d-none'); artEl.removeAttribute('src'); if (artPlaceholder) artPlaceholder.style.display = ''; artPlaceholder.classList.remove('spinning'); }
     // Init equalizer on first play
     initEqualizer();
 
@@ -867,9 +867,14 @@ function syncPlayerBtn() {
     const btn = document.getElementById('playerPlayPause');
     btn.textContent = activeAudio.paused ? '\u25B6' : '\u23F8';
     btn.setAttribute('aria-label', activeAudio.paused ? 'Play' : 'Pause');
-    // Spin album art when playing
+    // Spin album art or vinyl record when playing
     const art = document.getElementById('playerArt');
-    if (art) art.classList.toggle('spinning', !activeAudio.paused);
+    const vinyl = document.getElementById('jukeboxArtPlaceholder');
+    const tonearm = document.getElementById('tonearm');
+    const isPlaying = !activeAudio.paused;
+    if (art) art.classList.toggle('spinning', isPlaying);
+    if (vinyl) vinyl.classList.toggle('spinning', isPlaying);
+    if (tonearm) tonearm.classList.toggle('playing', isPlaying);
     document.querySelectorAll('.btn-play-row').forEach(b => { const tr = b.closest('tr'); const a = tr && tr.dataset.fileId === currentFileId; b.textContent = (a && !activeAudio.paused) ? '\u23F8' : '\u25B6'; b.classList.toggle('playing', a); });
 }
 

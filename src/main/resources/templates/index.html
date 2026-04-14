@@ -118,23 +118,66 @@
 
                         <hr class="my-3">
 
-                        <!-- Wurlitzer-Style Jukebox Player -->
+                        <!-- Wurlitzer 1015 Jukebox Player -->
                         <div id="jukeboxPlayer" class="jukebox-player d-none">
                             <div class="wurlitzer">
-                                <!-- Bubble dome top -->
+                                <!-- Bubble tube columns (left & right) -->
+                                <div class="wurl-bubble-tube wurl-bubble-tube-l">
+                                    <div class="wurl-tube-glass"></div>
+                                    <div class="wurl-bubbles"></div>
+                                    <div class="wurl-bubbles wurl-bubbles-b"></div>
+                                </div>
+                                <div class="wurl-bubble-tube wurl-bubble-tube-r">
+                                    <div class="wurl-tube-glass"></div>
+                                    <div class="wurl-bubbles"></div>
+                                    <div class="wurl-bubbles wurl-bubbles-b"></div>
+                                </div>
+
+                                <!-- Rainbow chrome arch crown (layered 1015 arches) -->
+                                <div class="wurl-arch-stack">
+                                    <div class="wurl-arch wurl-arch-outer"></div>
+                                    <div class="wurl-arch wurl-arch-gold"></div>
+                                    <div class="wurl-arch wurl-arch-inner"></div>
+                                </div>
+
+                                <!-- Bubble dome top with turntable -->
                                 <div class="wurl-dome">
                                     <div class="wurl-dome-inner">
-                                        <img id="playerArt" class="wurl-art d-none" alt="" width="120" height="120">
-                                        <div id="jukeboxArtPlaceholder" class="wurl-art-placeholder">&#x1F3B5;</div>
+                                        <div class="wurl-turntable">
+                                            <div class="wurl-platter"></div>
+                                            <!-- Tonearm -->
+                                            <div id="tonearm" class="wurl-tonearm">
+                                                <div class="wurl-tonearm-base"></div>
+                                                <div class="wurl-tonearm-arm"></div>
+                                                <div class="wurl-tonearm-head"></div>
+                                            </div>
+                                            <!-- Album art (shown when cover exists) -->
+                                            <img id="playerArt" class="wurl-art d-none" alt="" width="120" height="120">
+                                            <!-- Vinyl record placeholder (shown when no cover) -->
+                                            <div id="jukeboxArtPlaceholder" class="wurl-vinyl-record">
+                                                <div class="wurl-vinyl-grooves"></div>
+                                                <div class="wurl-vinyl-label">
+                                                    <div class="wurl-label-hole"></div>
+                                                    <div class="wurl-label-text">NO ARTWORK</div>
+                                                    <div class="wurl-label-subtext">STELLAR GROOVES</div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="wurl-dome-glow"></div>
                                 </div>
 
-                                <!-- Chrome divider strip -->
-                                <div class="wurl-chrome-strip"></div>
+                                <!-- Art deco chrome divider -->
+                                <div class="wurl-chrome-divider">
+                                    <div class="wurl-chrome-strip"></div>
+                                    <div class="wurl-chrome-deco"></div>
+                                    <div class="wurl-chrome-strip"></div>
+                                </div>
 
-                                <!-- Selection panel (warm amber) -->
+                                <!-- Wood-grain selection panel (warm amber backlit) -->
                                 <div class="wurl-selection">
+                                    <div class="wurl-pilaster wurl-pilaster-l"></div>
+                                    <div class="wurl-pilaster wurl-pilaster-r"></div>
                                     <div class="wurl-track-info">
                                         <div id="playerTitle" class="wurl-title" aria-live="polite">Now Playing</div>
                                         <div id="playerArtist" class="wurl-artist"></div>
@@ -142,10 +185,14 @@
                                     <canvas id="eqCanvas" class="wurl-eq" width="240" height="40" aria-hidden="true" role="presentation"></canvas>
                                 </div>
 
-                                <!-- Chrome divider strip -->
-                                <div class="wurl-chrome-strip"></div>
+                                <!-- Art deco chrome divider -->
+                                <div class="wurl-chrome-divider">
+                                    <div class="wurl-chrome-strip"></div>
+                                    <div class="wurl-chrome-deco"></div>
+                                    <div class="wurl-chrome-strip"></div>
+                                </div>
 
-                                <!-- Controls panel -->
+                                <!-- Controls panel with wood grain -->
                                 <div class="wurl-controls-panel">
                                     <div class="wurl-controls">
                                         <button id="playerShuffle" class="btn-wurl-sm" title="Shuffle" aria-label="Toggle shuffle" aria-pressed="false">&#x1F500;</button>
@@ -163,11 +210,18 @@
                                     </div>
                                 </div>
 
-                                <!-- Blue ribbed lower body -->
+                                <!-- Speaker grille (1015 lower body) -->
                                 <div class="wurl-lower">
-                                    <div class="wurl-ribs"></div>
+                                    <div class="wurl-grille"></div>
+                                    <div class="wurl-grille-glow"></div>
                                     <div class="wurl-starburst wurl-starburst-l"></div>
                                     <div class="wurl-starburst wurl-starburst-r"></div>
+                                </div>
+
+                                <!-- Chrome base trim with feet -->
+                                <div class="wurl-base-trim">
+                                    <div class="wurl-foot wurl-foot-l"></div>
+                                    <div class="wurl-foot wurl-foot-r"></div>
                                 </div>
                             </div>
                             <audio id="audioPlayer" preload="none"></audio>
