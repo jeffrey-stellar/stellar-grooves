@@ -45,4 +45,17 @@ public class BlacklistedToken {
     public void setBlacklistedAt(Instant blacklistedAt) { this.blacklistedAt = blacklistedAt; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BlacklistedToken that = (BlacklistedToken) o;
+        return java.util.Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(id);
+    }
 }

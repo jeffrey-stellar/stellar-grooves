@@ -51,11 +51,10 @@ public class MusicScannerService implements DisposableBean {
     @Value("${stellar.grooves.scan.perFileTimeoutSeconds:" + DEFAULT_PER_FILE_TIMEOUT_SECONDS + "}")
     private int perFileTimeoutSeconds;
 
-    private final ExecutorService fileReadExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "audio-file-reader");
-        t.setDaemon(true);
-        return t;
-    });
+    @Value("${stellar.grooves.scan.fileReaderThreads:2}")
+    private int fileReaderThreads;
+
+    private volatile ExecutorService fileReadExecutor;
 
     private final MusicCatalogService catalogService;
     private final MusicFileRepository repository;
@@ -68,6 +67,17 @@ public class MusicScannerService implements DisposableBean {
         this.repository = repository;
         this.coverArtRepository = coverArtRepository;
         this.progressEmitter = progressEmitter;
+    }
+
+    @jakarta.annotation.PostConstruct
+    void initExecutor() {
+        int threads = Math.max(1, fileReaderThreads);
+        fileReadExecutor = Executors.newFixedThreadPool(threads, r -> {
+            Thread t = new Thread(r, "audio-file-reader");
+            t.setDaemon(true);
+            return t;
+        });
+        logger.info("Audio file reader pool initialized with {} thread(s)", threads);
     }
 
     @Override

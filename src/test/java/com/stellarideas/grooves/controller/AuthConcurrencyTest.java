@@ -61,10 +61,10 @@ class AuthConcurrencyTest {
     @Test
     void concurrentSignupsForSameUsernameShouldNotAllSucceed() throws Exception {
         AtomicInteger checkCount = new AtomicInteger(0);
-        when(userRepository.existsByUsername("raceuser")).thenAnswer(invocation -> {
+        when(userRepository.existsByUsernameIgnoreCase("raceuser")).thenAnswer(invocation -> {
             return checkCount.getAndIncrement() > 0;
         });
-        when(userRepository.existsByEmail("race@test.com")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("race@test.com")).thenReturn(false);
 
         int threadCount = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);

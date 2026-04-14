@@ -39,6 +39,12 @@ function escapeHtml(s) { const d = document.createElement('div'); d.appendChild(
 function genreBadge(g) { const s = document.createElement('span'); s.className = 'badge ' + (GENRE_CLASSES[g] || 'genre-OTHER'); s.textContent = GENRE_LABELS[g] || 'Other'; return s; }
 function decadeFromYear(y) { if (!y || y.length < 4) return '\u2014'; const n = parseInt(y.substring(0, 4), 10); return isNaN(n) ? '\u2014' : Math.floor(n / 10) * 10 + 's'; }
 async function guardClick(btn, fn) { if (btn.disabled) return; btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } }
+function showToast(message, type = 'error', durationMs = 3500) {
+    const container = document.getElementById('toastContainer'); if (!container) return;
+    const el = document.createElement('div'); el.className = 'toast-msg toast-' + type; el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => { el.classList.add('toast-fade-out'); el.addEventListener('animationend', () => el.remove()); }, durationMs);
+}
 function fileById(id) { return allFiles.find(f => f.id === id); }
 function fileForRow(tr) { return tr ? fileById(tr.dataset.fileId) : null; }
 function formatTime(s) { if (isNaN(s) || s < 0) return '0:00'; return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0'); }
@@ -193,10 +199,10 @@ function renderAlbumsView() {
 
 // Album view toggle
 document.getElementById('albumViewGrid').addEventListener('click', function() {
-    albumViewMode = 'grid'; this.classList.add('active'); document.getElementById('albumViewList').classList.remove('active'); renderAlbumsView();
+    albumViewMode = 'grid'; this.classList.add('active'); this.setAttribute('aria-pressed', 'true'); const other = document.getElementById('albumViewList'); other.classList.remove('active'); other.setAttribute('aria-pressed', 'false'); renderAlbumsView();
 });
 document.getElementById('albumViewList').addEventListener('click', function() {
-    albumViewMode = 'list'; this.classList.add('active'); document.getElementById('albumViewGrid').classList.remove('active'); renderAlbumsView();
+    albumViewMode = 'list'; this.classList.add('active'); this.setAttribute('aria-pressed', 'true'); const other = document.getElementById('albumViewGrid'); other.classList.remove('active'); other.setAttribute('aria-pressed', 'false'); renderAlbumsView();
 });
 
 // ── Tracks view ──────────────────────────────────────────
@@ -265,7 +271,7 @@ function buildTrackRow(file) {
     const tdD = document.createElement('td'); tdD.className = 'hide-xs'; tdD.textContent = decadeFromYear(file.year); tr.appendChild(tdD);
 
     // Actions
-    const tdA = document.createElement('td'); tdA.className = 'hide-xs col-actions';
+    const tdA = document.createElement('td'); tdA.className = 'col-actions';
     const bq = document.createElement('button'); bq.className = 'btn-action-sm'; bq.setAttribute('aria-label', 'Add to queue'); bq.textContent = '\u23ED'; bq.dataset.action = 'queue'; tdA.appendChild(bq);
     const ba = document.createElement('button'); ba.className = 'btn-action-sm'; ba.setAttribute('aria-label', 'Add to playlist'); ba.textContent = '+'; ba.dataset.action = 'add-to-playlist'; tdA.appendChild(ba);
     const bd = document.createElement('button'); bd.className = 'btn-action-sm btn-action-remove'; bd.setAttribute('aria-label', 'Delete'); bd.textContent = '\u2715'; bd.dataset.action = 'delete'; tdA.appendChild(bd);
@@ -321,6 +327,7 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', async functio
             body: JSON.stringify({ fileIds: [...selectedIds] })
         });
         if (resp.ok) { allFiles = allFiles.filter(f => !selectedIds.has(f.id)); selectedIds.clear(); updateStats(); updateBulkBar(); renderTracksView(); await loadPlaylists(); }
+        else showToast('Failed to delete selected tracks');
     });
     this.classList.remove('btn-loading');
 });
@@ -344,6 +351,7 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
             if (!confirm(`Delete "${file.title || file.fileName}"?`)) return;
             const r = await fetch(`/api/v1/library/files/${file.id}`, { method: 'DELETE', headers: csrfHeaders() });
             if (r.ok) { allFiles = allFiles.filter(f => f.id !== file.id); selectedIds.delete(file.id); updateStats(); updateBulkBar(); renderCurrentView(); await loadPlaylists(); }
+            else showToast('Failed to delete track');
         }); break;
         case 'rate': {
             const rating = parseInt(el.dataset.rating);
@@ -351,7 +359,8 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
             fetch(`/api/v1/library/files/${file.id}/rating`, {
                 method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ rating })
-            }).then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; } })
+            }).then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; } else showToast('Failed to update rating'); })
+              .catch(() => showToast('Failed to update rating'))
               .finally(() => { if (starWrap) starWrap.classList.remove('loading'); renderTracksView(); });
         } break;
         case 'select': {
@@ -367,8 +376,8 @@ document.getElementById('musicTableBody').addEventListener('change', function(e)
     const ng = sel.value;
     sel.classList.add('loading');
     fetch(`/api/v1/library/files/${file.id}/genre`, { method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ genre: ng }) })
-        .then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].genre = ng; renderTracksView(); } else sel.value = file.genre; })
-        .catch(() => sel.value = file.genre)
+        .then(r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].genre = ng; renderTracksView(); } else { sel.value = file.genre; showToast('Failed to update genre'); } })
+        .catch(() => { sel.value = file.genre; showToast('Failed to update genre'); })
         .finally(() => sel.classList.remove('loading'));
 });
 
@@ -379,8 +388,9 @@ plBody.addEventListener('click', function(e) {
     const tr = el.closest('tr'), fid = tr ? tr.dataset.fileId : null; if (!fid) return;
     if (el.dataset.action === 'play') playTrack(fileById(fid) || { id: fid });
     else if (el.dataset.action === 'remove') guardClick(el, async () => {
-        await fetch(`/api/v1/playlists/${nav.playlistId}/tracks/${fid}`, { method: 'DELETE', headers: csrfHeaders() });
-        await loadPlaylists(); await renderPlaylistView();
+        const r = await fetch(`/api/v1/playlists/${nav.playlistId}/tracks/${fid}`, { method: 'DELETE', headers: csrfHeaders() });
+        if (r.ok) { await loadPlaylists(); await renderPlaylistView(); }
+        else showToast('Failed to remove track');
     });
 });
 
@@ -452,6 +462,8 @@ let searchDebounce = null;
 });
 
 async function serverSearch(query) {
+    const searchInput = document.getElementById('searchInput');
+    searchInput.classList.add('loading');
     try {
         const r = await fetch(`/api/v1/library/search?q=${encodeURIComponent(query)}&size=200`);
         if (!r.ok) return;
@@ -462,7 +474,8 @@ async function serverSearch(query) {
         if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); }
         else { renderVirtualSlice(); }
         document.getElementById('trackCount').textContent = `${d.totalElements} result${d.totalElements !== 1 ? 's' : ''} for "${query}"`;
-    } catch (e) { console.error('Search failed', e); }
+    } catch (e) { console.error('Search failed', e); showToast('Search failed'); }
+    finally { searchInput.classList.remove('loading'); }
 }
 
 // ── Duplicates view ──────────────────────────────────────
@@ -519,7 +532,7 @@ async function syncQueueToServer() {
         const currentTrack = window._currentTrack || null;
         await fetch('/api/v1/library/queue', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', ...csrfHeader() },
+            headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
             body: JSON.stringify({
                 trackIds: queue.map(f => f.id),
                 currentTrackId: currentTrack ? currentTrack.id : null,
@@ -576,7 +589,7 @@ async function loadSavedQueue() {
 
 document.getElementById('clearQueueBtn').addEventListener('click', async () => {
     queue = []; renderQueue();
-    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: csrfHeader() }); } catch (e) {}
+    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: csrfHeaders() }); } catch (e) {}
 });
 
 // ── Scan ─────────────────────────────────────────────────
@@ -640,8 +653,8 @@ function renderPlaylistSidebar() {
     });
 }
 
-async function createPlaylist(name) { try { const r = await fetch('/api/v1/playlists', { method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name }) }); if (r.ok) { document.getElementById('newPlaylistName').value = ''; document.getElementById('newPlaylistForm').classList.add('d-none'); await loadPlaylists(); } } catch (e) { console.error(e); } }
-async function deletePlaylist(id) { try { const r = await fetch(`/api/v1/playlists/${id}`, { method: 'DELETE', headers: csrfHeaders() }); if (r.ok) { if (nav.playlistId === id) navigate({ view: 'library' }); await loadPlaylists(); } } catch (e) { console.error(e); } }
+async function createPlaylist(name) { try { const r = await fetch('/api/v1/playlists', { method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name }) }); if (r.ok) { document.getElementById('newPlaylistName').value = ''; document.getElementById('newPlaylistForm').classList.add('d-none'); await loadPlaylists(); } else showToast('Failed to create playlist'); } catch (e) { showToast('Failed to create playlist'); } }
+async function deletePlaylist(id) { try { const r = await fetch(`/api/v1/playlists/${id}`, { method: 'DELETE', headers: csrfHeaders() }); if (r.ok) { if (nav.playlistId === id) navigate({ view: 'library' }); await loadPlaylists(); } else showToast('Failed to delete playlist'); } catch (e) { showToast('Failed to delete playlist'); } }
 
 function openAddToPlaylistModal(file) {
     selectedFileForPlaylist = file;
@@ -726,7 +739,7 @@ async function renderPlaylistView() {
 
             const tdD = document.createElement('td'); tdD.className = 'hide-xs'; tdD.textContent = decadeFromYear(file.year); tr.appendChild(tdD);
 
-            const tdA = document.createElement('td'); tdA.className = 'hide-xs col-actions';
+            const tdA = document.createElement('td'); tdA.className = 'col-actions';
             const br = document.createElement('button'); br.className = 'btn-action-sm btn-action-remove'; br.setAttribute('aria-label', 'Remove'); br.textContent = '\u2715'; br.dataset.action = 'remove';
             tdA.appendChild(br); tr.appendChild(tdA);
             tbody.appendChild(tr);

@@ -126,8 +126,9 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        String normalizedUsername = signUpRequest.getUsername().toLowerCase(java.util.Locale.ROOT);
         String normalizedEmail = signUpRequest.getEmail().toLowerCase(java.util.Locale.ROOT);
-        if (userRepository.existsByUsername(signUpRequest.getUsername())
+        if (userRepository.existsByUsernameIgnoreCase(normalizedUsername)
                 || userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(GlobalExceptionHandler.problem(HttpStatus.CONFLICT,
@@ -135,7 +136,7 @@ public class AuthController {
         }
 
         User user = User.builder()
-                .username(signUpRequest.getUsername())
+                .username(normalizedUsername)
                 .email(normalizedEmail)
                 .password(encoder.encode(signUpRequest.getPassword()))
                 .build();
@@ -145,7 +146,7 @@ public class AuthController {
         user.setRoles(roles);
         userRepository.save(user);
 
-        auditService.log(signUpRequest.getUsername(), AuditService.Action.SIGNUP);
+        auditService.log(normalizedUsername, AuditService.Action.SIGNUP);
         return ResponseEntity.ok(Map.of("message", msg.msg("auth.registered")));
     }
 
@@ -162,13 +163,11 @@ public class AuthController {
                                 .body((Object) GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired"));
                     }
 
-                    // Generate new JWT using a lightweight authentication principal
-                    org.springframework.security.core.userdetails.User principal =
-                            new org.springframework.security.core.userdetails.User(
-                                    user.getUsername(), "",
-                                    java.util.Collections.emptyList());
+                    // Generate new JWT with the user's actual roles
+                    com.stellarideas.grooves.security.UserDetailsImpl principal =
+                            com.stellarideas.grooves.security.UserDetailsImpl.build(user);
                     Authentication authentication = new UsernamePasswordAuthenticationToken(
-                            principal, null, java.util.Collections.emptyList());
+                            principal, null, principal.getAuthorities());
                     String newJwt = jwtUtils.generateJwtToken(authentication);
 
                     // Create new refresh token, then delete old one

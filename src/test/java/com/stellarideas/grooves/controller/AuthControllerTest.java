@@ -112,8 +112,8 @@ class AuthControllerTest {
 
     @Test
     void signupSucceeds() {
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(userRepository.existsByEmail("new@test.com")).thenReturn(false);
+        when(userRepository.existsByUsernameIgnoreCase("newuser")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("new@test.com")).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded");
 
         ResponseEntity<?> response = controller.registerUser(signupRequest("newuser", "new@test.com", "password123"));
@@ -125,7 +125,7 @@ class AuthControllerTest {
 
     @Test
     void signupRejectsDuplicateUsername() {
-        when(userRepository.existsByUsername("taken")).thenReturn(true);
+        when(userRepository.existsByUsernameIgnoreCase("taken")).thenReturn(true);
 
         ResponseEntity<?> response = controller.registerUser(signupRequest("taken", "a@b.com", "password123"));
 
@@ -134,7 +134,7 @@ class AuthControllerTest {
 
     @Test
     void signupRejectsDuplicateEmail() {
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
+        when(userRepository.existsByUsernameIgnoreCase("newuser")).thenReturn(false);
         when(userRepository.existsByEmailIgnoreCase("taken@test.com")).thenReturn(true);
 
         ResponseEntity<?> response = controller.registerUser(signupRequest("newuser", "taken@test.com", "password123"));

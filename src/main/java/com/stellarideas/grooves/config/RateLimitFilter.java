@@ -73,7 +73,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     String getClientIp(HttpServletRequest request) {
         if (trustProxy) {
             String remoteAddr = request.getRemoteAddr();
-            if (trustedProxies.isEmpty() || trustedProxies.contains(remoteAddr)) {
+            if (!trustedProxies.isEmpty() && trustedProxies.contains(remoteAddr)) {
                 String forwarded = request.getHeader("X-Forwarded-For");
                 if (forwarded != null && !forwarded.isBlank()) {
                     // Walk from the rightmost IP leftward, skipping trusted proxies.

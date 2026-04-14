@@ -66,6 +66,7 @@ class RateLimitFilterTest {
     @Test
     void respectsForwardedForWhenProxyTrusted() throws Exception {
         ReflectionTestUtils.setField(filter, "trustProxy", true);
+        ReflectionTestUtils.setField(filter, "trustedProxies", List.of("10.0.0.1"));
 
         for (int i = 0; i < 3; i++) {
             MockHttpServletRequest req = authRequest("10.0.0.1");

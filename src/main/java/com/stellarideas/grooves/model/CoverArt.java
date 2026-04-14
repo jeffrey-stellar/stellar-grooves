@@ -41,4 +41,17 @@ public class CoverArt {
 
     public byte[] getData() { return data; }
     public void setData(byte[] data) { this.data = data; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CoverArt that = (CoverArt) o;
+        return java.util.Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(id);
+    }
 }

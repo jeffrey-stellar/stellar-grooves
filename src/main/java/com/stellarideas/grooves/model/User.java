@@ -197,6 +197,19 @@ public class User {
         this.updatedAt = updatedAt;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        User user = (User) o;
+        return java.util.Objects.equals(id, user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(id);
+    }
+
     public static UserBuilder builder() {
         return new UserBuilder();
     }

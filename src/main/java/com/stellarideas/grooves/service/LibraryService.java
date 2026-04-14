@@ -45,8 +45,13 @@ public class LibraryService {
                 : musicFileRepository.findByUserIdAndGenreAndDeletedFalse(userId, genre, PageRequest.of(page, size));
     }
 
+    private static final int MAX_SEARCH_QUERY_LENGTH = 200;
+
     public Page<MusicFile> searchFiles(String userId, String query, int page, int size) {
         size = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        if (query == null || query.isBlank() || query.length() > MAX_SEARCH_QUERY_LENGTH) {
+            return Page.empty();
+        }
         try {
             // Try text search first (uses MongoDB text index with relevance scoring)
             Page<MusicFile> results = musicFileRepository.textSearch(userId, query, PageRequest.of(page, size));

@@ -5,6 +5,7 @@ import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -57,6 +59,9 @@ public class ScheduledScanService {
                         continue;
                     }
                     try {
+                        MDC.put("correlationId", UUID.randomUUID().toString());
+                        MDC.put("audit.user", user.getUsername());
+                        MDC.put("scanType", "scheduled");
                         logger.info("Running scheduled scan for user '{}' on path '{}'",
                                 user.getUsername(), user.getScanPath());
                         ScanResult result = musicScannerService.scanDirectory(user, user.getScanPath());
@@ -66,6 +71,7 @@ public class ScheduledScanService {
                                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
                     } finally {
                         activeScans.remove(user.getId());
+                        MDC.clear();
                     }
                 }
             } catch (Exception e) {

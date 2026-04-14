@@ -54,4 +54,17 @@ public class GenreCorrection {
 
     public Instant getCorrectedAt() { return correctedAt; }
     public void setCorrectedAt(Instant correctedAt) { this.correctedAt = correctedAt; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GenreCorrection that = (GenreCorrection) o;
+        return java.util.Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(id);
+    }
 }
