@@ -170,11 +170,13 @@ function renderAlbumsView() {
     });
     const sorted = Object.values(m).sort((a, b) => a.album.localeCompare(b.album));
 
-    // Grid view
+    // Grid / List / Art gallery views
     const grid = document.getElementById('albumsGrid');
     const tableWrap = document.getElementById('albumsTableWrap');
+    const artGallery = document.getElementById('albumsArtGallery');
+    grid.classList.add('d-none'); tableWrap.classList.add('d-none'); artGallery.classList.add('d-none');
     if (albumViewMode === 'grid') {
-        grid.classList.remove('d-none'); tableWrap.classList.add('d-none');
+        grid.classList.remove('d-none');
         grid.innerHTML = '';
         sorted.forEach(({ album, artist, tracks, coverFileId }) => {
             const card = document.createElement('div'); card.className = 'album-card';
@@ -196,8 +198,29 @@ function renderAlbumsView() {
             card.addEventListener('click', () => navigate({ view: 'tracks', artist: nav.artist || artist, album }));
             grid.appendChild(card);
         });
+    } else if (albumViewMode === 'art') {
+        artGallery.classList.remove('d-none');
+        artGallery.innerHTML = '';
+        const withArt = sorted.filter(a => a.coverFileId);
+        if (withArt.length === 0) {
+            artGallery.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:2rem;">No cover art found. Scan a library with embedded artwork to populate this gallery.</p>';
+        } else {
+            withArt.forEach(({ album, artist, coverFileId }) => {
+                const card = document.createElement('div'); card.className = 'art-gallery-card';
+                const img = document.createElement('img');
+                img.src = `/api/v1/library/files/${coverFileId}/cover`; img.alt = escapeHtml(album);
+                img.loading = 'lazy';
+                card.appendChild(img);
+                const label = document.createElement('div'); label.className = 'art-gallery-label';
+                label.innerHTML = `<strong>${escapeHtml(album)}</strong><span>${escapeHtml(artist)}</span>`;
+                card.appendChild(label);
+                card.addEventListener('click', () => openCoverArtLightbox(
+                    `/api/v1/library/files/${coverFileId}/cover`, album, artist));
+                artGallery.appendChild(card);
+            });
+        }
     } else {
-        grid.classList.add('d-none'); tableWrap.classList.remove('d-none');
+        tableWrap.classList.remove('d-none');
         const tbody = document.getElementById('albumsBody'); tbody.innerHTML = '';
         sorted.forEach(({ album, artist, tracks }) => {
             const tr = document.createElement('tr'); tr.className = 'drill-row';
@@ -209,12 +232,21 @@ function renderAlbumsView() {
 }
 
 // Album view toggle
-document.getElementById('albumViewGrid').addEventListener('click', function() {
-    albumViewMode = 'grid'; this.classList.add('active'); this.setAttribute('aria-pressed', 'true'); const other = document.getElementById('albumViewList'); other.classList.remove('active'); other.setAttribute('aria-pressed', 'false'); renderAlbumsView();
-});
-document.getElementById('albumViewList').addEventListener('click', function() {
-    albumViewMode = 'list'; this.classList.add('active'); this.setAttribute('aria-pressed', 'true'); const other = document.getElementById('albumViewGrid'); other.classList.remove('active'); other.setAttribute('aria-pressed', 'false'); renderAlbumsView();
-});
+function setAlbumViewMode(mode) {
+    albumViewMode = mode;
+    ['albumViewGrid', 'albumViewList', 'albumViewArt'].forEach(id => {
+        const btn = document.getElementById(id);
+        const isActive = (id === 'albumViewGrid' && mode === 'grid')
+            || (id === 'albumViewList' && mode === 'list')
+            || (id === 'albumViewArt' && mode === 'art');
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    renderAlbumsView();
+}
+document.getElementById('albumViewGrid').addEventListener('click', () => setAlbumViewMode('grid'));
+document.getElementById('albumViewList').addEventListener('click', () => setAlbumViewMode('list'));
+document.getElementById('albumViewArt').addEventListener('click', () => setAlbumViewMode('art'));
 
 // ── Tracks view ──────────────────────────────────────────
 function getVisibleTracks() {
@@ -490,17 +522,19 @@ document.getElementById('statCardDupes').addEventListener('click', () => navigat
 
 // ── Advanced filters ─────────────────────────────────────
 let searchDebounce = null;
+function hasActiveFilters() {
+    return document.getElementById('genreFilter').value
+        || document.getElementById('artistFilter').value
+        || document.getElementById('albumFilter').value
+        || document.getElementById('searchInput').value.trim().length >= 2;
+}
 ['searchInput', 'genreFilter', 'artistFilter', 'albumFilter'].forEach(id => {
     document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', () => {
         if (nav.view === 'library' || (nav.view === 'tracks' && !nav.artist && !nav.album)) {
-            if (id === 'searchInput') {
-                clearTimeout(searchDebounce);
+            clearTimeout(searchDebounce);
+            if (hasActiveFilters()) {
                 const q = document.getElementById('searchInput').value.trim();
-                if (q.length >= 2) {
-                    searchDebounce = setTimeout(() => serverSearch(q), 300);
-                } else {
-                    renderTracksView();
-                }
+                searchDebounce = setTimeout(() => serverSearch(q.length >= 2 ? q : null), 300);
             } else {
                 renderTracksView();
             }
@@ -512,7 +546,17 @@ async function serverSearch(query) {
     const searchInput = document.getElementById('searchInput');
     searchInput.classList.add('loading');
     try {
-        const r = await fetch(`/api/v1/library/search?q=${encodeURIComponent(query)}&size=200`);
+        const params = new URLSearchParams();
+        if (query) params.set('q', query);
+        const genre = document.getElementById('genreFilter').value;
+        const artist = document.getElementById('artistFilter').value;
+        const album = document.getElementById('albumFilter').value;
+        if (genre) params.set('genre', genre);
+        if (artist) params.set('artist', artist);
+        // Album filter uses artist param on backend (searches album field via query text)
+        if (album && !query) params.set('q', album);
+        params.set('size', '200');
+        const r = await fetch(`/api/v1/library/search?${params.toString()}`);
         if (!r.ok) return;
         const d = await r.json();
         cachedVisibleTracks = d.content;
@@ -520,7 +564,12 @@ async function serverSearch(query) {
         updateTrackCount();
         if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); }
         else { renderVirtualSlice(); }
-        document.getElementById('trackCount').textContent = `${d.totalElements} result${d.totalElements !== 1 ? 's' : ''} for "${query}"`;
+        const parts = [];
+        if (query) parts.push(`"${query}"`);
+        if (genre) parts.push(genre);
+        if (artist) parts.push(artist);
+        const label = parts.length > 0 ? ` for ${parts.join(', ')}` : '';
+        document.getElementById('trackCount').textContent = `${d.totalElements} result${d.totalElements !== 1 ? 's' : ''}${label}`;
     } catch (e) { console.error('Search failed', e); showToast('Search failed'); }
     finally { searchInput.classList.remove('loading'); }
 }
@@ -682,6 +731,77 @@ document.getElementById('clearBtn').addEventListener('click', async function() {
     await guardClick(this, async () => {
         const r = await fetch('/api/v1/library/files', { method: 'DELETE', headers: csrfHeaders() });
         if (r.ok) { allFiles = []; playlists = []; queue = []; navigate({ view: 'library' }); updateStats(); renderPlaylistSidebar(); renderQueue(); const s = document.createElement('span'); s.className = 'status-success'; s.textContent = 'Library cleared.'; document.getElementById('scanStatus').replaceChildren(s); }
+    });
+});
+
+// ── Scan Schedule ───────────────────────────────────────
+async function loadScanSchedule() {
+    try {
+        const r = await fetch('/api/v1/library/scan/schedule');
+        if (!r.ok) return;
+        const d = await r.json();
+        const section = document.getElementById('scanScheduleSection');
+        const info = document.getElementById('scheduleInfo');
+        const clearBtn = document.getElementById('clearScheduleBtn');
+        section.classList.remove('d-none');
+        if (d.cronExpression) {
+            const lastScan = d.lastScheduledScan ? new Date(d.lastScheduledScan).toLocaleString() : 'Never';
+            info.innerHTML = `<strong>Active:</strong> <code>${escapeHtml(d.cronExpression)}</code><br>` +
+                `<strong>Path:</strong> ${escapeHtml(d.path || 'N/A')}<br>` +
+                `<strong>Last run:</strong> ${lastScan}`;
+            clearBtn.style.display = '';
+        } else {
+            info.textContent = 'No schedule configured.';
+            clearBtn.style.display = 'none';
+        }
+    } catch (e) { console.error('Failed to load scan schedule', e); }
+}
+
+document.getElementById('schedulePreset').addEventListener('change', function() {
+    const custom = document.getElementById('customCron');
+    const saveBtn = document.getElementById('saveScheduleBtn');
+    if (this.value === 'custom') {
+        custom.classList.remove('d-none');
+        saveBtn.classList.remove('d-none');
+    } else if (this.value) {
+        custom.classList.add('d-none');
+        saveBtn.classList.remove('d-none');
+    } else {
+        custom.classList.add('d-none');
+        saveBtn.classList.add('d-none');
+    }
+});
+
+document.getElementById('saveScheduleBtn').addEventListener('click', async function() {
+    const preset = document.getElementById('schedulePreset').value;
+    const cron = preset === 'custom' ? document.getElementById('customCron').value.trim() : preset;
+    const scanPath = document.getElementById('path').value.trim();
+    if (!cron) { showToast('Please select or enter a schedule.'); return; }
+    if (!scanPath) { showToast('Please enter a music directory path first.'); return; }
+    await guardClick(this, async () => {
+        const r = await fetch('/api/v1/library/scan/schedule', {
+            method: 'PUT',
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ cronExpression: cron, path: scanPath })
+        });
+        const d = await r.json();
+        if (r.ok) {
+            showToast('Scan schedule saved.');
+            document.getElementById('schedulePreset').value = '';
+            document.getElementById('customCron').classList.add('d-none');
+            document.getElementById('saveScheduleBtn').classList.add('d-none');
+            loadScanSchedule();
+        } else {
+            showToast(d.detail || d.error || 'Failed to save schedule.');
+        }
+    });
+});
+
+document.getElementById('clearScheduleBtn').addEventListener('click', async function() {
+    if (!confirm('Remove the scan schedule?')) return;
+    await guardClick(this, async () => {
+        const r = await fetch('/api/v1/library/scan/schedule', { method: 'DELETE', headers: csrfHeaders() });
+        if (r.ok) { showToast('Scan schedule removed.'); loadScanSchedule(); }
     });
 });
 
@@ -884,8 +1004,32 @@ document.addEventListener('visibilitychange', () => {
     });
 });
 
+// ── Cover Art Lightbox ──────────────────────────────────
+function openCoverArtLightbox(src, album, artist) {
+    const lb = document.getElementById('coverArtLightbox');
+    document.getElementById('lightboxImage').src = src;
+    document.getElementById('lightboxCaption').innerHTML =
+        `<strong>${escapeHtml(album)}</strong> &mdash; ${escapeHtml(artist)}`;
+    lb.classList.remove('d-none');
+    document.body.style.overflow = 'hidden';
+}
+function closeCoverArtLightbox() {
+    const lb = document.getElementById('coverArtLightbox');
+    lb.classList.add('d-none');
+    document.getElementById('lightboxImage').src = '';
+    document.body.style.overflow = '';
+}
+document.querySelector('.cover-art-lightbox-backdrop')?.addEventListener('click', closeCoverArtLightbox);
+document.querySelector('.cover-art-lightbox-close')?.addEventListener('click', closeCoverArtLightbox);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('coverArtLightbox').classList.contains('d-none')) {
+        closeCoverArtLightbox();
+    }
+});
+
 // ── Init ─────────────────────────────────────────────────
 loadSavedQueue();
 loadLibrary();
+loadScanSchedule();
 
 })();

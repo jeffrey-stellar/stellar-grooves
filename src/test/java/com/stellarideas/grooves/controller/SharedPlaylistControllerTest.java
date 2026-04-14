@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -85,6 +87,58 @@ class SharedPlaylistControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertEquals(0, body.get("trackCount"));
+    }
+
+    @Test
+    void getSharedPlaylistReturns410ForExpiredToken() {
+        Playlist playlist = new Playlist();
+        playlist.setId("p4");
+        playlist.setName("Expired Playlist");
+        playlist.setUserId("user1");
+        playlist.setShareToken("expired-token");
+        playlist.setShareTokenExpiresAt(Instant.now().minus(1, ChronoUnit.DAYS));
+
+        when(playlistService.findByShareToken("expired-token")).thenReturn(Optional.of(playlist));
+
+        ResponseEntity<?> response = controller.getSharedPlaylist("expired-token");
+
+        assertEquals(410, response.getStatusCode().value());
+    }
+
+    @Test
+    void getSharedPlaylistAllowsNonExpiredToken() {
+        Playlist playlist = new Playlist();
+        playlist.setId("p5");
+        playlist.setName("Active Playlist");
+        playlist.setUserId("user1");
+        playlist.setShareToken("active-token");
+        playlist.setShareTokenExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
+        playlist.setTrackIds(List.of());
+
+        when(playlistService.findByShareToken("active-token")).thenReturn(Optional.of(playlist));
+        when(playlistService.getOrderedFiles(playlist, "user1")).thenReturn(List.of());
+
+        ResponseEntity<?> response = controller.getSharedPlaylist("active-token");
+
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void getSharedPlaylistAllowsNullExpiration() {
+        Playlist playlist = new Playlist();
+        playlist.setId("p6");
+        playlist.setName("No Expiry");
+        playlist.setUserId("user1");
+        playlist.setShareToken("no-expiry-token");
+        playlist.setShareTokenExpiresAt(null);
+        playlist.setTrackIds(List.of());
+
+        when(playlistService.findByShareToken("no-expiry-token")).thenReturn(Optional.of(playlist));
+        when(playlistService.getOrderedFiles(playlist, "user1")).thenReturn(List.of());
+
+        ResponseEntity<?> response = controller.getSharedPlaylist("no-expiry-token");
+
+        assertEquals(200, response.getStatusCode().value());
     }
 
     @Test

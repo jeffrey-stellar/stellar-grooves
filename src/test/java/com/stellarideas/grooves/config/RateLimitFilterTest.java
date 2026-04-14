@@ -119,6 +119,38 @@ class RateLimitFilterTest {
         assertNotNull(resp.getHeader("Retry-After"));
     }
 
+    @Test
+    void rejectsInvalidIpInForwardedFor() throws Exception {
+        ReflectionTestUtils.setField(filter, "trustProxy", true);
+        ReflectionTestUtils.setField(filter, "trustedProxies", List.of("10.0.0.1"));
+
+        // Malformed IP should be skipped — falls back to remoteAddr
+        for (int i = 0; i < 3; i++) {
+            MockHttpServletRequest req = authRequest("10.0.0.1");
+            req.addHeader("X-Forwarded-For", "not-an-ip, 10.0.0.1");
+            filter.doFilterInternal(req, new MockHttpServletResponse(), chain);
+        }
+
+        // Should be rate-limited on remoteAddr (10.0.0.1) since forwarded IPs were invalid/trusted
+        MockHttpServletRequest req = authRequest("10.0.0.1");
+        req.addHeader("X-Forwarded-For", ":::invalid:::, 10.0.0.1");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter.doFilterInternal(req, resp, chain);
+        assertEquals(429, resp.getStatus());
+    }
+
+    @Test
+    void acceptsValidIpv6InForwardedFor() throws Exception {
+        ReflectionTestUtils.setField(filter, "trustProxy", true);
+        ReflectionTestUtils.setField(filter, "trustedProxies", List.of("10.0.0.1"));
+
+        MockHttpServletRequest req = authRequest("10.0.0.1");
+        req.addHeader("X-Forwarded-For", "::1, 10.0.0.1");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter.doFilterInternal(req, resp, chain);
+        assertNotEquals(429, resp.getStatus());
+    }
+
     private MockHttpServletRequest authRequest(String remoteAddr) {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/auth/signin");
         req.setRemoteAddr(remoteAddr);

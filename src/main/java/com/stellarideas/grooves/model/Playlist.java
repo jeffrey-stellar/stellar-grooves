@@ -8,6 +8,7 @@ import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +34,8 @@ public class Playlist {
     @Indexed(unique = true, sparse = true)
     private String shareToken;
 
+    private Instant shareTokenExpiresAt;
+
     public Playlist() {}
 
     public String getId() { return id; }
@@ -53,6 +56,13 @@ public class Playlist {
 
     public String getShareToken() { return shareToken; }
     public void setShareToken(String shareToken) { this.shareToken = shareToken; }
+
+    public Instant getShareTokenExpiresAt() { return shareTokenExpiresAt; }
+    public void setShareTokenExpiresAt(Instant shareTokenExpiresAt) { this.shareTokenExpiresAt = shareTokenExpiresAt; }
+
+    public boolean isShareTokenExpired() {
+        return shareTokenExpiresAt != null && Instant.now().isAfter(shareTokenExpiresAt);
+    }
 
     @Override
     public boolean equals(Object o) {

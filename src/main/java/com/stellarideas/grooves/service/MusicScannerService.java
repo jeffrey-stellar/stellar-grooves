@@ -9,12 +9,8 @@ import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
-import org.jaudiotagger.audio.exceptions.CannotReadException;
-import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException;
-import org.jaudiotagger.audio.exceptions.ReadOnlyFileException;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
-import org.jaudiotagger.tag.TagException;
 import org.jaudiotagger.tag.images.Artwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +101,7 @@ public class MusicScannerService implements DisposableBean {
         logger.info("Audio file reader executor shut down");
     }
 
-    public ScanResult scanDirectory(User user, String directoryPath) throws Exception {
+    public ScanResult scanDirectory(User user, String directoryPath) throws IOException {
         ReentrantLock lock = userScanLocks.computeIfAbsent(user.getId(), k -> new ReentrantLock());
         if (!lock.tryLock()) {
             throw new IllegalStateException("A scan is already in progress for this user");
@@ -117,7 +113,7 @@ public class MusicScannerService implements DisposableBean {
         }
     }
 
-    private ScanResult doScanDirectory(User user, String directoryPath) throws Exception {
+    private ScanResult doScanDirectory(User user, String directoryPath) throws IOException {
         Path root = Paths.get(directoryPath).normalize();
         int effectiveDepth = Math.min(maxDepth, HARD_MAX_DEPTH);
 
@@ -171,8 +167,14 @@ public class MusicScannerService implements DisposableBean {
                         logger.warn("Timed out reading file '{}' after {}s", path.getFileName(), perFileTimeoutSeconds);
                         result.addError(path.getFileName().toString(), "File read timed out after " + perFileTimeoutSeconds + "s");
                         continue;
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Scan interrupted while reading file", ie);
                     } catch (ExecutionException ee) {
-                        throw ee.getCause() != null ? (Exception) ee.getCause() : ee;
+                        Throwable cause = ee.getCause();
+                        if (cause instanceof IOException ioe) throw ioe;
+                        if (cause instanceof RuntimeException re) throw re;
+                        throw new IOException("Failed to read audio file", cause != null ? cause : ee);
                     }
                     Tag tag = f.getTag();
 
@@ -242,8 +244,7 @@ public class MusicScannerService implements DisposableBean {
                         result.addSaved(batch.size());
                         batch.clear();
                     }
-                } catch (CannotReadException | TagException | ReadOnlyFileException
-                         | InvalidAudioFrameException | IOException e) {
+                } catch (IOException e) {
                     logger.warn("Skipping file '{}': {}", path.getFileName(), e.getMessage());
                     result.addError(path.getFileName().toString(), e.getMessage());
                 } catch (RuntimeException e) {

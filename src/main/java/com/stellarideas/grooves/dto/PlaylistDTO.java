@@ -2,12 +2,15 @@ package com.stellarideas.grooves.dto;
 
 import com.stellarideas.grooves.model.Playlist;
 
+import java.time.Instant;
+
 public class PlaylistDTO {
 
     private String id;
     private String name;
     private int trackCount;
     private String shareToken;
+    private Instant shareTokenExpiresAt;
 
     public PlaylistDTO() {}
 
@@ -17,6 +20,7 @@ public class PlaylistDTO {
         dto.name = playlist.getName();
         dto.trackCount = playlist.getTrackIds().size();
         dto.shareToken = playlist.getShareToken();
+        dto.shareTokenExpiresAt = playlist.getShareTokenExpiresAt();
         return dto;
     }
 
@@ -31,4 +35,7 @@ public class PlaylistDTO {
 
     public String getShareToken() { return shareToken; }
     public void setShareToken(String shareToken) { this.shareToken = shareToken; }
+
+    public Instant getShareTokenExpiresAt() { return shareTokenExpiresAt; }
+    public void setShareTokenExpiresAt(Instant shareTokenExpiresAt) { this.shareTokenExpiresAt = shareTokenExpiresAt; }
 }

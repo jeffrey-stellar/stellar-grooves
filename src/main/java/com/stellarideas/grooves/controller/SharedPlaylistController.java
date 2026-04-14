@@ -30,6 +30,12 @@ public class SharedPlaylistController {
             return ResponseEntity.notFound().build();
         }
         Playlist playlist = opt.get();
+        if (playlist.isShareTokenExpired()) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.GONE)
+                    .body(GlobalExceptionHandler.problem(
+                            org.springframework.http.HttpStatus.GONE,
+                            "This shared playlist link has expired"));
+        }
         List<MusicFile> files = playlistService.getOrderedFiles(playlist, playlist.getUserId());
         List<Map<String, Object>> tracks = files.stream().map(f -> {
             Map<String, Object> m = new LinkedHashMap<>();

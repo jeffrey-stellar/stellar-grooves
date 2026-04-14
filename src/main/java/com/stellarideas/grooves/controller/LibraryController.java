@@ -22,12 +22,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,6 +38,8 @@ import java.util.stream.Collectors;
 public class LibraryController {
 
     private static final Logger logger = LoggerFactory.getLogger(LibraryController.class);
+    private static final int TRANSCODE_TIMEOUT_SECONDS = 300; // 5 minutes
+    private static final long MAX_TRANSCODE_FILE_SIZE = 500L * 1024 * 1024; // 500 MB
 
     private final MusicScannerService scannerService;
     private final LibraryService libraryService;
@@ -132,22 +137,48 @@ public class LibraryController {
     @GetMapping("/search")
     public ResponseEntity<?> searchFiles(
             @CurrentUser User user,
-            @RequestParam String q,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String artist,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String format,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        if (q == null || q.isBlank()) {
+        boolean hasQuery = q != null && !q.isBlank();
+        boolean hasFilters = (genre != null && !genre.isBlank())
+                || (artist != null && !artist.isBlank())
+                || (year != null && !year.isBlank())
+                || (format != null && !format.isBlank());
+
+        if (!hasQuery && !hasFilters) {
             return ResponseEntity.badRequest()
-                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, "Search query must not be empty"));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST,
+                            "Search query or at least one filter (genre, artist, year, format) is required"));
         }
-        Page<MusicFile> result = libraryService.searchFiles(user.getId(), q, page, size);
-        return ResponseEntity.ok(Map.of(
-                "content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()),
-                "page", result.getNumber(),
-                "size", result.getSize(),
-                "totalElements", result.getTotalElements(),
-                "totalPages", result.getTotalPages(),
-                "query", q
-        ));
+
+        Genre g = null;
+        if (genre != null && !genre.isBlank()) {
+            try {
+                g = Genre.valueOf(genre.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                        .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, msg.msg("genre.unknown.hint", genre)));
+            }
+        }
+
+        Page<MusicFile> result = libraryService.searchFiles(user.getId(), q, g, artist, year, format, page, size);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()));
+        body.put("page", result.getNumber());
+        body.put("size", result.getSize());
+        body.put("totalElements", result.getTotalElements());
+        body.put("totalPages", result.getTotalPages());
+        if (hasQuery) body.put("query", q);
+        if (g != null) body.put("genre", g.name());
+        if (artist != null && !artist.isBlank()) body.put("artist", artist);
+        if (year != null && !year.isBlank()) body.put("year", year);
+        if (format != null && !format.isBlank()) body.put("format", format);
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/files/{id}/stream")
@@ -206,22 +237,31 @@ public class LibraryController {
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 
+    private static final Map<String, TranscodeFormat> TRANSCODE_FORMATS = Map.of(
+            "mp3",  new TranscodeFormat("mp3",  "audio/mpeg",      ".mp3",  new String[]{"-f", "mp3", "-ab", "128k"}),
+            "ogg",  new TranscodeFormat("ogg",  "audio/ogg",       ".ogg",  new String[]{"-f", "ogg", "-c:a", "libvorbis", "-q:a", "4"}),
+            "opus", new TranscodeFormat("opus", "audio/ogg",       ".opus", new String[]{"-f", "opus", "-c:a", "libopus", "-b:a", "96k"})
+    );
+
     @GetMapping("/files/{id}/transcode")
     public ResponseEntity<?> transcodeFile(
             @CurrentUser User user,
             @PathVariable String id,
             @RequestParam(defaultValue = "mp3") String format) throws IOException {
-        if (!"mp3".equalsIgnoreCase(format)) {
+        String formatLower = format.toLowerCase();
+        TranscodeFormat tf = TRANSCODE_FORMATS.get(formatLower);
+        if (tf == null) {
             return ResponseEntity.badRequest()
-                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, "Only 'mp3' transcoding is supported"));
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST,
+                            "Unsupported format '" + format + "'. Supported: " + String.join(", ", TRANSCODE_FORMATS.keySet())));
         }
         Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
         String fileName = fileOpt.get().getFileName().toLowerCase();
-        if (fileName.endsWith(".mp3")) {
-            // Already MP3 — redirect to normal stream
+        if (fileName.endsWith(tf.extension())) {
+            // Already in the requested format — redirect to normal stream
             return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
                     .header("Location", "/api/v1/library/files/" + id + "/stream")
                     .build();
@@ -239,53 +279,110 @@ public class LibraryController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        try {
-            // Check ffmpeg is available
-            Process check = new ProcessBuilder("ffmpeg", "-version")
-                    .redirectErrorStream(true).start();
-            check.waitFor();
-            if (check.exitValue() != 0) {
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body(GlobalExceptionHandler.problem(HttpStatus.SERVICE_UNAVAILABLE,
-                                "Transcoding is not available — ffmpeg is not installed"));
-            }
-        } catch (Exception e) {
+        // Reject files that are too large for transcoding
+        long fileSize = Files.size(path);
+        if (fileSize > MAX_TRANSCODE_FILE_SIZE) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
+                            "File too large for transcoding (max " + (MAX_TRANSCODE_FILE_SIZE / 1024 / 1024) + " MB)"));
+        }
+
+        if (!isFFmpegAvailable()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(GlobalExceptionHandler.problem(HttpStatus.SERVICE_UNAVAILABLE,
                             "Transcoding is not available — ffmpeg is not installed"));
         }
 
-        // Transcode to MP3 via ffmpeg (128kbps CBR for bandwidth savings)
-        ProcessBuilder pb = new ProcessBuilder(
-                "ffmpeg", "-i", path.toString(),
-                "-f", "mp3", "-ab", "128k", "-"
-        );
-        pb.redirectErrorStream(false);
-        Process process = pb.start();
+        Path sourcePath = path;
+        String outputName = sanitizeFilename(fileOpt.get().getFileName().replaceAll("\\.[^.]+$", tf.extension()));
 
-        byte[] mp3Data;
-        try {
-            mp3Data = process.getInputStream().readAllBytes();
-            process.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            process.destroyForcibly();
-            return ResponseEntity.internalServerError()
-                    .body(GlobalExceptionHandler.problem(HttpStatus.INTERNAL_SERVER_ERROR, "Transcoding interrupted"));
-        }
+        StreamingResponseBody stream = outputStream -> {
+            Process process = null;
+            try {
+                List<String> cmd = new ArrayList<>();
+                cmd.addAll(List.of("ffmpeg", "-i", sourcePath.toString()));
+                cmd.addAll(List.of(tf.ffmpegArgs()));
+                cmd.add("-");
 
-        if (process.exitValue() != 0) {
-            logger.error("ffmpeg transcoding failed for '{}' with exit code {}", path.getFileName(), process.exitValue());
-            return ResponseEntity.internalServerError()
-                    .body(GlobalExceptionHandler.problem(HttpStatus.INTERNAL_SERVER_ERROR, "Transcoding failed"));
-        }
+                ProcessBuilder pb = new ProcessBuilder(cmd);
+                pb.redirectErrorStream(false);
+                process = pb.start();
 
-        String outputName = fileOpt.get().getFileName().replaceAll("\\.[^.]+$", ".mp3");
+                // Drain stderr in a separate thread to prevent blocking
+                Process finalProcess = process;
+                Thread stderrDrainer = new Thread(() -> {
+                    try (InputStream err = finalProcess.getErrorStream()) {
+                        err.readAllBytes();
+                    } catch (IOException ignored) {
+                        // stderr drain failure is non-fatal
+                    }
+                }, "ffmpeg-stderr-drain");
+                stderrDrainer.setDaemon(true);
+                stderrDrainer.start();
+
+                // Stream ffmpeg stdout directly to the HTTP response
+                try (InputStream ffmpegOut = process.getInputStream()) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = ffmpegOut.read(buf)) != -1) {
+                        outputStream.write(buf, 0, n);
+                        outputStream.flush();
+                    }
+                }
+
+                boolean finished = process.waitFor(TRANSCODE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (!finished) {
+                    logger.error("ffmpeg transcoding timed out after {}s for '{}'",
+                            TRANSCODE_TIMEOUT_SECONDS, sourcePath.getFileName());
+                    process.destroyForcibly();
+                } else if (process.exitValue() != 0) {
+                    logger.error("ffmpeg transcoding failed for '{}' with exit code {}",
+                            sourcePath.getFileName(), process.exitValue());
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Transcoding interrupted for '{}'", sourcePath.getFileName());
+            } finally {
+                if (process != null && process.isAlive()) {
+                    process.destroyForcibly();
+                }
+            }
+        };
+
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("audio/mpeg"))
+                .contentType(MediaType.parseMediaType(tf.mimeType()))
                 .header("Content-Disposition", "inline; filename=\"" + outputName + "\"")
-                .contentLength(mp3Data.length)
-                .body(mp3Data);
+                .body(stream);
+    }
+
+    record TranscodeFormat(String name, String mimeType, String extension, String[] ffmpegArgs) {}
+
+    private boolean isFFmpegAvailable() {
+        try {
+            Process check = new ProcessBuilder("ffmpeg", "-version")
+                    .redirectErrorStream(true).start();
+            boolean finished = check.waitFor(10, TimeUnit.SECONDS);
+            if (!finished) {
+                check.destroyForcibly();
+                return false;
+            }
+            return check.exitValue() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sanitize a filename for use in Content-Disposition headers.
+     * Removes characters that could break HTTP header parsing.
+     */
+    static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) return "download.mp3";
+        // Remove or replace characters unsafe in Content-Disposition headers
+        String sanitized = filename.replaceAll("[\"\\\\;/\r\n\t]", "_");
+        // Collapse multiple underscores
+        sanitized = sanitized.replaceAll("_+", "_");
+        return sanitized.isBlank() ? "download.mp3" : sanitized;
     }
 
     @PatchMapping("/files/{id}/genre")

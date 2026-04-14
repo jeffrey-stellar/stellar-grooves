@@ -1,6 +1,7 @@
 package com.stellarideas.grooves.repository;
 
 import com.stellarideas.grooves.dto.MusicFileDTO;
+import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
 import org.bson.Document;
 import org.springframework.data.domain.Page;
@@ -189,6 +190,44 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
         TextCriteria textCriteria = TextCriteria.forDefaultLanguage().matchingPhrase(query);
         Query q = TextQuery.queryText(textCriteria).sortByScore();
         q.addCriteria(Criteria.where("userId").is(userId).and("deleted").ne(true));
+
+        long total = mongoTemplate.count(q, MusicFile.class);
+        q.with(pageable);
+        List<MusicFile> results = mongoTemplate.find(q, MusicFile.class);
+        return new PageImpl<>(results, pageable, total);
+    }
+
+    @Override
+    public Page<MusicFile> filteredSearch(String userId, String query,
+                                          Genre genre, String artist, String year, String fileExtension,
+                                          Pageable pageable) {
+        Criteria base = Criteria.where("userId").is(userId).and("deleted").ne(true);
+        if (genre != null) {
+            base = base.and("genre").is(genre);
+        }
+        if (artist != null && !artist.isBlank()) {
+            base = base.and("artist").regex(java.util.regex.Pattern.quote(artist), "i");
+        }
+        if (year != null && !year.isBlank()) {
+            base = base.and("year").is(year);
+        }
+        if (fileExtension != null && !fileExtension.isBlank()) {
+            String ext = fileExtension.startsWith(".") ? fileExtension : "." + fileExtension;
+            base = base.and("fileName").regex(java.util.regex.Pattern.quote(ext) + "$", "i");
+        }
+
+        Query q;
+        if (query != null && !query.isBlank()) {
+            String escaped = java.util.regex.Pattern.quote(query);
+            Criteria searchCriteria = new Criteria().orOperator(
+                    Criteria.where("title").regex(escaped, "i"),
+                    Criteria.where("artist").regex(escaped, "i"),
+                    Criteria.where("album").regex(escaped, "i")
+            );
+            q = new Query(new Criteria().andOperator(base, searchCriteria));
+        } else {
+            q = new Query(base);
+        }
 
         long total = mongoTemplate.count(q, MusicFile.class);
         q.with(pageable);

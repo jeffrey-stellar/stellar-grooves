@@ -107,7 +107,7 @@ class PlaylistConcurrencyIT extends BaseIntegrationTest {
             futures.add(executor.submit(() -> {
                 startLatch.await();
                 Playlist current = playlistRepository.findById(playlist.getId()).orElseThrow();
-                return playlistService.generateShareToken(current);
+                return playlistService.generateShareToken(current, null);
             }));
         }
 

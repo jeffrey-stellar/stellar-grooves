@@ -37,4 +37,13 @@ public interface MusicFileRepositoryCustom {
      * Aggregate library statistics: genre distribution, top artists, decade distribution.
      */
     Map<String, Object> getStatistics(String userId);
+
+    /**
+     * Search with optional filters for genre, artist, year, and file format.
+     * Combines text/regex search with additional criteria.
+     */
+    org.springframework.data.domain.Page<com.stellarideas.grooves.model.MusicFile> filteredSearch(
+            String userId, String query,
+            com.stellarideas.grooves.model.Genre genre, String artist, String year, String fileExtension,
+            org.springframework.data.domain.Pageable pageable);
 }

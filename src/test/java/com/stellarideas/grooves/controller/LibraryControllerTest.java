@@ -134,9 +134,9 @@ class LibraryControllerTest {
         MusicFile file = MusicFile.builder()
                 .id("f1").title("Stairway").artist("Led Zeppelin").genre(Genre.CLASSIC_ROCK).build();
         Page<MusicFile> page = new PageImpl<>(List.of(file));
-        when(libraryService.searchFiles(eq("user1"), eq("stairway"), eq(0), eq(50))).thenReturn(page);
+        when(libraryService.searchFiles(eq("user1"), eq("stairway"), isNull(), isNull(), isNull(), isNull(), eq(0), eq(50))).thenReturn(page);
 
-        ResponseEntity<?> response = controller.searchFiles(testUser, "stairway", 0, 50);
+        ResponseEntity<?> response = controller.searchFiles(testUser, "stairway", null, null, null, null, 0, 50);
 
         assertEquals(200, response.getStatusCode().value());
         @SuppressWarnings("unchecked")
@@ -148,14 +148,14 @@ class LibraryControllerTest {
 
     @Test
     void searchFilesRejectsBlanQuery() {
-        ResponseEntity<?> response = controller.searchFiles(testUser, "   ", 0, 50);
+        ResponseEntity<?> response = controller.searchFiles(testUser, "   ", null, null, null, null, 0, 50);
 
         assertEquals(400, response.getStatusCode().value());
     }
 
     @Test
     void searchFilesRejectsNullQuery() {
-        ResponseEntity<?> response = controller.searchFiles(testUser, null, 0, 50);
+        ResponseEntity<?> response = controller.searchFiles(testUser, null, null, null, null, null, 0, 50);
 
         assertEquals(400, response.getStatusCode().value());
     }
@@ -893,5 +893,43 @@ class LibraryControllerTest {
         ResponseEntity<?> response = controller.scanDirectory(testUser, request);
 
         assertEquals(500, response.getStatusCode().value());
+    }
+
+    // --- sanitizeFilename tests ---
+
+    @Test
+    void sanitizeFilename_removesQuotesAndBackslashes() {
+        assertEquals("song_name_.mp3", LibraryController.sanitizeFilename("song\"name\".mp3"));
+        assertEquals("path_file.mp3", LibraryController.sanitizeFilename("path\\file.mp3"));
+    }
+
+    @Test
+    void sanitizeFilename_removesSemicolonsAndSlashes() {
+        assertEquals("file_name.mp3", LibraryController.sanitizeFilename("file;name.mp3"));
+        assertEquals("path_to_file.mp3", LibraryController.sanitizeFilename("path/to/file.mp3"));
+    }
+
+    @Test
+    void sanitizeFilename_removesControlCharacters() {
+        assertEquals("file_name.mp3", LibraryController.sanitizeFilename("file\r\nname.mp3"));
+        assertEquals("file_name.mp3", LibraryController.sanitizeFilename("file\tname.mp3"));
+    }
+
+    @Test
+    void sanitizeFilename_collapsesMultipleUnderscores() {
+        assertEquals("a_b.mp3", LibraryController.sanitizeFilename("a\"\"\"b.mp3"));
+    }
+
+    @Test
+    void sanitizeFilename_returnsDefaultForNullOrBlank() {
+        assertEquals("download.mp3", LibraryController.sanitizeFilename(null));
+        assertEquals("download.mp3", LibraryController.sanitizeFilename(""));
+        assertEquals("download.mp3", LibraryController.sanitizeFilename("   "));
+    }
+
+    @Test
+    void sanitizeFilename_preservesSafeNames() {
+        assertEquals("My Song (Live).mp3", LibraryController.sanitizeFilename("My Song (Live).mp3"));
+        assertEquals("track-01_remix.mp3", LibraryController.sanitizeFilename("track-01_remix.mp3"));
     }
 }

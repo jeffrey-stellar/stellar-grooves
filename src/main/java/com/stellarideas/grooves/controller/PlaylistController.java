@@ -105,11 +105,22 @@ public class PlaylistController {
     }
 
     @PostMapping("/{id}/share")
-    public ResponseEntity<?> generateShareToken(@CurrentUser User user, @PathVariable String id) {
+    public ResponseEntity<?> generateShareToken(@CurrentUser User user, @PathVariable String id,
+                                                @RequestParam(required = false) Integer expirationDays) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
-        String token = playlistService.generateShareToken(opt.get());
-        return ResponseEntity.ok(Map.of("shareToken", token, "shareUrl", "/api/v1/shared/playlists/" + token));
+        if (expirationDays != null && (expirationDays < 1 || expirationDays > 365)) {
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(
+                            org.springframework.http.HttpStatus.BAD_REQUEST,
+                            "expirationDays must be between 1 and 365"));
+        }
+        String token = playlistService.generateShareToken(opt.get(), expirationDays);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("shareToken", token);
+        body.put("shareUrl", "/api/v1/shared/playlists/" + token);
+        body.put("expiresAt", opt.get().getShareTokenExpiresAt());
+        return ResponseEntity.ok(body);
     }
 
     @DeleteMapping("/{id}/share")

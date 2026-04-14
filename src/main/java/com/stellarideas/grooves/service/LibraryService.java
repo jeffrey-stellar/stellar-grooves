@@ -49,12 +49,29 @@ public class LibraryService {
     private static final int MAX_SEARCH_QUERY_LENGTH = 200;
 
     public Page<MusicFile> searchFiles(String userId, String query, int page, int size) {
+        return searchFiles(userId, query, null, null, null, null, page, size);
+    }
+
+    public Page<MusicFile> searchFiles(String userId, String query,
+                                       Genre genre, String artist, String year, String fileExtension,
+                                       int page, int size) {
         size = clamp(size, MAX_PAGE_SIZE);
-        if (query == null || query.isBlank() || query.length() > MAX_SEARCH_QUERY_LENGTH) {
+        boolean hasFilters = genre != null || (artist != null && !artist.isBlank())
+                || (year != null && !year.isBlank()) || (fileExtension != null && !fileExtension.isBlank());
+        boolean hasQuery = query != null && !query.isBlank() && query.length() <= MAX_SEARCH_QUERY_LENGTH;
+
+        if (!hasQuery && !hasFilters) {
             return Page.empty();
         }
+
+        // When filters are present, use the combined filtered search
+        if (hasFilters) {
+            return musicFileRepository.filteredSearch(userId, hasQuery ? query : null,
+                    genre, artist, year, fileExtension, PageRequest.of(page, size));
+        }
+
+        // No filters — use the existing text search with regex fallback
         try {
-            // Try text search first (uses MongoDB text index with relevance scoring)
             Page<MusicFile> results = musicFileRepository.textSearch(userId, query, PageRequest.of(page, size));
             if (results.getTotalElements() > 0) {
                 return results;
@@ -62,7 +79,6 @@ public class LibraryService {
         } catch (Exception e) {
             // Text index may not exist yet — fall through to regex
         }
-        // Fallback to regex search — escape all regex metacharacters to prevent ReDoS
         String escaped = java.util.regex.Pattern.quote(query);
         return musicFileRepository.searchByUserIdAndQuery(userId, escaped, PageRequest.of(page, size));
     }

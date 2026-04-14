@@ -116,25 +116,43 @@ class PlaylistServiceTest {
     }
 
     @Test
-    void generateShareToken() {
+    void generateShareTokenWithoutExpiration() {
         Playlist playlist = new Playlist();
 
-        String token = service.generateShareToken(playlist);
+        String token = service.generateShareToken(playlist, null);
 
         assertNotNull(token);
         assertFalse(token.isBlank());
         assertEquals(token, playlist.getShareToken());
+        assertNull(playlist.getShareTokenExpiresAt());
         verify(playlistRepository).save(playlist);
     }
 
     @Test
-    void revokeShareToken() {
+    void generateShareTokenWithExpiration() {
+        Playlist playlist = new Playlist();
+
+        String token = service.generateShareToken(playlist, 7);
+
+        assertNotNull(token);
+        assertEquals(token, playlist.getShareToken());
+        assertNotNull(playlist.getShareTokenExpiresAt());
+        assertTrue(playlist.getShareTokenExpiresAt().isAfter(java.time.Instant.now()));
+        assertTrue(playlist.getShareTokenExpiresAt().isBefore(
+                java.time.Instant.now().plus(java.time.Duration.ofDays(8))));
+        verify(playlistRepository).save(playlist);
+    }
+
+    @Test
+    void revokeShareTokenClearsExpiration() {
         Playlist playlist = new Playlist();
         playlist.setShareToken("some-token");
+        playlist.setShareTokenExpiresAt(java.time.Instant.now().plus(java.time.Duration.ofDays(7)));
 
         service.revokeShareToken(playlist);
 
         assertNull(playlist.getShareToken());
+        assertNull(playlist.getShareTokenExpiresAt());
         verify(playlistRepository).save(playlist);
     }
 

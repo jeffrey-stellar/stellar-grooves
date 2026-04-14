@@ -793,3 +793,102 @@ input.loading { opacity: 0.6; background-image: url("data:image/svg+xml,%3Csvg x
     #trackFilters select.form-select,
     #trackFilters input.form-control { max-width: 100%; }
 }
+
+/* ── Cover Art Gallery ───────────────────────────────────── */
+.album-art-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.art-gallery-card {
+    position: relative;
+    cursor: pointer;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.art-gallery-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 16px rgba(255, 179, 71, 0.1);
+}
+.art-gallery-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+}
+.art-gallery-card .art-gallery-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.5rem 0.6rem;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    color: #fff;
+    font-size: 0.75rem;
+}
+.art-gallery-label strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
+}
+.art-gallery-label span {
+    opacity: 0.7;
+    font-size: 0.7rem;
+}
+
+/* ── Cover Art Lightbox ──────────────────────────────────── */
+.cover-art-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cover-art-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+}
+.cover-art-lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    text-align: center;
+}
+.cover-art-lightbox-content img {
+    max-width: 90vw;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: var(--radius);
+    box-shadow: 0 0 40px rgba(255, 179, 71, 0.15);
+}
+.cover-art-lightbox-close {
+    position: absolute;
+    top: -1.5rem;
+    right: -1rem;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+.cover-art-lightbox-close:hover { opacity: 1; }
+.cover-art-lightbox-caption {
+    color: #ccc;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .album-art-gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+}

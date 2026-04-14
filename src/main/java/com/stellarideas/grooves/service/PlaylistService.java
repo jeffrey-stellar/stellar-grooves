@@ -7,6 +7,8 @@ import com.stellarideas.grooves.repository.MusicFileRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -77,15 +79,27 @@ public class PlaylistService {
         return true;
     }
 
-    public String generateShareToken(Playlist playlist) {
+    /**
+     * Generate a share token with an optional expiration.
+     * @param playlist the playlist to share
+     * @param expirationDays number of days until the token expires, or null for no expiration
+     * @return the generated share token
+     */
+    public String generateShareToken(Playlist playlist, Integer expirationDays) {
         String token = UUID.randomUUID().toString();
         playlist.setShareToken(token);
+        if (expirationDays != null && expirationDays > 0) {
+            playlist.setShareTokenExpiresAt(Instant.now().plus(Duration.ofDays(expirationDays)));
+        } else {
+            playlist.setShareTokenExpiresAt(null);
+        }
         playlistRepository.save(playlist);
         return token;
     }
 
     public void revokeShareToken(Playlist playlist) {
         playlist.setShareToken(null);
+        playlist.setShareTokenExpiresAt(null);
         playlistRepository.save(playlist);
     }
 

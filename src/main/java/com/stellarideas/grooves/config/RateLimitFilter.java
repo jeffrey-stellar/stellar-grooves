@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Rate limiter for auth endpoints.
@@ -35,9 +35,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${stellar.grooves.rateLimit.trustedProxies:}")
     private List<String> trustedProxies;
-
-    private static final Pattern IP_PATTERN = Pattern.compile(
-            "^[0-9a-fA-F.:]{1,45}$");
 
     private final RateLimitStore store;
 
@@ -96,6 +93,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private boolean isValidIp(String ip) {
-        return ip != null && !ip.isEmpty() && IP_PATTERN.matcher(ip).matches();
+        if (ip == null || ip.isEmpty() || ip.length() > 45) {
+            return false;
+        }
+        try {
+            InetAddress.getByName(ip);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

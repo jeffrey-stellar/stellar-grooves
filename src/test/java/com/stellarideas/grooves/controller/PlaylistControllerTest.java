@@ -211,14 +211,42 @@ class PlaylistControllerTest {
     void generateShareTokenSucceeds() {
         Playlist playlist = testPlaylist("pl1", "Test");
         when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
-        when(playlistService.generateShareToken(playlist)).thenReturn("share-token-123");
+        when(playlistService.generateShareToken(eq(playlist), isNull())).thenReturn("share-token-123");
 
-        ResponseEntity<?> response = controller.generateShareToken(testUser, "pl1");
+        ResponseEntity<?> response = controller.generateShareToken(testUser, "pl1", null);
 
         assertEquals(200, response.getStatusCode().value());
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertEquals("share-token-123", body.get("shareToken"));
+    }
+
+    @Test
+    void generateShareTokenWithExpirationSucceeds() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        playlist.setShareTokenExpiresAt(java.time.Instant.now().plusSeconds(86400 * 30));
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+        when(playlistService.generateShareToken(eq(playlist), eq(30))).thenReturn("share-token-456");
+
+        ResponseEntity<?> response = controller.generateShareToken(testUser, "pl1", 30);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals("share-token-456", body.get("shareToken"));
+        assertNotNull(body.get("expiresAt"));
+    }
+
+    @Test
+    void generateShareTokenRejectsInvalidExpiration() {
+        Playlist playlist = testPlaylist("pl1", "Test");
+        when(playlistService.findByIdAndUserId("pl1", "user1")).thenReturn(Optional.of(playlist));
+
+        ResponseEntity<?> response = controller.generateShareToken(testUser, "pl1", 0);
+        assertEquals(400, response.getStatusCode().value());
+
+        ResponseEntity<?> response2 = controller.generateShareToken(testUser, "pl1", 400);
+        assertEquals(400, response2.getStatusCode().value());
     }
 
     @Test
