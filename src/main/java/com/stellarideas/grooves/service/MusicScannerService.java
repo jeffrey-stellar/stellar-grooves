@@ -18,6 +18,10 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
@@ -35,19 +39,24 @@ public class MusicScannerService implements DisposableBean {
     private static final Logger logger = LoggerFactory.getLogger(MusicScannerService.class);
 
     private static final int DEFAULT_MAX_DEPTH = 20;
-    private static final int HARD_MAX_DEPTH = 50;
-    private static final int BATCH_SIZE = 200;
-    private static final int MAX_COVER_ART_BYTES = 10 * 1024 * 1024; // 10 MB
-    private static final long DEFAULT_COVER_ART_QUOTA = 500L * 1024 * 1024; // 500 MB
     private static final int DEFAULT_PER_FILE_TIMEOUT_SECONDS = 30;
 
     @Value("${stellar.grooves.scan.maxDepth:" + DEFAULT_MAX_DEPTH + "}")
     private int maxDepth;
 
+    @Value("${stellar.grooves.scan.hardMaxDepth:50}")
+    private int hardMaxDepth;
+
+    @Value("${stellar.grooves.scan.batchSize:200}")
+    private int batchSize;
+
+    @Value("${stellar.grooves.coverArt.maxBytesPerImage:10485760}")
+    private int maxCoverArtBytes;
+
     @Value("${stellar.grooves.scan.timeoutMinutes:5}")
     private int scanTimeoutMinutes = 5;
 
-    @Value("${stellar.grooves.coverArt.maxBytesPerUser:" + DEFAULT_COVER_ART_QUOTA + "}")
+    @Value("${stellar.grooves.coverArt.maxBytesPerUser:524288000}")
     private long coverArtQuotaBytes;
 
     @Value("${stellar.grooves.scan.perFileTimeoutSeconds:" + DEFAULT_PER_FILE_TIMEOUT_SECONDS + "}")
@@ -70,13 +79,26 @@ public class MusicScannerService implements DisposableBean {
     private final MusicFileRepository repository;
     private final CoverArtRepository coverArtRepository;
     private final ScanProgressEmitter progressEmitter;
+    private final Timer scanTimer;
+    private final Counter filesScannedCounter;
+    private final Counter scanErrorsCounter;
 
     public MusicScannerService(MusicCatalogService catalogService, MusicFileRepository repository,
-                               CoverArtRepository coverArtRepository, ScanProgressEmitter progressEmitter) {
+                               CoverArtRepository coverArtRepository, ScanProgressEmitter progressEmitter,
+                               MeterRegistry meterRegistry) {
         this.catalogService = catalogService;
         this.repository = repository;
         this.coverArtRepository = coverArtRepository;
         this.progressEmitter = progressEmitter;
+        this.scanTimer = Timer.builder("grooves.scan.duration")
+                .description("Time spent scanning directories")
+                .register(meterRegistry);
+        this.filesScannedCounter = Counter.builder("grooves.scan.files")
+                .description("Total files scanned")
+                .register(meterRegistry);
+        this.scanErrorsCounter = Counter.builder("grooves.scan.errors")
+                .description("Total scan errors")
+                .register(meterRegistry);
     }
 
     @jakarta.annotation.PostConstruct
@@ -107,7 +129,18 @@ public class MusicScannerService implements DisposableBean {
             throw new IllegalStateException("A scan is already in progress for this user");
         }
         try {
-            return doScanDirectory(user, directoryPath);
+            return scanTimer.record(() -> {
+                try {
+                    ScanResult result = doScanDirectory(user, directoryPath);
+                    filesScannedCounter.increment(result.getSaved());
+                    scanErrorsCounter.increment(result.getErrors());
+                    return result;
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+        } catch (java.io.UncheckedIOException e) {
+            throw e.getCause();
         } finally {
             lock.unlock();
         }
@@ -115,7 +148,7 @@ public class MusicScannerService implements DisposableBean {
 
     private ScanResult doScanDirectory(User user, String directoryPath) throws IOException {
         Path root = Paths.get(directoryPath).normalize();
-        int effectiveDepth = Math.min(maxDepth, HARD_MAX_DEPTH);
+        int effectiveDepth = Math.min(maxDepth, hardMaxDepth);
 
         Set<String> existingPaths = repository.findByUserId(user.getId()).stream()
                 .map(MusicFile::getFilePath)
@@ -135,7 +168,7 @@ public class MusicScannerService implements DisposableBean {
         boolean coverArtQuotaExceeded = coverArtUsedBytes >= coverArtQuotaBytes;
 
         ScanResult result = new ScanResult();
-        List<MusicFile> batch = new ArrayList<>(BATCH_SIZE);
+        List<MusicFile> batch = new ArrayList<>(batchSize);
         Instant deadline = Instant.now().plus(Duration.ofMinutes(scanTimeoutMinutes));
 
         try (Stream<Path> walk = Files.walk(root, effectiveDepth)) {
@@ -239,7 +272,7 @@ public class MusicScannerService implements DisposableBean {
                         existingTitleArtist.add(title + "\0" + artist);
                     }
 
-                    if (batch.size() >= BATCH_SIZE) {
+                    if (batch.size() >= batchSize) {
                         repository.saveAll(batch);
                         result.addSaved(batch.size());
                         batch.clear();
@@ -283,7 +316,7 @@ public class MusicScannerService implements DisposableBean {
                 return 0;
             }
             int dataLength = artwork.getBinaryData().length;
-            if (dataLength > MAX_COVER_ART_BYTES) {
+            if (dataLength > maxCoverArtBytes) {
                 logger.warn("Cover art for '{} - {}' exceeds max size ({} bytes), skipping",
                         artist, album, dataLength);
                 return 0;

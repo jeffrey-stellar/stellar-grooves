@@ -1,5 +1,6 @@
 package com.stellarideas.grooves.config;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,9 +20,11 @@ class RateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RateLimitFilter(new InMemoryRateLimitStore());
+        filter = new RateLimitFilter(new InMemoryRateLimitStore(), new SimpleMeterRegistry());
         ReflectionTestUtils.setField(filter, "maxRequests", 3);
         ReflectionTestUtils.setField(filter, "windowMs", 60000L);
+        ReflectionTestUtils.setField(filter, "sharedMaxRequests", 2);
+        ReflectionTestUtils.setField(filter, "sharedWindowMs", 60000L);
         ReflectionTestUtils.setField(filter, "trustProxy", false);
         ReflectionTestUtils.setField(filter, "trustedProxies", List.of());
         chain = mock(FilterChain.class);
@@ -82,7 +85,7 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void skipsNonAuthEndpoints() {
+    void skipsNonAuthAndNonSharedEndpoints() {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/v1/library/files");
         req.setRemoteAddr("10.0.0.1");
         assertTrue(filter.shouldNotFilter(req));
@@ -93,6 +96,41 @@ class RateLimitFilterTest {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/auth/signin");
         req.setRemoteAddr("10.0.0.1");
         assertFalse(filter.shouldNotFilter(req));
+    }
+
+    @Test
+    void filtersSharedEndpoints() {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/v1/shared/playlists/abc123");
+        req.setRemoteAddr("10.0.0.1");
+        assertFalse(filter.shouldNotFilter(req));
+    }
+
+    @Test
+    void blocksSharedRequestsOverLimit() throws Exception {
+        // sharedMaxRequests is 2
+        for (int i = 0; i < 2; i++) {
+            filter.doFilterInternal(sharedRequest("10.0.0.1"), new MockHttpServletResponse(), chain);
+        }
+
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        filter.doFilterInternal(sharedRequest("10.0.0.1"), resp, chain);
+        assertEquals(429, resp.getStatus());
+    }
+
+    @Test
+    void sharedAndAuthUseSeparateBuckets() throws Exception {
+        // Exhaust the shared limit (2 requests)
+        for (int i = 0; i < 2; i++) {
+            filter.doFilterInternal(sharedRequest("10.0.0.1"), new MockHttpServletResponse(), chain);
+        }
+        MockHttpServletResponse sharedResp = new MockHttpServletResponse();
+        filter.doFilterInternal(sharedRequest("10.0.0.1"), sharedResp, chain);
+        assertEquals(429, sharedResp.getStatus());
+
+        // Auth requests from same IP should still be allowed (separate bucket)
+        MockHttpServletResponse authResp = new MockHttpServletResponse();
+        filter.doFilterInternal(authRequest("10.0.0.1"), authResp, chain);
+        assertNotEquals(429, authResp.getStatus());
     }
 
     @Test
@@ -153,6 +191,12 @@ class RateLimitFilterTest {
 
     private MockHttpServletRequest authRequest(String remoteAddr) {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/auth/signin");
+        req.setRemoteAddr(remoteAddr);
+        return req;
+    }
+
+    private MockHttpServletRequest sharedRequest(String remoteAddr) {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/v1/shared/playlists/token123");
         req.setRemoteAddr(remoteAddr);
         return req;
     }

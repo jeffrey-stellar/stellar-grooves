@@ -36,6 +36,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -46,6 +48,7 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/auth")
+@Tag(name = "Authentication", description = "User authentication, registration, password reset, and email verification")
 public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -91,6 +94,7 @@ public class AuthController {
         this.emailVerificationService = emailVerificationService;
     }
 
+    @Operation(summary = "Sign in", description = "Authenticate with username and password, returns JWT and refresh token")
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         String username = loginRequest.getUsername();
@@ -142,6 +146,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Sign up", description = "Register a new user account. Sends verification email if enabled.")
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         String normalizedUsername = signUpRequest.getUsername().toLowerCase(java.util.Locale.ROOT);
@@ -180,6 +185,7 @@ public class AuthController {
                 "emailVerificationRequired", emailVerificationRequired));
     }
 
+    @Operation(summary = "Refresh token", description = "Exchange a refresh token for a new JWT and refresh token pair")
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         return refreshTokenRepository.findByToken(request.getRefreshToken())
@@ -215,6 +221,7 @@ public class AuthController {
                         .body(GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired")));
     }
 
+    @Operation(summary = "Request password reset", description = "Send a password reset email. Always returns 200 to prevent email enumeration.")
     @PostMapping("/password-reset/request")
     public ResponseEntity<?> requestPasswordReset(@Valid @RequestBody PasswordResetRequestDTO resetRequest) {
         String email = resetRequest.getEmail().toLowerCase(java.util.Locale.ROOT);
@@ -234,6 +241,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", msg.msg("auth.reset.requested")));
     }
 
+    @Operation(summary = "Execute password reset", description = "Reset password using a valid token from the reset email")
     @PostMapping("/password-reset/execute")
     public ResponseEntity<?> executePasswordReset(@Valid @RequestBody PasswordResetExecuteDTO executeRequest) {
         String tokenHash = PasswordResetToken.hashToken(executeRequest.getToken());
@@ -268,6 +276,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", msg.msg("auth.reset.success")));
     }
 
+    @Operation(summary = "Logout", description = "Blacklist the current JWT and delete all refresh tokens for the user")
     @PostMapping("/logout")
     public ResponseEntity<?> logoutUser(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
@@ -298,6 +307,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
+    @Operation(summary = "Verify email", description = "Verify email address using the token from the verification email")
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyEmail(@RequestParam String token) {
         String tokenHash = PasswordResetToken.hashToken(token);
@@ -324,6 +334,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", msg.msg("auth.verify.success")));
     }
 
+    @Operation(summary = "Resend verification email", description = "Resend email verification link. Always returns 200 to prevent email enumeration.")
     @PostMapping("/resend-verification")
     public ResponseEntity<?> resendVerification(@RequestBody Map<String, String> body) {
         String email = body.getOrDefault("email", "").toLowerCase(java.util.Locale.ROOT);

@@ -1,11 +1,13 @@
 package com.stellarideas.grooves.dto;
 
 import com.stellarideas.grooves.model.PlaybackQueue;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
 public class PlaybackQueueDTO {
 
+    @Size(max = 5000, message = "Queue cannot exceed 5000 tracks")
     private List<String> trackIds;
     private String currentTrackId;
     private boolean shuffle;

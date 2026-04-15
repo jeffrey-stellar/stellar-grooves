@@ -1,5 +1,6 @@
 package com.stellarideas.grooves.controller;
 
+import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
@@ -8,6 +9,7 @@ import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.MessageHelper;
+import com.stellarideas.grooves.service.MusicCatalogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -16,14 +18,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import com.stellarideas.grooves.config.PaginationDefaults;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 @PreAuthorize("hasRole('ADMIN')")
+@Tag(name = "Admin", description = "Admin-only user management, system stats, and genre catalog administration")
 public class AdminController {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
@@ -34,18 +39,21 @@ public class AdminController {
     private final CoverArtRepository coverArtRepository;
     private final MessageHelper msg;
     private final AuditService auditService;
+    private final MusicCatalogService catalogService;
 
     public AdminController(UserRepository userRepository, MusicFileRepository musicFileRepository,
                            PlaylistRepository playlistRepository, CoverArtRepository coverArtRepository,
-                           MessageHelper msg, AuditService auditService) {
+                           MessageHelper msg, AuditService auditService, MusicCatalogService catalogService) {
         this.userRepository = userRepository;
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
         this.msg = msg;
         this.auditService = auditService;
+        this.catalogService = catalogService;
     }
 
+    @Operation(summary = "System stats", description = "Get total users, files, and playlists counts")
     @GetMapping("/stats")
     public ResponseEntity<?> getStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
@@ -120,5 +128,62 @@ public class AdminController {
                     ));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // --- Genre Catalog Management ---
+
+    @GetMapping("/catalog")
+    public ResponseEntity<?> getCatalog() {
+        Map<String, Set<Genre>> catalog = catalogService.getCatalog();
+        // Convert to a sorted, human-friendly representation
+        Map<String, List<String>> result = new TreeMap<>();
+        catalog.forEach((artist, genres) ->
+                result.put(artist, genres.stream().map(Genre::name).collect(Collectors.toList())));
+        return ResponseEntity.ok(Map.of("artists", result, "count", result.size()));
+    }
+
+    @PutMapping("/catalog/{artist}")
+    public ResponseEntity<?> putCatalogEntry(
+            @CurrentUser User admin,
+            @PathVariable String artist,
+            @RequestBody Map<String, List<String>> body) {
+        List<String> genreNames = body.get("genres");
+        if (genreNames == null || genreNames.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(
+                            org.springframework.http.HttpStatus.BAD_REQUEST, "genres list is required"));
+        }
+        Set<Genre> genres = new LinkedHashSet<>();
+        for (String name : genreNames) {
+            try {
+                genres.add(Genre.valueOf(name));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest()
+                        .body(GlobalExceptionHandler.problem(
+                                org.springframework.http.HttpStatus.BAD_REQUEST, "Unknown genre: " + name));
+            }
+        }
+        catalogService.putCatalogEntry(artist, genres);
+        auditService.log(admin.getUsername(), AuditService.Action.ADMIN_UPDATE_CATALOG,
+                "artist=" + artist + " genres=" + genres);
+        return ResponseEntity.ok(Map.of("message", "Catalog entry updated", "artist", artist));
+    }
+
+    @DeleteMapping("/catalog/{artist}")
+    public ResponseEntity<?> deleteCatalogEntry(@CurrentUser User admin, @PathVariable String artist) {
+        boolean removed = catalogService.removeCatalogEntry(artist);
+        if (!removed) {
+            return ResponseEntity.notFound().build();
+        }
+        auditService.log(admin.getUsername(), AuditService.Action.ADMIN_UPDATE_CATALOG,
+                "removed artist=" + artist);
+        return ResponseEntity.ok(Map.of("message", "Catalog entry removed", "artist", artist));
+    }
+
+    @PostMapping("/catalog/reload")
+    public ResponseEntity<?> reloadCatalog(@CurrentUser User admin) {
+        catalogService.reloadCatalog();
+        auditService.log(admin.getUsername(), AuditService.Action.ADMIN_UPDATE_CATALOG, "catalog reloaded");
+        return ResponseEntity.ok(Map.of("message", "Catalog reloaded", "count", catalogService.catalogSize()));
     }
 }

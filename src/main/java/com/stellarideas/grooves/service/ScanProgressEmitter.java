@@ -2,19 +2,21 @@ package com.stellarideas.grooves.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Manages SSE connections for per-user scan progress streaming.
- * Each user can have one active emitter. The scanner service pushes events
- * through this component; the controller creates and returns emitters.
+ * Manages scan progress streaming via both SSE and WebSocket (STOMP).
+ * Each user can have one active SSE emitter. WebSocket subscribers receive
+ * events on {@code /topic/scan/{userId}}.
  *
  * <p>A scheduled cleanup task runs every 2 minutes to complete and remove
  * emitters that have been open longer than the timeout, protecting against
@@ -28,6 +30,11 @@ public class ScanProgressEmitter {
 
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> emitterCreatedAt = new ConcurrentHashMap<>();
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public ScanProgressEmitter(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
 
     public SseEmitter createEmitter(String userId) {
         // Close any existing emitter for this user
@@ -89,17 +96,25 @@ public class ScanProgressEmitter {
     }
 
     public void sendEvent(String userId, String eventType, Object data) {
+        // Send via SSE (for legacy / fallback clients)
         SseEmitter emitter = emitters.get(userId);
-        if (emitter == null) return;
-        try {
-            emitter.send(SseEmitter.event()
-                    .name(eventType)
-                    .data(data));
-        } catch (IOException e) {
-            logger.debug("SSE send failed for user '{}': {}", userId, e.getMessage());
-            emitters.remove(userId);
-            emitterCreatedAt.remove(userId);
+        if (emitter != null) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name(eventType)
+                        .data(data));
+            } catch (IOException e) {
+                logger.debug("SSE send failed for user '{}': {}", userId, e.getMessage());
+                emitters.remove(userId);
+                emitterCreatedAt.remove(userId);
+            }
         }
+
+        // Send via WebSocket STOMP
+        Map<String, Object> wsPayload = new LinkedHashMap<>();
+        wsPayload.put("type", eventType);
+        wsPayload.put("data", data);
+        messagingTemplate.convertAndSend("/topic/scan/" + userId, wsPayload);
     }
 
     public void sendProgress(String userId, int saved, int skipped, int errors, String currentFile) {

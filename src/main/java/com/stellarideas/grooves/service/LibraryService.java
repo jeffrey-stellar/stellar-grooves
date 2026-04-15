@@ -9,6 +9,10 @@ import com.stellarideas.grooves.repository.PlaybackQueueRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,17 +30,20 @@ public class LibraryService {
     private final CoverArtRepository coverArtRepository;
     private final PlaybackQueueRepository playbackQueueRepository;
     private final MusicCatalogService catalogService;
+    private final MongoTemplate mongoTemplate;
 
     public LibraryService(MusicFileRepository musicFileRepository,
                           PlaylistRepository playlistRepository,
                           CoverArtRepository coverArtRepository,
                           PlaybackQueueRepository playbackQueueRepository,
-                          MusicCatalogService catalogService) {
+                          MusicCatalogService catalogService,
+                          MongoTemplate mongoTemplate) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
         this.playbackQueueRepository = playbackQueueRepository;
         this.catalogService = catalogService;
+        this.mongoTemplate = mongoTemplate;
     }
 
     public Page<MusicFile> getFiles(String userId, Genre genre, int page, int size) {
@@ -46,7 +53,18 @@ public class LibraryService {
                 : musicFileRepository.findByUserIdAndGenreAndDeletedFalse(userId, genre, PageRequest.of(page, size));
     }
 
-    private static final int MAX_SEARCH_QUERY_LENGTH = 200;
+    @org.springframework.beans.factory.annotation.Value("${stellar.grooves.search.maxQueryLength:200}")
+    private int maxSearchQueryLength;
+    private static final int PATTERN_CACHE_MAX_SIZE = 128;
+
+    @SuppressWarnings("serial")
+    private final Map<String, String> quotedPatternCache = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<>(PATTERN_CACHE_MAX_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > PATTERN_CACHE_MAX_SIZE;
+                }
+            });
 
     public Page<MusicFile> searchFiles(String userId, String query, int page, int size) {
         return searchFiles(userId, query, null, null, null, null, page, size);
@@ -58,7 +76,7 @@ public class LibraryService {
         size = clamp(size, MAX_PAGE_SIZE);
         boolean hasFilters = genre != null || (artist != null && !artist.isBlank())
                 || (year != null && !year.isBlank()) || (fileExtension != null && !fileExtension.isBlank());
-        boolean hasQuery = query != null && !query.isBlank() && query.length() <= MAX_SEARCH_QUERY_LENGTH;
+        boolean hasQuery = query != null && !query.isBlank() && query.length() <= maxSearchQueryLength;
 
         if (!hasQuery && !hasFilters) {
             return Page.empty();
@@ -79,7 +97,7 @@ public class LibraryService {
         } catch (Exception e) {
             // Text index may not exist yet — fall through to regex
         }
-        String escaped = java.util.regex.Pattern.quote(query);
+        String escaped = quotedPatternCache.computeIfAbsent(query, java.util.regex.Pattern::quote);
         return musicFileRepository.searchByUserIdAndQuery(userId, escaped, PageRequest.of(page, size));
     }
 
@@ -102,16 +120,14 @@ public class LibraryService {
     }
 
     @Transactional
-    public int bulkDelete(List<String> ids, String userId) {
-        List<MusicFile> files = musicFileRepository.findByIdInAndUserId(ids, userId);
-        if (files.isEmpty()) return 0;
-        Instant now = Instant.now();
-        for (MusicFile file : files) {
-            file.setDeleted(true);
-            file.setDeletedAt(now);
-        }
-        musicFileRepository.saveAll(files);
-        return files.size();
+    public long bulkDelete(List<String> ids, String userId) {
+        Query query = new Query(Criteria.where("_id").in(ids)
+                .and("userId").is(userId)
+                .and("deleted").ne(true));
+        Update update = new Update()
+                .set("deleted", true)
+                .set("deletedAt", Instant.now());
+        return mongoTemplate.updateMulti(query, update, MusicFile.class).getModifiedCount();
     }
 
     @Transactional

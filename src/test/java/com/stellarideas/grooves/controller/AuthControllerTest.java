@@ -5,6 +5,7 @@ import com.stellarideas.grooves.dto.PasswordResetExecuteDTO;
 import com.stellarideas.grooves.dto.PasswordResetRequestDTO;
 import com.stellarideas.grooves.dto.RefreshTokenRequest;
 import com.stellarideas.grooves.dto.SignupRequest;
+import com.stellarideas.grooves.model.EmailVerificationToken;
 import com.stellarideas.grooves.model.PasswordResetToken;
 import com.stellarideas.grooves.model.RefreshToken;
 import com.stellarideas.grooves.model.User;
@@ -395,5 +396,151 @@ class AuthControllerTest {
 
         assertEquals(400, response.getStatusCode().value());
         verify(blacklistedTokenRepository, never()).save(any());
+    }
+
+    // --- Email verification tests ---
+
+    @Test
+    void verifyEmailSucceeds() {
+        EmailVerificationToken token = new EmailVerificationToken("user1");
+        String rawToken = token.getRawToken();
+        when(emailVerificationTokenRepository.findByTokenHash(token.getTokenHash()))
+                .thenReturn(Optional.of(token));
+
+        User user = new User();
+        user.setId("user1");
+        user.setUsername("testuser");
+        user.setEmailVerified(false);
+        when(userRepository.findById("user1")).thenReturn(Optional.of(user));
+
+        ResponseEntity<?> response = controller.verifyEmail(rawToken);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(user.isEmailVerified());
+        verify(userRepository).save(user);
+        verify(emailVerificationTokenRepository).deleteByUserId("user1");
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.EMAIL_VERIFIED));
+    }
+
+    @Test
+    void verifyEmailRejectsUnknownToken() {
+        String unknownHash = PasswordResetToken.hashToken("unknown");
+        when(emailVerificationTokenRepository.findByTokenHash(unknownHash))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.verifyEmail("unknown");
+
+        assertEquals(400, response.getStatusCode().value());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void verifyEmailRejectsExpiredToken() {
+        EmailVerificationToken token = new EmailVerificationToken("user1");
+        String rawToken = token.getRawToken();
+        token.setExpiresAt(Instant.now().minusSeconds(3600));
+        when(emailVerificationTokenRepository.findByTokenHash(token.getTokenHash()))
+                .thenReturn(Optional.of(token));
+
+        ResponseEntity<?> response = controller.verifyEmail(rawToken);
+
+        assertEquals(400, response.getStatusCode().value());
+    }
+
+    @Test
+    void verifyEmailRejectsMissingUser() {
+        EmailVerificationToken token = new EmailVerificationToken("missing");
+        String rawToken = token.getRawToken();
+        when(emailVerificationTokenRepository.findByTokenHash(token.getTokenHash()))
+                .thenReturn(Optional.of(token));
+        when(userRepository.findById("missing")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.verifyEmail(rawToken);
+
+        assertEquals(400, response.getStatusCode().value());
+    }
+
+    @Test
+    void resendVerificationAlwaysReturns200() {
+        // Even for non-existent emails, return 200 to prevent enumeration
+        when(userRepository.findByEmail("nobody@test.com")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.resendVerification(Map.of("email", "nobody@test.com"));
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(emailVerificationService, never()).sendVerificationEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void resendVerificationSendsEmailForUnverifiedUser() {
+        User user = new User();
+        user.setId("user1");
+        user.setUsername("testuser");
+        user.setEmail("test@test.com");
+        user.setEmailVerified(false);
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+
+        ResponseEntity<?> response = controller.resendVerification(Map.of("email", "test@test.com"));
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(emailVerificationTokenRepository).deleteByUserId("user1");
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
+        verify(emailVerificationService).sendVerificationEmail(eq("test@test.com"), eq("testuser"), anyString());
+    }
+
+    @Test
+    void resendVerificationSkipsAlreadyVerifiedUser() {
+        User user = new User();
+        user.setId("user1");
+        user.setUsername("testuser");
+        user.setEmail("test@test.com");
+        user.setEmailVerified(true);
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+
+        ResponseEntity<?> response = controller.resendVerification(Map.of("email", "test@test.com"));
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(emailVerificationService, never()).sendVerificationEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void signupWithVerificationEnabledSendsEmail() {
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "emailVerificationRequired", true);
+
+        when(userRepository.existsByUsernameIgnoreCase("newuser")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("new@test.com")).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+
+        ResponseEntity<?> response = controller.registerUser(signupRequest("newuser", "new@test.com", "password123"));
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
+        verify(emailVerificationService).sendVerificationEmail(eq("new@test.com"), eq("newuser"), anyString());
+        // Should only save once (not set emailVerified=true)
+        verify(userRepository, times(1)).save(any(User.class));
+
+        // Reset for other tests
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "emailVerificationRequired", false);
+    }
+
+    @Test
+    void signinBlocksUnverifiedUserWhenVerificationRequired() {
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "emailVerificationRequired", true);
+
+        when(loginAttemptService.isLockedOut("testuser")).thenReturn(false);
+        when(authenticationManager.authenticate(any())).thenReturn(mockAuthentication("testuser"));
+        when(jwtUtils.generateJwtToken(any())).thenReturn("mock-jwt-token");
+
+        User user = new User();
+        user.setId("user1");
+        user.setUsername("testuser");
+        user.setEmailVerified(false);
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+
+        ResponseEntity<?> response = controller.authenticateUser(loginRequest("testuser", "password123"));
+
+        assertEquals(403, response.getStatusCode().value());
+
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "emailVerificationRequired", false);
     }
 }

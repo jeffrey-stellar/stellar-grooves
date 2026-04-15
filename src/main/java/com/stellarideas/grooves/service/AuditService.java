@@ -39,6 +39,7 @@ public class AuditService {
         PLAYLIST_TRACK_REMOVE,
         ADMIN_DELETE_USER,
         ADMIN_VIEW_USERS,
+        ADMIN_UPDATE_CATALOG,
         FILE_RESTORE,
         FILE_PERMANENT_DELETE,
         TRASH_EMPTY,

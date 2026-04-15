@@ -39,9 +39,12 @@ class DeepDirectoryScanTest {
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter);
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
         ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
+        ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
+        ReflectionTestUtils.setField(scannerService, "batchSize", 200);
+        ReflectionTestUtils.setField(scannerService, "maxCoverArtBytes", 10485760);
         scannerService.initExecutor();
 
         testUser = new User();

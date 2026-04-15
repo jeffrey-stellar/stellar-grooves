@@ -95,7 +95,7 @@ public class WebSecurityConfig {
                 csrf
                     .csrfTokenRepository(new CookieCsrfTokenRepository()) // HttpOnly cookie; JS reads token from meta tags
                     .csrfTokenRequestHandler(requestHandler)
-                    .ignoringRequestMatchers("/api/v1/auth/**", "/api/v1/shared/**"); // stateless JWT auth endpoints and public shared endpoints don't need CSRF
+                    .ignoringRequestMatchers("/api/v1/auth/**", "/api/v1/shared/**", "/ws/**"); // stateless JWT auth endpoints, public shared endpoints, and WebSocket handshake don't need CSRF
             })
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .headers(headers -> {
@@ -123,7 +123,8 @@ public class WebSecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/api/v1/shared/**").permitAll()
-                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/actuator/health").permitAll();
+                    .requestMatchers("/ws/**").permitAll()
+                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/actuator/health", "/actuator/metrics/**", "/actuator/prometheus").permitAll();
                 if (swaggerEnabled) {
                     auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll();
                 } else {

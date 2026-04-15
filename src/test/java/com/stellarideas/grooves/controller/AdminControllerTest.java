@@ -8,6 +8,7 @@ import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.MessageHelper;
+import com.stellarideas.grooves.service.MusicCatalogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -30,6 +31,7 @@ class AdminControllerTest {
     private PlaylistRepository playlistRepository;
     private CoverArtRepository coverArtRepository;
     private AuditService auditService;
+    private MusicCatalogService catalogService;
     private User adminUser;
 
     @BeforeEach
@@ -39,13 +41,14 @@ class AdminControllerTest {
         playlistRepository = mock(PlaylistRepository.class);
         coverArtRepository = mock(CoverArtRepository.class);
         auditService = mock(AuditService.class);
+        catalogService = mock(MusicCatalogService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
         MessageHelper msgHelper = new MessageHelper(messageSource);
 
         controller = new AdminController(userRepository, musicFileRepository,
-                playlistRepository, coverArtRepository, msgHelper, auditService);
+                playlistRepository, coverArtRepository, msgHelper, auditService, catalogService);
 
         adminUser = new User();
         adminUser.setId("admin1");

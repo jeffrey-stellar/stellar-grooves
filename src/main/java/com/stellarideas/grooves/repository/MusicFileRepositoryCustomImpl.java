@@ -16,18 +16,32 @@ import org.springframework.data.mongodb.core.query.TextCriteria;
 import org.springframework.data.mongodb.core.query.TextQuery;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
 public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom {
+
+    private static final int PATTERN_CACHE_MAX_SIZE = 128;
+
+    /** LRU cache for Pattern.quote() results to avoid recomputation on repeated searches. */
+    @SuppressWarnings("serial")
+    private final Map<String, String> quotedPatternCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(PATTERN_CACHE_MAX_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > PATTERN_CACHE_MAX_SIZE;
+                }
+            });
 
     private final MongoTemplate mongoTemplate;
 
     public MusicFileRepositoryCustomImpl(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
+    }
+
+    String quotePattern(String input) {
+        return quotedPatternCache.computeIfAbsent(input, java.util.regex.Pattern::quote);
     }
 
     @Override
@@ -206,19 +220,19 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
             base = base.and("genre").is(genre);
         }
         if (artist != null && !artist.isBlank()) {
-            base = base.and("artist").regex(java.util.regex.Pattern.quote(artist), "i");
+            base = base.and("artist").regex(quotePattern(artist), "i");
         }
         if (year != null && !year.isBlank()) {
             base = base.and("year").is(year);
         }
         if (fileExtension != null && !fileExtension.isBlank()) {
             String ext = fileExtension.startsWith(".") ? fileExtension : "." + fileExtension;
-            base = base.and("fileName").regex(java.util.regex.Pattern.quote(ext) + "$", "i");
+            base = base.and("fileName").regex(quotePattern(ext) + "$", "i");
         }
 
         Query q;
         if (query != null && !query.isBlank()) {
-            String escaped = java.util.regex.Pattern.quote(query);
+            String escaped = quotePattern(query);
             Criteria searchCriteria = new Criteria().orOperator(
                     Criteria.where("title").regex(escaped, "i"),
                     Criteria.where("artist").regex(escaped, "i"),

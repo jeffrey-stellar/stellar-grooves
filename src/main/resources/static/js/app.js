@@ -20,9 +20,19 @@ let cachedVisibleTracks = [];
 let selectedIds = new Set(); // bulk selection
 let queue = []; // play queue
 
-// Shared state with player.js via SG namespace
+// Shared state with player.js and other modules via SG namespace
 window.SG = window.SG || {};
 SG.currentFileId = null;
+
+// Expose mutable state getters/setters for modules
+SG.__defineGetter__('allFiles', () => allFiles);
+SG.__defineGetter__('playlists', () => playlists);
+SG.__defineGetter__('queue', () => queue);
+SG.__defineSetter__('queue', (v) => { queue = v; });
+SG.__defineGetter__('nav', () => nav);
+SG.setAllFiles = (v) => { allFiles = v; };
+SG.setPlaylists = (v) => { playlists = v; };
+SG.setQueue = (v) => { queue = v; };
 
 // ── CSRF + Helpers ───────────────────────────────────────
 function csrfToken() {
@@ -38,10 +48,17 @@ function text(v) { return (v && v.trim()) ? v.trim() : '\u2014'; }
 function escapeHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(s || '')); return d.innerHTML; }
 function formatTime(s) { if (isNaN(s) || s < 0) return '0:00'; return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0'); }
 
-// Expose shared helpers for player.js
+// Expose shared helpers for player.js and modules
 window.SG = window.SG || {};
 SG.text = text;
 SG.formatTime = formatTime;
+SG.escapeHtml = escapeHtml;
+SG.csrfHeaders = csrfHeaders;
+SG.guardClick = guardClick;
+SG.showToast = showToast;
+SG.navigate = (n) => navigate(n);
+SG.updateStats = () => updateStats();
+SG.renderPlaylistSidebar = () => renderPlaylistSidebar();
 function genreBadge(g) { const s = document.createElement('span'); s.className = 'badge ' + (GENRE_CLASSES[g] || 'genre-OTHER'); s.textContent = GENRE_LABELS[g] || 'Other'; return s; }
 function decadeFromYear(y) { if (!y || y.length < 4) return '\u2014'; const n = parseInt(y.substring(0, 4), 10); return isNaN(n) ? '\u2014' : Math.floor(n / 10) * 10 + 's'; }
 async function guardClick(btn, fn) { if (btn.disabled) return; btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } }
@@ -610,200 +627,13 @@ async function renderDuplicatesView() {
     } catch (e) { container.innerHTML = '<p class="status-error">Failed to load duplicates.</p>'; }
 }
 
-// ── Queue management ─────────────────────────────────────
-let _queueSaveTimer = null;
-function saveQueue() {
-    // Save to localStorage immediately for fast reload
-    try {
-        const minimal = queue.map(f => ({ id: f.id, title: f.title, artist: f.artist, hasCoverArt: f.hasCoverArt }));
-        localStorage.setItem('sg-queue', JSON.stringify(minimal));
-    } catch (e) { /* quota exceeded */ }
-    // Debounce server sync (2s) to avoid spamming on rapid changes
-    clearTimeout(_queueSaveTimer);
-    _queueSaveTimer = setTimeout(syncQueueToServer, 2000);
-}
+// ── Queue management (moved to queue.js) ────────────────
+// Queue functions are accessed via SG.renderQueue, SG.addToQueue, SG.loadSavedQueue
+function addToQueue(file) { SG.addToQueue(file); }
+function renderQueue() { SG.renderQueue(); }
 
-async function syncQueueToServer() {
-    try {
-        const currentTrack = window._currentTrack || null;
-        await fetch('/api/v1/library/queue', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
-            body: JSON.stringify({
-                trackIds: queue.map(f => f.id),
-                currentTrackId: currentTrack ? currentTrack.id : null,
-                shuffle: !!window._shuffleEnabled
-            })
-        });
-    } catch (e) { /* server sync failed, localStorage still has it */ }
-}
-
-function addToQueue(file) {
-    queue.push(file);
-    renderQueue();
-}
-
-function renderQueue() {
-    const ul = document.getElementById('queueList'); ul.innerHTML = '';
-    const clearBtn = document.getElementById('clearQueueBtn');
-    if (queue.length === 0) {
-        ul.innerHTML = '<li class="playlist-empty-hint">Queue is empty</li>';
-        clearBtn.style.display = 'none';
-        saveQueue();
-        return;
-    }
-    clearBtn.style.display = '';
-    queue.forEach((f, i) => {
-        const li = document.createElement('li'); li.className = 'queue-item';
-        const title = document.createElement('span'); title.className = 'queue-item-title'; title.textContent = text(f.title) + (f.artist ? ' \u00B7 ' + f.artist : '');
-        const rm = document.createElement('button'); rm.className = 'queue-item-remove'; rm.textContent = '\u2715'; rm.setAttribute('aria-label', 'Remove from queue');
-        rm.addEventListener('click', () => { queue.splice(i, 1); renderQueue(); });
-        li.appendChild(title); li.appendChild(rm); ul.appendChild(li);
-    });
-    saveQueue();
-}
-
-async function loadSavedQueue() {
-    // Try server first, fall back to localStorage
-    try {
-        const r = await fetch('/api/v1/library/queue');
-        if (r.ok) {
-            const data = await r.json();
-            if (data.trackIds && data.trackIds.length > 0) {
-                // Resolve track IDs to full objects from allFiles
-                queue = data.trackIds.map(id => allFiles.find(f => f.id === id)).filter(Boolean);
-                if (queue.length > 0) { renderQueue(); return; }
-            }
-        }
-    } catch (e) { /* server unavailable */ }
-    // Fallback to localStorage
-    try {
-        const saved = localStorage.getItem('sg-queue');
-        if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) { queue = parsed; renderQueue(); } }
-    } catch (e) { /* corrupted */ }
-}
-
-document.getElementById('clearQueueBtn').addEventListener('click', async () => {
-    queue = []; renderQueue();
-    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: csrfHeaders() }); } catch (e) {}
-});
-
-// ── Scan ─────────────────────────────────────────────────
-document.getElementById('scanForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const pv = document.getElementById('path').value.trim(), sd = document.getElementById('scanStatus'), btn = document.getElementById('scanBtn');
-    if (!pv) { document.getElementById('path').classList.add('is-invalid'); return; }
-    document.getElementById('path').classList.remove('is-invalid');
-    btn.disabled = true; btn.classList.add('btn-loading');
-    const ss = document.createElement('span'); ss.className = 'status-scanning'; ss.textContent = '\u23F3 Scanning\u2026'; sd.replaceChildren(ss);
-
-    // Connect SSE for live progress before starting the scan
-    let eventSource = null;
-    try {
-        eventSource = new EventSource('/api/v1/library/scan/progress');
-        eventSource.addEventListener('progress', (ev) => {
-            try {
-                const p = JSON.parse(ev.data);
-                const msg = `\u23F3 Scanning\u2026 ${p.saved} imported, ${p.skipped} skipped, ${p.errors} error(s)`;
-                ss.textContent = msg;
-            } catch (_) {}
-        });
-        eventSource.addEventListener('complete', (ev) => {
-            try { eventSource.close(); } catch (_) {}
-        });
-        eventSource.addEventListener('error', () => {
-            try { eventSource.close(); } catch (_) {}
-        });
-    } catch (_) { /* SSE not available, will fall back to final result */ }
-
-    try {
-        const r = await fetch('/api/v1/library/scan', { method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: pv }) });
-        const d = await r.json();
-        if (r.ok) { let m = d.filesFound > 0 ? `\u2713 ${d.filesFound} imported.` : '\u2713 No new files.'; if (d.skipped > 0) m += ` ${d.skipped} skipped.`; if (d.errors > 0) m += ` ${d.errors} error(s).`; const s = document.createElement('span'); s.className = 'status-success'; s.textContent = m; sd.replaceChildren(s); await loadLibrary(); }
-        else { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 ' + (d.error || d.detail || 'Scan failed'); sd.replaceChildren(s); }
-    } catch (er) { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 Network error'; sd.replaceChildren(s); }
-    finally { btn.disabled = false; btn.classList.remove('btn-loading'); if (eventSource) try { eventSource.close(); } catch (_) {} }
-});
-
-// ── Clear library ────────────────────────────────────────
-document.getElementById('clearBtn').addEventListener('click', async function() {
-    if (!confirm('Clear your entire library? This cannot be undone.')) return;
-    await guardClick(this, async () => {
-        const r = await fetch('/api/v1/library/files', { method: 'DELETE', headers: csrfHeaders() });
-        if (r.ok) { allFiles = []; playlists = []; queue = []; navigate({ view: 'library' }); updateStats(); renderPlaylistSidebar(); renderQueue(); const s = document.createElement('span'); s.className = 'status-success'; s.textContent = 'Library cleared.'; document.getElementById('scanStatus').replaceChildren(s); }
-    });
-});
-
-// ── Scan Schedule ───────────────────────────────────────
-async function loadScanSchedule() {
-    try {
-        const r = await fetch('/api/v1/library/scan/schedule');
-        if (!r.ok) return;
-        const d = await r.json();
-        const section = document.getElementById('scanScheduleSection');
-        const info = document.getElementById('scheduleInfo');
-        const clearBtn = document.getElementById('clearScheduleBtn');
-        section.classList.remove('d-none');
-        if (d.cronExpression) {
-            const lastScan = d.lastScheduledScan ? new Date(d.lastScheduledScan).toLocaleString() : 'Never';
-            info.innerHTML = `<strong>Active:</strong> <code>${escapeHtml(d.cronExpression)}</code><br>` +
-                `<strong>Path:</strong> ${escapeHtml(d.path || 'N/A')}<br>` +
-                `<strong>Last run:</strong> ${lastScan}`;
-            clearBtn.style.display = '';
-        } else {
-            info.textContent = 'No schedule configured.';
-            clearBtn.style.display = 'none';
-        }
-    } catch (e) { console.error('Failed to load scan schedule', e); }
-}
-
-document.getElementById('schedulePreset').addEventListener('change', function() {
-    const custom = document.getElementById('customCron');
-    const saveBtn = document.getElementById('saveScheduleBtn');
-    if (this.value === 'custom') {
-        custom.classList.remove('d-none');
-        saveBtn.classList.remove('d-none');
-    } else if (this.value) {
-        custom.classList.add('d-none');
-        saveBtn.classList.remove('d-none');
-    } else {
-        custom.classList.add('d-none');
-        saveBtn.classList.add('d-none');
-    }
-});
-
-document.getElementById('saveScheduleBtn').addEventListener('click', async function() {
-    const preset = document.getElementById('schedulePreset').value;
-    const cron = preset === 'custom' ? document.getElementById('customCron').value.trim() : preset;
-    const scanPath = document.getElementById('path').value.trim();
-    if (!cron) { showToast('Please select or enter a schedule.'); return; }
-    if (!scanPath) { showToast('Please enter a music directory path first.'); return; }
-    await guardClick(this, async () => {
-        const r = await fetch('/api/v1/library/scan/schedule', {
-            method: 'PUT',
-            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ cronExpression: cron, path: scanPath })
-        });
-        const d = await r.json();
-        if (r.ok) {
-            showToast('Scan schedule saved.');
-            document.getElementById('schedulePreset').value = '';
-            document.getElementById('customCron').classList.add('d-none');
-            document.getElementById('saveScheduleBtn').classList.add('d-none');
-            loadScanSchedule();
-        } else {
-            showToast(d.detail || d.error || 'Failed to save schedule.');
-        }
-    });
-});
-
-document.getElementById('clearScheduleBtn').addEventListener('click', async function() {
-    if (!confirm('Remove the scan schedule?')) return;
-    await guardClick(this, async () => {
-        const r = await fetch('/api/v1/library/scan/schedule', { method: 'DELETE', headers: csrfHeaders() });
-        if (r.ok) { showToast('Scan schedule removed.'); loadScanSchedule(); }
-    });
-});
+// ── Scan (moved to scan.js) ──────────────────────────────
+function loadScanSchedule() { SG.loadScanSchedule(); }
 
 // ── Playlists ────────────────────────────────────────────
 async function loadPlaylists() { try { const r = await fetch('/api/v1/playlists'); playlists = await r.json(); renderPlaylistSidebar(); } catch (e) { console.error(e); } }
@@ -935,6 +765,7 @@ document.getElementById('addToPlaylistConfirm').addEventListener('click', async 
 });
 
 // ── Load library ─────────────────────────────────────────
+SG.loadLibrary = loadLibrary;
 async function loadLibrary() {
     try {
         allFiles = []; let p = 0, tp = 1;
@@ -965,71 +796,12 @@ function getPlayableTrackList() {
     return getVisibleTracks().filter(f => ids.includes(f.id));
 }
 
-// ── Theme toggle ────────────────────────────────────────
-(function initTheme() {
-    const saved = localStorage.getItem('sg-theme');
-    const btn = document.getElementById('themeToggle');
-    function applyTheme(theme) {
-        if (theme === 'light') {
-            document.documentElement.setAttribute('data-theme', 'light');
-            if (btn) btn.textContent = '\u263E'; // moon
-        } else if (theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            if (btn) btn.textContent = '\u2606'; // sun
-        } else {
-            document.documentElement.removeAttribute('data-theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (btn) btn.textContent = prefersDark ? '\u2606' : '\u263E';
-        }
-    }
-    applyTheme(saved);
-    if (btn) btn.addEventListener('click', () => {
-        const current = document.documentElement.getAttribute('data-theme');
-        const next = current === 'light' ? 'dark' : 'light';
-        localStorage.setItem('sg-theme', next);
-        applyTheme(next);
-    });
-})();
-
-// ── Keyboard shortcut help ──────────────────────────────
-document.getElementById('shortcutHelp').addEventListener('click', () => {
-    showToast('Space: Play/Pause | \u2190\u2192: Seek 5s | \u2191\u2193: Volume', 'info', 5000);
-});
-
-// ── Pause decorative animations when tab is hidden ──────
-document.addEventListener('visibilitychange', () => {
-    const paused = document.hidden;
-    document.querySelectorAll('.wurl-bubbles, .wurl-starburst').forEach(el => {
-        el.style.animationPlayState = paused ? 'paused' : '';
-    });
-});
-
-// ── Cover Art Lightbox ──────────────────────────────────
-function openCoverArtLightbox(src, album, artist) {
-    const lb = document.getElementById('coverArtLightbox');
-    document.getElementById('lightboxImage').src = src;
-    document.getElementById('lightboxCaption').innerHTML =
-        `<strong>${escapeHtml(album)}</strong> &mdash; ${escapeHtml(artist)}`;
-    lb.classList.remove('d-none');
-    document.body.style.overflow = 'hidden';
-}
-function closeCoverArtLightbox() {
-    const lb = document.getElementById('coverArtLightbox');
-    lb.classList.add('d-none');
-    document.getElementById('lightboxImage').src = '';
-    document.body.style.overflow = '';
-}
-document.querySelector('.cover-art-lightbox-backdrop')?.addEventListener('click', closeCoverArtLightbox);
-document.querySelector('.cover-art-lightbox-close')?.addEventListener('click', closeCoverArtLightbox);
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !document.getElementById('coverArtLightbox').classList.contains('d-none')) {
-        closeCoverArtLightbox();
-    }
-});
+// ── Theme, keyboard shortcuts, lightbox (moved to theme.js) ──
+function openCoverArtLightbox(src, album, artist) { SG.openCoverArtLightbox(src, album, artist); }
 
 // ── Init ─────────────────────────────────────────────────
-loadSavedQueue();
+SG.loadSavedQueue();
 loadLibrary();
-loadScanSchedule();
+SG.loadScanSchedule();
 
 })();

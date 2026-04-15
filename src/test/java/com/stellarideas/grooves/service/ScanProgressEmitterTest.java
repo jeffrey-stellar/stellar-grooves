@@ -2,6 +2,7 @@ package com.stellarideas.grooves.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -11,15 +12,18 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class ScanProgressEmitterTest {
 
     private ScanProgressEmitter emitter;
+    private SimpMessagingTemplate messagingTemplate;
 
     @BeforeEach
     void setUp() {
-        emitter = new ScanProgressEmitter();
+        messagingTemplate = mock(SimpMessagingTemplate.class);
+        emitter = new ScanProgressEmitter(messagingTemplate);
     }
 
     @Test
@@ -55,11 +59,8 @@ class ScanProgressEmitterTest {
     void sendCompleteRemovesEmitter() {
         emitter.createEmitter("user1");
 
-        // sendComplete will attempt to send (which may fail since no real connection)
-        // but it should still remove the emitter and complete it
         emitter.sendComplete("user1", 10, 2, 1);
 
-        // Subsequent sendEvent should be a no-op (no emitter registered)
         assertDoesNotThrow(() ->
                 emitter.sendEvent("user1", "progress", "data"));
     }
@@ -70,7 +71,6 @@ class ScanProgressEmitterTest {
 
         emitter.sendError("user1", "something went wrong");
 
-        // Subsequent sendEvent should be a no-op
         assertDoesNotThrow(() ->
                 emitter.sendEvent("user1", "progress", "data"));
     }
@@ -81,24 +81,20 @@ class ScanProgressEmitterTest {
         doThrow(new IOException("connection lost"))
                 .when(mockSseEmitter).send(any(SseEmitter.SseEventBuilder.class));
 
-        // Use reflection to insert the mock emitter into the internal map
         var field = ScanProgressEmitter.class.getDeclaredField("emitters");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
-        var emitters = (java.util.concurrent.ConcurrentHashMap<String, SseEmitter>) field.get(emitter);
+        var emitters = (ConcurrentHashMap<String, SseEmitter>) field.get(emitter);
         emitters.put("user1", mockSseEmitter);
 
-        // sendEvent should catch IOException and remove the emitter
         assertDoesNotThrow(() ->
                 emitter.sendEvent("user1", "progress", "data"));
 
-        // Emitter should be removed from the map
         assertFalse(emitters.containsKey("user1"));
     }
 
     @Test
     void sendProgressHandlesNullCurrentFile() {
-        // Should not throw even with null currentFile
         assertDoesNotThrow(() ->
                 emitter.sendProgress("user1", 5, 1, 0, null));
     }
@@ -118,7 +114,6 @@ class ScanProgressEmitterTest {
         emitter.createEmitter("user1");
         emitter.createEmitter("user2");
 
-        // Backdate user1's creation time to past the timeout
         @SuppressWarnings("unchecked")
         ConcurrentHashMap<String, Instant> createdAt =
                 (ConcurrentHashMap<String, Instant>) ReflectionTestUtils.getField(emitter, "emitterCreatedAt");
@@ -126,7 +121,6 @@ class ScanProgressEmitterTest {
 
         emitter.cleanupStaleEmitters();
 
-        // user1 should be cleaned up, user2 should remain
         assertEquals(1, emitter.activeEmitterCount());
     }
 
@@ -144,5 +138,19 @@ class ScanProgressEmitterTest {
     void cleanupStaleEmittersHandlesEmptyMap() {
         assertDoesNotThrow(() -> emitter.cleanupStaleEmitters());
         assertEquals(0, emitter.activeEmitterCount());
+    }
+
+    @Test
+    void sendEventBroadcastsViaWebSocket() {
+        emitter.sendEvent("user1", "progress", "data");
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/scan/user1"), any(Object.class));
+    }
+
+    @Test
+    void sendCompleteAlsoBroadcastsViaWebSocket() {
+        emitter.sendComplete("user1", 10, 2, 1);
+
+        verify(messagingTemplate).convertAndSend(eq("/topic/scan/user1"), any(Object.class));
     }
 }

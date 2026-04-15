@@ -38,6 +38,7 @@ class LibraryControllerTest {
     private ScanRateLimiter scanRateLimiter;
     private PlaybackQueueRepository playbackQueueRepository;
     private ScanProgressEmitter scanProgressEmitter;
+    private UserRateLimiter userRateLimiter;
     private User testUser;
 
     @TempDir
@@ -52,15 +53,21 @@ class LibraryControllerTest {
         scanRateLimiter = mock(ScanRateLimiter.class);
         playbackQueueRepository = mock(PlaybackQueueRepository.class);
         scanProgressEmitter = mock(ScanProgressEmitter.class);
+        userRateLimiter = mock(UserRateLimiter.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
         MessageHelper msgHelper = new MessageHelper(messageSource);
 
         when(scanRateLimiter.tryAcquire(anyString())).thenReturn(true);
+        when(userRateLimiter.tryAcquire(anyString(), anyString())).thenReturn(true);
 
         controller = new LibraryController(scannerService, libraryService, msgHelper,
-                auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter);
+                auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxExportSize", 50000);
 
         testUser = new User();
         testUser.setId("user1");
@@ -354,7 +361,7 @@ class LibraryControllerTest {
 
     @Test
     void bulkDeleteSuccess() {
-        when(libraryService.bulkDelete(List.of("f1", "f2", "f3"), "user1")).thenReturn(3);
+        when(libraryService.bulkDelete(List.of("f1", "f2", "f3"), "user1")).thenReturn(3L);
 
         BulkDeleteRequest request = new BulkDeleteRequest();
         request.setFileIds(List.of("f1", "f2", "f3"));
@@ -364,7 +371,7 @@ class LibraryControllerTest {
         assertEquals(200, response.getStatusCode().value());
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
-        assertEquals(3, body.get("deleted"));
+        assertEquals(3L, body.get("deleted"));
         verify(auditService).log(eq("testuser"), eq(AuditService.Action.BULK_DELETE), isNull(), eq("3 files"));
     }
 

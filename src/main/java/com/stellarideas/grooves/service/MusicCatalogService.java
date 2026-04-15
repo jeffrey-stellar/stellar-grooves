@@ -113,4 +113,40 @@ public class MusicCatalogService {
         }
         logger.info("Genre correction recorded: artist='{}' genre={} by user={}", artist, genre, userId);
     }
+
+    /**
+     * Reload the catalog from disk. Called by admin endpoint for hot-reload
+     * after the catalog file has been updated.
+     */
+    public void reloadCatalog() {
+        bandGenreMap.clear();
+        loadCatalog();
+    }
+
+    /** Returns a snapshot of the in-memory catalog for admin viewing. */
+    public Map<String, Set<Genre>> getCatalog() {
+        return Collections.unmodifiableMap(bandGenreMap);
+    }
+
+    /** Add or update an artist entry in the in-memory catalog. */
+    public void putCatalogEntry(String artist, Set<Genre> genres) {
+        if (artist == null || artist.isBlank() || genres == null || genres.isEmpty()) return;
+        bandGenreMap.put(artist.toLowerCase(), new LinkedHashSet<>(genres));
+        logger.info("Catalog entry updated: artist='{}' genres={}", artist, genres);
+    }
+
+    /** Remove an artist from the in-memory catalog. */
+    public boolean removeCatalogEntry(String artist) {
+        if (artist == null || artist.isBlank()) return false;
+        boolean removed = bandGenreMap.remove(artist.toLowerCase()) != null;
+        if (removed) {
+            logger.info("Catalog entry removed: artist='{}'", artist);
+        }
+        return removed;
+    }
+
+    /** Returns the number of artists in the catalog. */
+    public int catalogSize() {
+        return bandGenreMap.size();
+    }
 }

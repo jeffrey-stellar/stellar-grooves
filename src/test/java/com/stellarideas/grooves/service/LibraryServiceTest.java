@@ -1,5 +1,6 @@
 package com.stellarideas.grooves.service;
 
+import com.mongodb.client.result.UpdateResult;
 import com.stellarideas.grooves.model.CoverArt;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
@@ -12,6 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +33,7 @@ class LibraryServiceTest {
     private PlaylistRepository playlistRepository;
     private CoverArtRepository coverArtRepository;
     private MusicCatalogService catalogService;
+    private MongoTemplate mongoTemplate;
 
     @BeforeEach
     void setUp() {
@@ -36,8 +41,10 @@ class LibraryServiceTest {
         playlistRepository = mock(PlaylistRepository.class);
         coverArtRepository = mock(CoverArtRepository.class);
         catalogService = mock(MusicCatalogService.class);
+        mongoTemplate = mock(MongoTemplate.class);
         com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
-        service = new LibraryService(musicFileRepository, playlistRepository, coverArtRepository, playbackQueueRepository, catalogService);
+        service = new LibraryService(musicFileRepository, playlistRepository, coverArtRepository, playbackQueueRepository, catalogService, mongoTemplate);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "maxSearchQueryLength", 200);
     }
 
     @Test
@@ -128,24 +135,26 @@ class LibraryServiceTest {
     }
 
     @Test
-    void bulkDeleteSoftDeletes() {
-        MusicFile f1 = MusicFile.builder().id("f1").build();
-        MusicFile f2 = MusicFile.builder().id("f2").build();
-        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenReturn(List.of(f1, f2));
+    void bulkDeleteUsesUpdateMulti() {
+        UpdateResult updateResult = mock(UpdateResult.class);
+        when(updateResult.getModifiedCount()).thenReturn(2L);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(MusicFile.class)))
+                .thenReturn(updateResult);
 
-        int deleted = service.bulkDelete(List.of("f1", "f2"), "user1");
+        long deleted = service.bulkDelete(List.of("f1", "f2"), "user1");
 
         assertEquals(2, deleted);
-        assertTrue(f1.isDeleted());
-        assertTrue(f2.isDeleted());
-        assertNotNull(f1.getDeletedAt());
+        verify(mongoTemplate).updateMulti(any(Query.class), any(Update.class), eq(MusicFile.class));
     }
 
     @Test
     void bulkDeleteReturnsZeroForNoMatches() {
-        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenReturn(List.of());
+        UpdateResult updateResult = mock(UpdateResult.class);
+        when(updateResult.getModifiedCount()).thenReturn(0L);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(MusicFile.class)))
+                .thenReturn(updateResult);
 
-        int deleted = service.bulkDelete(List.of("none"), "user1");
+        long deleted = service.bulkDelete(List.of("none"), "user1");
 
         assertEquals(0, deleted);
     }

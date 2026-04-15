@@ -12,14 +12,17 @@ import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
 import com.stellarideas.grooves.service.ScanProgressEmitter;
 import com.stellarideas.grooves.service.ScanRateLimiter;
+import com.stellarideas.grooves.service.UserRateLimiter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.data.domain.Page;
 import org.springframework.http.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -35,11 +38,22 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/library")
+@Tag(name = "Library", description = "Music library scanning, file management, search, streaming, export, and playback queue")
 public class LibraryController {
 
     private static final Logger logger = LoggerFactory.getLogger(LibraryController.class);
-    private static final int TRANSCODE_TIMEOUT_SECONDS = 300; // 5 minutes
-    private static final long MAX_TRANSCODE_FILE_SIZE = 500L * 1024 * 1024; // 500 MB
+
+    @Value("${stellar.grooves.transcode.timeoutSeconds:300}")
+    private int transcodeTimeoutSeconds;
+
+    @Value("${stellar.grooves.transcode.maxFileSize:524288000}")
+    private long maxTranscodeFileSize;
+
+    @Value("${stellar.grooves.export.maxSize:50000}")
+    private int maxExportSize;
+
+    @Value("${stellar.grooves.queue.maxTracks:5000}")
+    private int maxQueueTracks;
 
     private final MusicScannerService scannerService;
     private final LibraryService libraryService;
@@ -49,6 +63,7 @@ public class LibraryController {
     private final ScanRateLimiter scanRateLimiter;
     private final PlaybackQueueRepository playbackQueueRepository;
     private final ScanProgressEmitter scanProgressEmitter;
+    private final UserRateLimiter userRateLimiter;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -57,7 +72,8 @@ public class LibraryController {
                              UserRepository userRepository,
                              ScanRateLimiter scanRateLimiter,
                              PlaybackQueueRepository playbackQueueRepository,
-                             ScanProgressEmitter scanProgressEmitter) {
+                             ScanProgressEmitter scanProgressEmitter,
+                             UserRateLimiter userRateLimiter) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -66,6 +82,7 @@ public class LibraryController {
         this.scanRateLimiter = scanRateLimiter;
         this.playbackQueueRepository = playbackQueueRepository;
         this.scanProgressEmitter = scanProgressEmitter;
+        this.userRateLimiter = userRateLimiter;
     }
 
     @PostMapping("/scan")
@@ -281,10 +298,10 @@ public class LibraryController {
 
         // Reject files that are too large for transcoding
         long fileSize = Files.size(path);
-        if (fileSize > MAX_TRANSCODE_FILE_SIZE) {
+        if (fileSize > maxTranscodeFileSize) {
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                     .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
-                            "File too large for transcoding (max " + (MAX_TRANSCODE_FILE_SIZE / 1024 / 1024) + " MB)"));
+                            "File too large for transcoding (max " + (maxTranscodeFileSize / 1024 / 1024) + " MB)"));
         }
 
         if (!isFFmpegAvailable()) {
@@ -330,10 +347,10 @@ public class LibraryController {
                     }
                 }
 
-                boolean finished = process.waitFor(TRANSCODE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                boolean finished = process.waitFor(transcodeTimeoutSeconds, TimeUnit.SECONDS);
                 if (!finished) {
                     logger.error("ffmpeg transcoding timed out after {}s for '{}'",
-                            TRANSCODE_TIMEOUT_SECONDS, sourcePath.getFileName());
+                            transcodeTimeoutSeconds, sourcePath.getFileName());
                     process.destroyForcibly();
                 } else if (process.exitValue() != 0) {
                     logger.error("ffmpeg transcoding failed for '{}' with exit code {}",
@@ -418,7 +435,9 @@ public class LibraryController {
 
     @PostMapping("/files/bulk-delete")
     public ResponseEntity<?> bulkDelete(@CurrentUser User user, @Valid @RequestBody BulkDeleteRequest request) {
-        int deleted = libraryService.bulkDelete(request.getFileIds(), user.getId());
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "bulk-delete");
+        if (rateLimited != null) return rateLimited;
+        long deleted = libraryService.bulkDelete(request.getFileIds(), user.getId());
         auditService.log(user.getUsername(), AuditService.Action.BULK_DELETE, null, deleted + " files");
         return ResponseEntity.ok(Map.of("deleted", deleted));
     }
@@ -513,16 +532,18 @@ public class LibraryController {
 
     // --- Export endpoints ---
 
-    private static final int MAX_EXPORT_SIZE = 50_000;
+    // maxExportSize configured via @Value above
 
     @GetMapping("/export")
     public ResponseEntity<?> exportLibrary(@CurrentUser User user,
                                            @RequestParam(defaultValue = "json") String format) {
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "export");
+        if (rateLimited != null) return rateLimited;
         List<MusicFile> files = libraryService.getAllFiles(user.getId());
-        if (files.size() > MAX_EXPORT_SIZE) {
+        if (files.size() > maxExportSize) {
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                     .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
-                            "Library too large to export (" + files.size() + " tracks). Maximum is " + MAX_EXPORT_SIZE + "."));
+                            "Library too large to export (" + files.size() + " tracks). Maximum is " + maxExportSize + "."));
         }
         if ("csv".equalsIgnoreCase(format)) {
             return exportAsCsv(files);
@@ -653,13 +674,19 @@ public class LibraryController {
 
     @PutMapping("/queue")
     public ResponseEntity<?> saveQueue(@CurrentUser User user, @Valid @RequestBody PlaybackQueueDTO dto) {
+        List<String> trackIds = dto.getTrackIds() != null ? dto.getTrackIds() : List.of();
+        if (trackIds.size() > maxQueueTracks) {
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST,
+                            "Queue cannot exceed " + maxQueueTracks + " tracks"));
+        }
         PlaybackQueue queue = playbackQueueRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     PlaybackQueue q = new PlaybackQueue();
                     q.setUserId(user.getId());
                     return q;
                 });
-        queue.setTrackIds(dto.getTrackIds() != null ? dto.getTrackIds() : List.of());
+        queue.setTrackIds(trackIds);
         queue.setCurrentTrackId(dto.getCurrentTrackId());
         queue.setShuffle(dto.isShuffle());
         playbackQueueRepository.save(queue);
@@ -670,6 +697,17 @@ public class LibraryController {
     public ResponseEntity<?> clearQueue(@CurrentUser User user) {
         playbackQueueRepository.deleteByUserId(user.getId());
         return ResponseEntity.ok(Map.of("message", "Queue cleared"));
+    }
+
+    private ResponseEntity<?> rateLimitResponse(String userId, String operation) {
+        if (!userRateLimiter.tryAcquire(userId, operation)) {
+            long retryAfter = userRateLimiter.secondsUntilAllowed(userId, operation);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header("Retry-After", String.valueOf(retryAfter))
+                    .body(GlobalExceptionHandler.problem(HttpStatus.TOO_MANY_REQUESTS,
+                            "Rate limit exceeded for " + operation + ". Please try again later."));
+        }
+        return null;
     }
 
     private void validateScanPath(String path) throws IOException {

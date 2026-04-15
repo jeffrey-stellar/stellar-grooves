@@ -43,8 +43,11 @@ class MusicScannerServiceTest {
         catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter);
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(scannerService, "maxDepth", 20);
+        ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
+        ReflectionTestUtils.setField(scannerService, "batchSize", 200);
+        ReflectionTestUtils.setField(scannerService, "maxCoverArtBytes", 10485760);
         ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
         ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
         scannerService.initExecutor();
@@ -193,8 +196,11 @@ class MusicScannerServiceTest {
 
         CoverArtRepository coverArtRepo = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        MusicScannerService lockTestService = new MusicScannerService(catalogService, slowRepo, coverArtRepo, progressEmitter);
+        MusicScannerService lockTestService = new MusicScannerService(catalogService, slowRepo, coverArtRepo, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(lockTestService, "maxDepth", 20);
+        ReflectionTestUtils.setField(lockTestService, "hardMaxDepth", 50);
+        ReflectionTestUtils.setField(lockTestService, "batchSize", 200);
+        ReflectionTestUtils.setField(lockTestService, "maxCoverArtBytes", 10485760);
         ReflectionTestUtils.setField(lockTestService, "fileReaderThreads", 1);
         ReflectionTestUtils.setField(lockTestService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
         lockTestService.initExecutor();

@@ -5,6 +5,8 @@ import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
 import com.stellarideas.grooves.service.PlaylistService;
 import org.springframework.http.ResponseEntity;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/shared/playlists")
+@Tag(name = "Shared Playlists", description = "Public access to shared playlists via share tokens")
 public class SharedPlaylistController {
 
     private final PlaylistService playlistService;
@@ -23,6 +26,7 @@ public class SharedPlaylistController {
         this.playlistService = playlistService;
     }
 
+    @Operation(summary = "Get shared playlist", description = "Access a shared playlist via its share token. Returns 410 if the token has expired.")
     @GetMapping("/{token}")
     public ResponseEntity<?> getSharedPlaylist(@PathVariable String token) {
         Optional<Playlist> opt = playlistService.findByShareToken(token);

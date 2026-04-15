@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/playlists")
+@Tag(name = "Playlists", description = "Playlist creation, management, sharing, and export")
 public class PlaylistController {
 
     private static final Logger logger = LoggerFactory.getLogger(PlaylistController.class);
@@ -40,6 +43,7 @@ public class PlaylistController {
         this.auditService = auditService;
     }
 
+    @Operation(summary = "List playlists", description = "Get all playlists for the current user")
     @GetMapping
     public List<PlaylistDTO> getPlaylists(@CurrentUser User user) {
         return playlistService.getPlaylists(user.getId()).stream()
@@ -47,6 +51,7 @@ public class PlaylistController {
                 .collect(Collectors.toList());
     }
 
+    @Operation(summary = "Create playlist")
     @PostMapping
     public ResponseEntity<?> createPlaylist(@CurrentUser User user, @Valid @RequestBody CreatePlaylistRequest body) {
         Playlist saved = playlistService.createPlaylist(body.getName(), user.getId());
@@ -54,6 +59,7 @@ public class PlaylistController {
         return ResponseEntity.ok(PlaylistDTO.from(saved));
     }
 
+    @Operation(summary = "Delete playlist")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePlaylist(@CurrentUser User user, @PathVariable String id) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
@@ -63,6 +69,7 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", msg.msg("playlist.deleted")));
     }
 
+    @Operation(summary = "Add track to playlist")
     @PostMapping("/{id}/tracks")
     public ResponseEntity<?> addTrack(@CurrentUser User user, @PathVariable String id,
                                       @Valid @RequestBody AddTrackRequest body) {
@@ -75,6 +82,7 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", msg.msg("playlist.track.added"), "trackCount", playlist.getTrackIds().size()));
     }
 
+    @Operation(summary = "Remove track from playlist")
     @DeleteMapping("/{id}/tracks/{fileId}")
     public ResponseEntity<?> removeTrack(@CurrentUser User user, @PathVariable String id, @PathVariable String fileId) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
@@ -84,6 +92,7 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", msg.msg("playlist.track.removed"), "trackCount", playlist.getTrackIds().size()));
     }
 
+    @Operation(summary = "Get playlist tracks", description = "Get all tracks in a playlist in order")
     @GetMapping("/{id}/tracks")
     public ResponseEntity<?> getPlaylistTracks(@CurrentUser User user, @PathVariable String id) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
@@ -91,6 +100,7 @@ public class PlaylistController {
         return ResponseEntity.ok(playlistService.getPlaylistTracks(opt.get(), user.getId()));
     }
 
+    @Operation(summary = "Reorder playlist tracks")
     @PutMapping("/{id}/tracks/reorder")
     public ResponseEntity<?> reorderTracks(@CurrentUser User user, @PathVariable String id,
                                            @Valid @RequestBody ReorderTracksRequest request) {
@@ -104,6 +114,7 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", "Tracks reordered", "trackCount", playlist.getTrackIds().size()));
     }
 
+    @Operation(summary = "Generate share link", description = "Create a shareable token for the playlist with optional expiration (1-365 days)")
     @PostMapping("/{id}/share")
     public ResponseEntity<?> generateShareToken(@CurrentUser User user, @PathVariable String id,
                                                 @RequestParam(required = false) Integer expirationDays) {
@@ -123,6 +134,7 @@ public class PlaylistController {
         return ResponseEntity.ok(body);
     }
 
+    @Operation(summary = "Revoke share link")
     @DeleteMapping("/{id}/share")
     public ResponseEntity<?> revokeShareToken(@CurrentUser User user, @PathVariable String id) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
@@ -131,6 +143,7 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", "Share token revoked"));
     }
 
+    @Operation(summary = "Export playlist", description = "Export playlist as JSON or M3U format")
     @GetMapping("/{id}/export")
     public ResponseEntity<?> exportPlaylist(@CurrentUser User user, @PathVariable String id,
                                             @RequestParam(defaultValue = "json") String format) {
