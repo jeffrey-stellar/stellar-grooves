@@ -851,8 +851,12 @@ function getPlayableTrackList() {
 function openCoverArtLightbox(src, album, artist) { SG.openCoverArtLightbox(src, album, artist); }
 
 // ── Init ─────────────────────────────────────────────────
-SG.loadSavedQueue();
 loadLibrary();
-SG.loadScanSchedule();
+// loadSavedQueue and loadScanSchedule are defined in queue.js and scan.js,
+// which load after app.js — defer until all scripts are ready.
+window.addEventListener('load', () => {
+    if (SG.loadSavedQueue) SG.loadSavedQueue();
+    if (SG.loadScanSchedule) SG.loadScanSchedule();
+});
 
 })();
