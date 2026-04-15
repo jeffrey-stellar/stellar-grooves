@@ -19,6 +19,7 @@ let playlists = [], selectedFileForPlaylist = null, addToPlaylistModal = null;
 let cachedVisibleTracks = [];
 let selectedIds = new Set(); // bulk selection
 let queue = []; // play queue
+let playlistContext = null; // { playlistId, playlistName, tracks: [{id, title, artist, ...}] } when playing from a playlist
 
 // Shared state with player.js and other modules via SG namespace
 window.SG = window.SG || {};
@@ -30,6 +31,7 @@ SG.__defineGetter__('playlists', () => playlists);
 SG.__defineGetter__('queue', () => queue);
 SG.__defineSetter__('queue', (v) => { queue = v; });
 SG.__defineGetter__('nav', () => nav);
+SG.__defineGetter__('playlistContext', () => playlistContext);
 SG.setAllFiles = (v) => { allFiles = v; };
 SG.setPlaylists = (v) => { playlists = v; };
 SG.setQueue = (v) => { queue = v; };
@@ -76,6 +78,44 @@ async function errorMsg(resp, fallback) {
 }
 function fileById(id) { return allFiles.find(f => f.id === id); }
 function fileForRow(tr) { return tr ? fileById(tr.dataset.fileId) : null; }
+
+// ── Playlist context: remembers which playlist we're playing from ──
+function setPlaylistContext(playlistId, playlistName, tracks) {
+    playlistContext = { playlistId, playlistName, tracks };
+    renderPlaylistUpNext();
+}
+function clearPlaylistContext() {
+    if (playlistContext) { playlistContext = null; renderPlaylistUpNext(); }
+}
+function renderPlaylistUpNext() {
+    const ul = document.getElementById('playlistUpNext');
+    if (!ul) return;
+    const label = document.getElementById('playlistUpNextLabel');
+    if (!playlistContext || !SG.currentFileId) {
+        ul.innerHTML = ''; if (label) label.classList.add('d-none');
+        return;
+    }
+    const idx = playlistContext.tracks.findIndex(t => t.id === SG.currentFileId);
+    const upcoming = idx === -1 ? [] : playlistContext.tracks.slice(idx + 1);
+    if (upcoming.length === 0) {
+        ul.innerHTML = ''; if (label) label.classList.add('d-none');
+        return;
+    }
+    if (label) { label.classList.remove('d-none'); label.textContent = 'FROM: ' + (playlistContext.playlistName || 'Playlist'); }
+    ul.innerHTML = '';
+    upcoming.slice(0, 10).forEach(f => {
+        const li = document.createElement('li'); li.className = 'queue-item playlist-up-next-item';
+        const title = document.createElement('span'); title.className = 'queue-item-title';
+        title.textContent = text(f.title) + (f.artist ? ' \u00B7 ' + f.artist : '');
+        li.appendChild(title); ul.appendChild(li);
+    });
+    if (upcoming.length > 10) {
+        const li = document.createElement('li'); li.className = 'queue-item playlist-up-next-item';
+        li.textContent = '... and ' + (upcoming.length - 10) + ' more';
+        ul.appendChild(li);
+    }
+}
+SG.renderPlaylistUpNext = renderPlaylistUpNext;
 
 // ── Star rating widget ───────────────────────────────────
 function buildStarRating(fileId, currentRating) {
@@ -426,7 +466,7 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
     const el = e.target.closest('[data-action]'); if (!el) return;
     const tr = el.closest('tr'), file = fileForRow(tr); if (!file && el.dataset.action !== 'select') return;
     switch (el.dataset.action) {
-        case 'play': playTrack(file); break;
+        case 'play': clearPlaylistContext(); playTrack(file); break;
         case 'queue': addToQueue(file); break;
         case 'add-to-playlist': openAddToPlaylistModal(file); break;
         case 'delete': guardClick(el, async () => {
@@ -468,7 +508,16 @@ const plBody = document.getElementById('playlistTracksBody');
 plBody.addEventListener('click', function(e) {
     const el = e.target.closest('[data-action]'); if (!el) return;
     const tr = el.closest('tr'), fid = tr ? tr.dataset.fileId : null; if (!fid) return;
-    if (el.dataset.action === 'play') playTrack(fileById(fid) || { id: fid });
+    if (el.dataset.action === 'play') {
+        // Build playlist context from visible rows
+        const rows = plBody.querySelectorAll('tr[data-file-id]');
+        const tracks = Array.from(rows).map(r => {
+            const id = r.dataset.fileId;
+            return fileById(id) || { id, title: r.querySelector('td:nth-child(2)')?.textContent, artist: r.querySelector('td:nth-child(3)')?.textContent };
+        });
+        setPlaylistContext(nav.playlistId, nav.playlistName, tracks);
+        playTrack(fileById(fid) || { id: fid });
+    }
     else if (el.dataset.action === 'remove') guardClick(el, async () => {
         const r = await fetch(`/api/v1/playlists/${nav.playlistId}/tracks/${fid}`, { method: 'DELETE', headers: csrfHeaders() });
         if (r.ok) { await loadPlaylists(); await renderPlaylistView(); }
@@ -778,18 +827,20 @@ async function loadLibrary() {
 function playTrack(file, useCrossfade) { SG.playTrack(file, useCrossfade); }
 
 function playNextTrack(useCrossfade) {
-    if (queue.length > 0) { const next = queue.shift(); renderQueue(); const full = allFiles.find(f => f.id === next.id) || next; playTrack(full, useCrossfade); return; }
+    if (queue.length > 0) { const next = queue.shift(); renderQueue(); const full = allFiles.find(f => f.id === next.id) || next; playTrack(full, useCrossfade); renderPlaylistUpNext(); return; }
     if (!SG.currentFileId) return;
     const tracks = getPlayableTrackList(); if (tracks.length === 0) return;
     let nf;
     if (SG.shuffleEnabled) { const o = tracks.filter(f => f.id !== SG.currentFileId); if (o.length === 0) return; nf = o[Math.floor(Math.random() * o.length)]; }
     else { const i = tracks.findIndex(f => f.id === SG.currentFileId); if (i === -1 || i >= tracks.length - 1) return; nf = tracks[i + 1]; }
     const full = allFiles.find(f => f.id === nf.id) || nf;
-    if (full.id) playTrack(full, useCrossfade);
+    if (full.id) { playTrack(full, useCrossfade); renderPlaylistUpNext(); }
 }
 SG.playNextTrack = playNextTrack;
 
 function getPlayableTrackList() {
+    // If we have an active playlist context, use it regardless of current view
+    if (playlistContext && playlistContext.tracks.length > 0) return playlistContext.tracks;
     const rows = document.querySelectorAll('tbody tr[data-file-id]');
     const ids = Array.from(rows).map(tr => tr.dataset.fileId);
     if (nav.view === 'playlist') return ids.map(id => ({ id }));
