@@ -73,6 +73,10 @@
 
 .card-body { padding: 1.25rem; }
 
+/* Collapsible card header icon */
+.scan-collapse-icon { transition: transform 0.25s; }
+[aria-expanded="true"] .scan-collapse-icon { transform: rotate(180deg); }
+
 .card-title {
     font-family: 'Righteous', cursive;
     color: var(--neon-amber);
@@ -186,6 +190,7 @@
 }
 .table tbody tr:hover td {
     background-color: rgba(255, 179, 71, 0.04);
+    color: var(--text-primary);
 }
 .table tbody tr:last-child td { border-bottom: none; }
 
@@ -195,12 +200,57 @@
     -webkit-overflow-scrolling: touch;
 }
 
-/* Virtual scroll container for large libraries */
+/* Virtual scroll container for large libraries – shows ~20 rows then scrolls */
 .virtual-scroll-container {
-    max-height: 70vh;
+    max-height: min(880px, 65vh);
     overflow-y: auto;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+
+/* Sticky table header inside scroll container */
+.virtual-scroll-container thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card, #1a0e0a);
+    background-image: var(--wood-grain);
+}
+
+/* Shrink library when jukebox player is visible */
+.main-content:has(#jukeboxPlayer:not(.d-none)) .virtual-scroll-container {
+    max-height: min(680px, 45vh);
+}
+
+/* Scrollable sub-views inside the library card */
+#viewArtists .table-responsive,
+#viewAlbums .table-responsive,
+#viewAlbums .album-grid,
+#viewAlbums .album-art-gallery,
+#viewPlaylist .table-responsive,
+#viewDuplicates #duplicatesContent {
+    max-height: min(880px, 65vh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewArtists .table-responsive,
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewAlbums .table-responsive,
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewAlbums .album-grid,
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewAlbums .album-art-gallery,
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewPlaylist .table-responsive,
+.main-content:has(#jukeboxPlayer:not(.d-none)) #viewDuplicates #duplicatesContent {
+    max-height: min(680px, 45vh);
+}
+
+/* Sticky headers in scrollable sub-views */
+#viewArtists .table-responsive thead th,
+#viewPlaylist .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card, #1a0e0a);
+    background-image: var(--wood-grain);
 }
 
 /* ── Genre Badges (jukebox selector buttons) ── */
@@ -533,9 +583,14 @@ tr:hover .btn-action-sm { opacity: 1; }
     border-radius: 3px;
 }
 
-/* ── Active table row ── */
+/* ── Active table row (playing song) ── */
 .table-active td {
     background-color: rgba(255, 110, 180, 0.06) !important;
+    color: var(--text-primary) !important;
+}
+.table-active {
+    --bs-table-active-bg: rgba(255, 110, 180, 0.06);
+    --bs-table-active-color: var(--text-primary);
 }
 
 /* ── Utility classes (replacing inline styles for CSP compliance) ── */
@@ -596,6 +651,11 @@ tr:hover .btn-action-sm { opacity: 1; }
 .col-check input[type="checkbox"] { accent-color: var(--neon-amber); }
 
 /* ── Queue list ── */
+#queueSection .playlist-list {
+    max-height: 260px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
 .queue-item {
     display: flex;
     align-items: center;

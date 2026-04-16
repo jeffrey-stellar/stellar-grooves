@@ -107,6 +107,11 @@ SG.syncPlayerBtn = function() {
         b.textContent = (a && !activeAudio.paused) ? '\u23F8' : '\u25B6';
         b.classList.toggle('playing', a);
     });
+
+    // Update jukebox side panel active states
+    document.querySelectorAll('.wurl-side-item').forEach(li => {
+        li.classList.toggle('wurl-side-active', li.dataset.fileId === SG.currentFileId);
+    });
 };
 
 // ── Crossfade toggle ────────────────────────────────────
