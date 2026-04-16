@@ -86,12 +86,32 @@ SG.playTrack = function(file, useCrossfade) {
     } else {
         activeAudio.play();
     }
+
+    // Media Session API — lock screen / notification metadata
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: file.title || 'Unknown Track',
+            artist: file.artist || 'Unknown Artist',
+            album: file.album || '',
+            artwork: file.hasCoverArt
+                ? [{ src: `/api/v1/library/files/${file.id}/cover`, sizes: '512x512', type: 'image/jpeg' }]
+                : [
+                    { src: '/images/icon-192.png', sizes: '192x192', type: 'image/png' },
+                    { src: '/images/icon-512.png', sizes: '512x512', type: 'image/png' }
+                  ]
+        });
+    }
 };
 
 SG.syncPlayerBtn = function() {
     const btn = document.getElementById('playerPlayPause');
     btn.textContent = activeAudio.paused ? '\u25B6' : '\u23F8';
     btn.setAttribute('aria-label', activeAudio.paused ? 'Play' : 'Pause');
+
+    // Sync Media Session playback state
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = activeAudio.paused ? 'paused' : 'playing';
+    }
 
     const art = document.getElementById('playerArt');
     const vinyl = document.getElementById('jukeboxArtPlaceholder');
@@ -142,6 +162,16 @@ function handleTrackTimeUpdate(el) {
             _crossfadeTriggered = true;
             SG.playNextTrack(true);
         }
+        // Report position to Media Session
+        if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: el.duration,
+                    playbackRate: el.playbackRate,
+                    position: el.currentTime
+                });
+            } catch (_) { /* ignore invalid state errors */ }
+        }
     }
 }
 function handleTrackEnded(el) {
@@ -176,6 +206,29 @@ document.getElementById('playerShuffle').addEventListener('click', () => {
     b.classList.toggle('active', SG.shuffleEnabled);
     b.setAttribute('aria-pressed', String(SG.shuffleEnabled));
 });
+
+// ── Media Session action handlers (lock screen controls) ──
+if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', () => activeAudio.play());
+    navigator.mediaSession.setActionHandler('pause', () => activeAudio.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+        activeAudio.currentTime = 0;
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+        SG.playNextTrack(false);
+    });
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime != null && !isNaN(activeAudio.duration)) {
+            activeAudio.currentTime = details.seekTime;
+        }
+    });
+    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        activeAudio.currentTime = Math.max(0, activeAudio.currentTime - (details.seekOffset || 10));
+    });
+    navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        activeAudio.currentTime = Math.min(activeAudio.duration || 0, activeAudio.currentTime + (details.seekOffset || 10));
+    });
+}
 
 // ── Visual Equalizer (Web Audio API) ────────────────────
 function initEqualizer() {

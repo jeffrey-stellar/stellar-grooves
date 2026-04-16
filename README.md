@@ -1,6 +1,6 @@
 # Stellar Grooves
 
-A self-hosted, multi-user music library for rock and metal collections. Scan local directories for audio files, auto-categorize tracks by sub-genre, manage playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI.
+A self-hosted, multi-user music library for rock and metal collections. Scan local directories for audio files, auto-categorize tracks by sub-genre, manage playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI. Installable as a Progressive Web App on desktop and mobile.
 
 Built with Spring Boot, MongoDB, and vanilla JavaScript.
 
@@ -16,7 +16,8 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Duplicate detection & resolution** — skips files already imported by both file path and metadata (title + artist); paginated duplicates view to compare and delete duplicate tracks; optional file-hash–based duplicate detection to find exact copies regardless of metadata differences
 - **In-browser playback** — persistent audio player bar with play/pause, seek, volume, shuffle, and album art display; HTTP Range support for seeking in large files; auto-advances to next track
 - **Crossfade & gapless playback** — toggle crossfade (3-second fade between tracks) for seamless listening; uses dual audio elements for smooth transitions
-- **Queue management** — add tracks to an "Up Next" queue; queue drains before sequential/shuffle playback resumes; clear queue with one click; queue persists to MongoDB across sessions and devices (falls back to localStorage)
+- **Queue management** — add tracks to an "Up Next" queue; queue drains before sequential/shuffle playback resumes; clear queue with one click; queue persists to MongoDB across sessions and devices (falls back to localStorage); real-time sync across tabs/devices via WebSocket (STOMP over SockJS)
+- **Media Session integration** — lock screen and notification controls (play/pause/skip/seek) with track metadata and album art on mobile and desktop; syncs playback position for OS-level progress bars
 - **Keyboard shortcuts** — Space to play/pause, left/right arrows to seek, up/down for volume (active when player is visible and no input is focused)
 - **Audio transcoding** — on-the-fly FLAC/M4A to MP3 conversion via ffmpeg; request `?format=mp3` on the transcode endpoint; gracefully degrades if ffmpeg is not installed
 - **Scheduled scans** — configure a cron expression and directory path per user; the system checks every 60 seconds and triggers scans when due
@@ -52,9 +53,11 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **API documentation** — interactive Swagger UI at `/swagger-ui.html` with OpenAPI 3.0 spec at `/api-docs`; JWT bearer auth support; disabled in production profile
 - **API versioning** — all REST endpoints under `/api/v1/` for forward compatibility
 - **Structured logging** — correlation IDs on every request (`X-Correlation-Id` header), MDC-based log pattern for request tracing
+- **Prometheus metrics** — `/actuator/prometheus` endpoint exposes application metrics (request counts, latencies, JVM stats) for Prometheus scraping; `/actuator/metrics` for JSON metric queries
 - **Health check** — `/actuator/health` endpoint for monitoring; health details (including MongoDB connectivity) are only visible to authenticated users (`show-details=when-authorized`)
 
 ### UI & Accessibility
+- **Progressive Web App (PWA)** — installable on desktop and mobile via "Add to Home Screen"; service worker caches static assets for instant loading; offline fallback page when the network is unavailable; web app manifest with themed icons
 - **Jukebox theme** — retro dark UI with neon glow effects, chrome accents, wood grain textures, and "Righteous" display typography
 - **Light mode** — full light theme with manual toggle (sun/moon button in navbar); respects `prefers-color-scheme` media query; preference saved to localStorage
 - **Loading states** — spinner feedback on genre changes, rating updates, bulk delete, add-to-playlist, and search operations
@@ -325,11 +328,13 @@ The JSON format maps artist names to arrays of genre values:
 18. Set up a scheduled scan to auto-import new files on a cron schedule.
 19. Toggle light/dark mode with the sun/moon button in the navbar.
 20. Admin users can access the admin dashboard at **/admin** to manage users.
-21. Browse the interactive API documentation at **/swagger-ui.html** (dev mode only).
+21. Install the app as a PWA from the browser's install prompt for a standalone experience.
+22. Visit **/help** for the built-in user guide — accessible from the navbar, login, and signup pages (no login required).
+23. Browse the interactive API documentation at **/swagger-ui.html** (dev mode only).
 
 ---
 
-## Health Check
+## Monitoring
 
 A health endpoint is available at `/actuator/health` (no authentication required). It reports basic application status. Detailed health information (including MongoDB connectivity) is only shown to authenticated users (`show-details=when-authorized`).
 
@@ -337,6 +342,8 @@ A health endpoint is available at `/actuator/health` (no authentication required
 curl http://localhost:8080/actuator/health
 # {"status":"UP"}
 ```
+
+Prometheus metrics are exposed at `/actuator/prometheus` for scraping, and JSON metrics at `/actuator/metrics`.
 
 ---
 
@@ -457,7 +464,7 @@ src/main/java/com/stellarideas/grooves/
 │   ├── PlaylistController.java          # Playlist management + reorder + export + sharing
 │   ├── SharedPlaylistController.java    # Public read-only shared playlist access
 │   ├── AdminController.java             # Admin stats + user management
-│   ├── ViewController.java              # Thymeleaf page routes (/, /login, /signup, /admin)
+│   ├── ViewController.java              # Thymeleaf page routes (/, /login, /signup, /help, /admin)
 │   └── GlobalExceptionHandler.java      # RFC 7807 Problem Details error handling
 ├── model/
 │   ├── User.java                        # User document (with scan schedule fields, emailVerified flag)
@@ -533,22 +540,42 @@ src/main/resources/
 ├── messages.properties                  # Externalized UI/error messages (i18n-ready)
 ├── logback-spring.xml                   # Logging config with correlation IDs
 ├── catalog.json                         # Artist-genre catalog (customizable)
-├── static/css/main.css                  # Jukebox theme stylesheet (dark + light mode)
-├── static/js/app.js                     # Frontend application (queue sync, crossfade, SSE progress)
-├── static/js/admin.js                   # Admin dashboard logic
-├── static/js/signup.js                  # Signup form handler
+├── static/
+│   ├── manifest.json                    # PWA web app manifest
+│   ├── sw.js                            # Service worker (static asset caching + offline fallback)
+│   ├── offline.html                     # Offline fallback page
+│   ├── css/
+│   │   ├── main.css                     # Core layout and responsive styles
+│   │   ├── theme.css                    # Dark/light mode theme variables
+│   │   ├── jukebox.css                  # Retro jukebox decorative effects
+│   │   └── components.css               # UI component styles (player, cards, buttons)
+│   ├── js/
+│   │   ├── app.js                       # Main application (library, search, filters, bulk ops)
+│   │   ├── player.js                    # Audio playback engine (crossfade, seek, shuffle)
+│   │   ├── queue.js                     # Playback queue (WebSocket sync, localStorage fallback)
+│   │   ├── scan.js                      # Directory scanning (SSE progress, cooldown timer)
+│   │   ├── theme.js                     # Dark/light mode toggle
+│   │   ├── admin.js                     # Admin dashboard logic
+│   │   └── signup.js                    # Signup form handler
+│   ├── vendor/                          # Committed vendor libs (managed via package.json)
+│   │   ├── bootstrap/                   # Bootstrap 5.3.8 (CSS + JS)
+│   │   ├── sockjs/                      # SockJS client (WebSocket fallback)
+│   │   └── stomp/                       # STOMP messaging client
+│   └── images/                          # SVG logos, PNG assets, PWA icons, favicon
 └── templates/
     ├── index.html                       # Main library dashboard (with crossfade button)
     ├── admin.html                       # Admin dashboard
+    ├── help.html                        # Built-in user guide (no auth required)
     ├── login.html                       # Login page
     └── signup.html                      # Registration page
 
-Dockerfile                               # Multi-stage build (JDK build + JRE runtime)
+package.json                             # Frontend vendor dependency management
+Dockerfile                               # Multi-stage build (JDK build + JRE runtime, non-root user)
 docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**392 unit tests** across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**436 tests** across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
 
 ---
 
@@ -561,13 +588,14 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Caching (optional) | Spring Data Redis (for distributed rate limiting) |
 | Security | Spring Security 6.4 + JJWT 0.12.6 |
 | API docs | springdoc-openapi 2.8.6 (Swagger UI + OpenAPI 3.0) |
-| Monitoring | Spring Boot Actuator |
-| Templating | Thymeleaf + Bootstrap 5.3 |
+| Monitoring | Spring Boot Actuator + Micrometer Prometheus |
+| Real-time | Spring WebSocket + STOMP over SockJS |
+| Templating | Thymeleaf + Bootstrap 5.3.8 |
 | Audio metadata | JAudioTagger 3.0.1 |
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers (392 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers (436 tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
 
 ---

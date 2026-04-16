@@ -925,6 +925,13 @@ loadLibrary();
 window.addEventListener('load', () => {
     if (SG.loadSavedQueue) SG.loadSavedQueue();
     if (SG.loadScanSchedule) SG.loadScanSchedule();
+
+    // PWA: Service Worker registration
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW registered, scope:', reg.scope))
+            .catch(err => console.warn('SW registration failed:', err));
+    }
 });
 
 })();

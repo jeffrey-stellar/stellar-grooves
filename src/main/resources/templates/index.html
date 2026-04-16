@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ff3b1f">
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <meta name="_userId" th:content="${userId}">
     <title>Stellar Grooves - Dashboard</title>
     <link rel="icon" th:href="@{/images/logo.png}" type="image/png">
+    <link rel="apple-touch-icon" th:href="@{/images/icon-192.png}">
+    <link rel="manifest" th:href="@{/manifest.json}">
     <link rel="stylesheet" th:href="@{/vendor/bootstrap/css/bootstrap.min.css}">
     <link rel="stylesheet" th:href="@{/css/main.css}">
 </head>
@@ -20,6 +23,7 @@
             <div class="ms-auto d-flex gap-3 align-items-center">
                 <button class="theme-toggle" id="shortcutHelp" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">?</button>
                 <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme">&#9788;</button>
+                <a class="nav-link d-inline" th:href="@{/help}">Help</a>
                 <a class="nav-link d-inline" th:href="@{/admin}" sec:authorize="hasRole('ADMIN')">Admin</a>
                 <a class="nav-link d-inline" href="/logout">Logout</a>
             </div>

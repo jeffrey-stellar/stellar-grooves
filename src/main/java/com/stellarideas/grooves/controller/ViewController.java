@@ -26,6 +26,11 @@ public class ViewController {
         return "signup";
     }
 
+    @GetMapping("/help")
+    public String help() {
+        return "help";
+    }
+
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public String admin() {
