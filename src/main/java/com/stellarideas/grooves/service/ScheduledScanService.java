@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +22,15 @@ public class ScheduledScanService {
 
     private static final Logger logger = LoggerFactory.getLogger(ScheduledScanService.class);
 
+    private static final int MAX_CONSECUTIVE_FAILURES = 5;
+    private static final long BASE_BACKOFF_MINUTES = 5;
+
     private final Set<String> activeScans = ConcurrentHashMap.newKeySet();
+
+    /** Tracks consecutive failure count per user for exponential backoff. */
+    private final ConcurrentHashMap<String, Integer> failureCounts = new ConcurrentHashMap<>();
+    /** Tracks when a user's backoff period expires. */
+    private final ConcurrentHashMap<String, Instant> backoffUntil = new ConcurrentHashMap<>();
 
     private final UserRepository userRepository;
     private final MusicScannerService musicScannerService;
@@ -35,14 +42,22 @@ public class ScheduledScanService {
 
     @Scheduled(fixedRate = 60000)
     public void checkScheduledScans() {
-        List<User> users = userRepository.findAll();
+        // Only load users who have a scan schedule configured
+        var users = userRepository.findByScanScheduleNotNull();
         for (User user : users) {
-            if (user.getScanSchedule() == null || user.getScanSchedule().isBlank()) {
+            if (user.getScanSchedule().isBlank()) {
                 continue;
             }
             if (user.getScanPath() == null || user.getScanPath().isBlank()) {
                 continue;
             }
+
+            // Check if user is in backoff period
+            Instant backoff = backoffUntil.get(user.getId());
+            if (backoff != null && Instant.now().isBefore(backoff)) {
+                continue;
+            }
+
             try {
                 CronExpression cron = CronExpression.parse(user.getScanSchedule());
                 LocalDateTime now = LocalDateTime.now();
@@ -67,6 +82,9 @@ public class ScheduledScanService {
                         ScanResult result = musicScannerService.scanDirectory(user, user.getScanPath());
                         user.setLastScheduledScan(Instant.now());
                         userRepository.save(user);
+                        // Clear failure state on success
+                        failureCounts.remove(user.getId());
+                        backoffUntil.remove(user.getId());
                         logger.info("Scheduled scan complete for user '{}': {} saved, {} skipped, {} errors",
                                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
                     } finally {
@@ -75,7 +93,11 @@ public class ScheduledScanService {
                     }
                 }
             } catch (Exception e) {
-                logger.error("Scheduled scan failed for user '{}': {}", user.getUsername(), e.getMessage());
+                int failures = failureCounts.merge(user.getId(), 1, Integer::sum);
+                long backoffMinutes = BASE_BACKOFF_MINUTES * (1L << Math.min(failures - 1, MAX_CONSECUTIVE_FAILURES - 1));
+                backoffUntil.put(user.getId(), Instant.now().plusSeconds(backoffMinutes * 60));
+                logger.error("Scheduled scan failed for user '{}' (failure #{}, next retry in {} min): {}",
+                        user.getUsername(), failures, backoffMinutes, e.getMessage(), e);
             }
         }
     }

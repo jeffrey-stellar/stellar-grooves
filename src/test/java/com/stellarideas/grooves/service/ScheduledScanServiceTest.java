@@ -34,10 +34,8 @@ class ScheduledScanServiceTest {
     }
 
     @Test
-    void skipsUsersWithNoSchedule() throws Exception {
-        User user = User.builder().id("u1").username("user1")
-                .scanPath("/music").build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+    void skipsWhenNoUsersHaveSchedule() throws Exception {
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of());
 
         service.checkScheduledScans();
 
@@ -48,7 +46,7 @@ class ScheduledScanServiceTest {
     void skipsUsersWithNoScanPath() throws Exception {
         User user = User.builder().id("u1").username("user1")
                 .scanSchedule("0 0 * * * *").build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
 
         service.checkScheduledScans();
 
@@ -62,7 +60,7 @@ class ScheduledScanServiceTest {
                 .scanPath("/music")
                 .lastScheduledScan(Instant.now().minus(1, ChronoUnit.HOURS))
                 .build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
         when(musicScannerService.scanDirectory(any(), eq("/music")))
                 .thenReturn(new ScanResult());
 
@@ -80,7 +78,7 @@ class ScheduledScanServiceTest {
                 .scanPath("/music")
                 .lastScheduledScan(Instant.now()) // just scanned
                 .build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
 
         service.checkScheduledScans();
 
@@ -93,7 +91,7 @@ class ScheduledScanServiceTest {
                 .scanSchedule("not-a-cron")
                 .scanPath("/music")
                 .build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
 
         // Should not throw — error is caught and logged
         assertDoesNotThrow(() -> service.checkScheduledScans());
@@ -106,7 +104,7 @@ class ScheduledScanServiceTest {
                 .scanSchedule("* * * * * *")
                 .scanPath("/music")
                 .build(); // no lastScheduledScan set
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
         when(musicScannerService.scanDirectory(any(), eq("/music")))
                 .thenReturn(new ScanResult());
 
@@ -122,7 +120,7 @@ class ScheduledScanServiceTest {
                 .scanPath("/music")
                 .lastScheduledScan(Instant.now().minus(1, ChronoUnit.HOURS))
                 .build();
-        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
 
         AtomicInteger concurrentCount = new AtomicInteger(0);
         AtomicInteger maxConcurrent = new AtomicInteger(0);

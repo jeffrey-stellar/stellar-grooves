@@ -107,14 +107,14 @@ public class WebSecurityConfig {
                 headers.permissionsPolicy(pp -> pp.policy(
                     "geolocation=(), microphone=(), camera=(), payment=(), usb=()"));
                 // Note: style-src 'unsafe-inline' is required by Bootstrap's dynamic inline styles (modals, tooltips).
-                // All application inline styles have been moved to external CSS.
+                // All vendor assets (Bootstrap, SockJS, STOMP) are served locally — no CDN origins needed.
                 headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; "
-                    + "script-src 'self' https://cdn.jsdelivr.net; "
-                    + "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
-                    + "font-src 'self' https://fonts.gstatic.com; "
+                    + "script-src 'self'; "
+                    + "style-src 'self' 'unsafe-inline'; "
+                    + "font-src 'self'; "
                     + "img-src 'self' data:; "
-                    + "connect-src 'self' https://cdn.jsdelivr.net; "
+                    + "connect-src 'self'; "
                     + "object-src 'none'; "
                     + "base-uri 'self'; "
                     + "form-action 'self'"
@@ -124,7 +124,7 @@ public class WebSecurityConfig {
                 auth.requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/api/v1/shared/**").permitAll()
                     .requestMatchers("/ws/**").permitAll()
-                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/images/**", "/favicon.ico", "/actuator/health", "/actuator/metrics/**", "/actuator/prometheus").permitAll();
+                    .requestMatchers("/login", "/signup", "/css/**", "/js/**", "/vendor/**", "/images/**", "/favicon.ico", "/actuator/health", "/actuator/metrics/**", "/actuator/prometheus").permitAll();
                 if (swaggerEnabled) {
                     auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll();
                 } else {

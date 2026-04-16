@@ -50,7 +50,7 @@ public class PasswordResetMailService {
             mailSender.send(message);
             logger.info("Password reset email sent to user '{}'", username);
         } catch (Exception e) {
-            logger.error("Failed to send password reset email to user '{}': {}", username, e.getMessage());
+            logger.error("Failed to send password reset email to user '{}': {}", username, e.getMessage(), e);
         }
     }
 }

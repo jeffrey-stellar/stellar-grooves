@@ -50,7 +50,7 @@ public class EmailVerificationService {
             mailSender.send(message);
             logger.info("Verification email sent to user '{}'", username);
         } catch (Exception e) {
-            logger.error("Failed to send verification email to user '{}': {}", username, e.getMessage());
+            logger.error("Failed to send verification email to user '{}': {}", username, e.getMessage(), e);
         }
     }
 }

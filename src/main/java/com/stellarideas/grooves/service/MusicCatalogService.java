@@ -73,7 +73,7 @@ public class MusicCatalogService {
             }
             logger.info("Loaded {} artists from catalog", bandGenreMap.size());
         } catch (IOException e) {
-            logger.error("Failed to load artist catalog: {}", e.getMessage());
+            logger.error("Failed to load artist catalog: {}", e.getMessage(), e);
         }
     }
 

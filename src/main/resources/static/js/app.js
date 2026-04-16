@@ -10,7 +10,19 @@ const GENRE_LABELS = {
     CLASSIC_ROCK: 'Classic Rock', HARD_ROCK: 'Hard Rock', HAIR_METAL: 'Hair Metal',
     HEAVY_METAL: 'Heavy Metal', THRASH_METAL: 'Thrash Metal', OTHER: 'Other'
 };
-const VIRTUAL_ROW_HEIGHT = 42, VIRTUAL_BUFFER = 20, VIRTUAL_THRESHOLD = 500;
+const VIRTUAL_ROW_HEIGHT_DEFAULT = 42, VIRTUAL_BUFFER = 20, VIRTUAL_THRESHOLD = 500;
+let virtualRowHeight = VIRTUAL_ROW_HEIGHT_DEFAULT;
+
+/** Measure actual row height from the DOM. Call once after first render. */
+function measureRowHeight() {
+    const tbody = document.getElementById('musicTableBody');
+    if (!tbody || !tbody.firstElementChild) return;
+    const row = tbody.querySelector('tr[data-file-id]');
+    if (row) {
+        const h = row.getBoundingClientRect().height;
+        if (h > 0) virtualRowHeight = Math.round(h);
+    }
+}
 
 // ── State ────────────────────────────────────────────────
 let allFiles = [], sortState = { col: null, dir: 'asc' };
@@ -419,20 +431,21 @@ function renderTracksView() {
         td.innerHTML = '<div class="empty-state-icon">\uD83D\uDD0D</div><p>No tracks match your filters</p>';
         tr.appendChild(td); tbody.appendChild(tr); return;
     }
-    if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); renderJukeboxPanels(); return; }
+    if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); measureRowHeight(); renderJukeboxPanels(); return; }
     renderVirtualSlice();
+    measureRowHeight();
     renderJukeboxPanels();
 }
 
 function renderVirtualSlice() {
     const c = document.getElementById('tracksScrollContainer'), tbody = document.getElementById('musicTableBody');
     const total = cachedVisibleTracks.length, st = c.scrollTop, vh = c.clientHeight;
-    const si = Math.max(0, Math.floor(st / VIRTUAL_ROW_HEIGHT) - VIRTUAL_BUFFER);
-    const ei = Math.min(total, Math.ceil((st + vh) / VIRTUAL_ROW_HEIGHT) + VIRTUAL_BUFFER);
+    const si = Math.max(0, Math.floor(st / virtualRowHeight) - VIRTUAL_BUFFER);
+    const ei = Math.min(total, Math.ceil((st + vh) / virtualRowHeight) + VIRTUAL_BUFFER);
     tbody.innerHTML = '';
-    if (si > 0) { const sp = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9; td.style.cssText = `height:${si * VIRTUAL_ROW_HEIGHT}px;padding:0;border:none;`; sp.appendChild(td); tbody.appendChild(sp); }
+    if (si > 0) { const sp = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9; td.style.cssText = `height:${si * virtualRowHeight}px;padding:0;border:none;`; sp.appendChild(td); tbody.appendChild(sp); }
     for (let i = si; i < ei; i++) tbody.appendChild(buildTrackRow(cachedVisibleTracks[i]));
-    const bh = (total - ei) * VIRTUAL_ROW_HEIGHT;
+    const bh = (total - ei) * virtualRowHeight;
     if (bh > 0) { const sp = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9; td.style.cssText = `height:${bh}px;padding:0;border:none;`; sp.appendChild(td); tbody.appendChild(sp); }
 }
 

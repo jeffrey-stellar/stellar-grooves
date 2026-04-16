@@ -603,8 +603,22 @@ class LibraryControllerTest {
     }
 
     @Test
-    void exportLibraryTooLarge() {
+    void exportLibraryCsvTooLarge() {
         // Create a list that exceeds MAX_EXPORT_SIZE (50,000)
+        List<MusicFile> largeList = new java.util.ArrayList<>();
+        for (int i = 0; i < 50_001; i++) {
+            largeList.add(MusicFile.builder().id("f" + i).build());
+        }
+        when(libraryService.getAllFiles("user1")).thenReturn(largeList);
+
+        ResponseEntity<?> response = controller.exportLibrary(testUser, "csv");
+
+        assertEquals(413, response.getStatusCode().value());
+    }
+
+    @Test
+    void exportLibraryJsonStreamsLargeResult() {
+        // JSON export now streams — returns 200 with StreamingResponseBody instead of 413
         List<MusicFile> largeList = new java.util.ArrayList<>();
         for (int i = 0; i < 50_001; i++) {
             largeList.add(MusicFile.builder().id("f" + i).build());
@@ -613,7 +627,8 @@ class LibraryControllerTest {
 
         ResponseEntity<?> response = controller.exportLibrary(testUser, "json");
 
-        assertEquals(413, response.getStatusCode().value());
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(response.getBody() instanceof org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody);
     }
 
     @Test

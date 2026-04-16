@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.data.mongodb.UncategorizedMongoDbException;
@@ -105,6 +106,13 @@ public class GlobalExceptionHandler {
         logger.error("I/O error: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(problem(HttpStatus.INTERNAL_SERVER_ERROR, "A file system error occurred"));
+    }
+
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateKey(DuplicateKeyException ex) {
+        logger.warn("Duplicate key violation: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(problem(HttpStatus.CONFLICT, "A record with that value already exists"));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

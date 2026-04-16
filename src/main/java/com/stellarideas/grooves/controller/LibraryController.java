@@ -539,20 +539,41 @@ public class LibraryController {
                                            @RequestParam(defaultValue = "json") String format) {
         ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "export");
         if (rateLimited != null) return rateLimited;
-        List<MusicFile> files = libraryService.getAllFiles(user.getId());
-        if (files.size() > maxExportSize) {
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                    .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
-                            "Library too large to export (" + files.size() + " tracks). Maximum is " + maxExportSize + "."));
-        }
+
         if ("csv".equalsIgnoreCase(format)) {
+            List<MusicFile> files = libraryService.getAllFiles(user.getId());
+            if (files.size() > maxExportSize) {
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                        .body(GlobalExceptionHandler.problem(HttpStatus.PAYLOAD_TOO_LARGE,
+                                "Library too large to export (" + files.size() + " tracks). Maximum is " + maxExportSize + "."));
+            }
             return exportAsCsv(files);
         }
-        List<MusicFileDTO> dtos = files.stream().map(MusicFileDTO::from).collect(Collectors.toList());
+
+        // Stream JSON export to avoid loading entire library into memory
+        String userId = user.getId();
+        StreamingResponseBody stream = outputStream -> {
+            com.fasterxml.jackson.core.JsonGenerator gen =
+                    new com.fasterxml.jackson.databind.ObjectMapper()
+                            .getFactory().createGenerator(outputStream);
+            gen.writeStartArray();
+            int count = 0;
+            for (MusicFile file : libraryService.getAllFiles(userId)) {
+                if (count >= maxExportSize) break;
+                gen.writeObject(MusicFileDTO.from(file));
+                count++;
+                if (count % 500 == 0) {
+                    gen.flush();
+                }
+            }
+            gen.writeEndArray();
+            gen.flush();
+        };
+
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=\"library.json\"")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(dtos);
+                .body(stream);
     }
 
     private ResponseEntity<?> exportAsCsv(List<MusicFile> files) {
@@ -710,6 +731,12 @@ public class LibraryController {
         return null;
     }
 
+    private static final Set<String> BLOCKED_PATHS = Set.of(
+            "/etc", "/root", "/var", "/usr", "/bin", "/sbin",
+            "/boot", "/dev", "/proc", "/sys", "/run", "/lib",
+            "/opt", "/srv", "/tmp"
+    );
+
     private void validateScanPath(String path) throws IOException {
         if (path == null || path.isBlank()) {
             throw new IllegalArgumentException(msg.msg("scan.path.empty"));
@@ -724,6 +751,13 @@ public class LibraryController {
         Path canonical = requested.toRealPath();
         if (!canonical.equals(requested)) {
             throw new IllegalArgumentException(msg.msg("scan.path.symlink"));
+        }
+        // Block access to sensitive system directories
+        String canonicalStr = canonical.toString();
+        for (String blocked : BLOCKED_PATHS) {
+            if (canonicalStr.equals(blocked) || canonicalStr.startsWith(blocked + "/")) {
+                throw new IllegalArgumentException("Scan path is not allowed: access to system directories is restricted");
+            }
         }
     }
 }

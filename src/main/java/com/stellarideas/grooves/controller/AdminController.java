@@ -72,6 +72,14 @@ public class AdminController {
         int effectiveSize = PaginationDefaults.clamp(size, PaginationDefaults.ADMIN_MAX_PAGE_SIZE);
         Page<User> result = userRepository.findAll(PageRequest.of(page, effectiveSize));
 
+        // Batch-fetch file counts in a single aggregation instead of N+1 queries
+        List<String> userIds = result.getContent().stream().map(User::getId).toList();
+        Map<String, Long> fileCounts = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            musicFileRepository.countByUserIdIn(userIds).forEach(doc ->
+                    fileCounts.put(doc.getString("_id"), doc.get("count", Number.class).longValue()));
+        }
+
         var userList = result.getContent().stream().map(u -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", u.getId());
@@ -79,7 +87,7 @@ public class AdminController {
             m.put("email", u.getEmail());
             m.put("roles", u.getRoles());
             m.put("enabled", u.isEnabled());
-            m.put("fileCount", musicFileRepository.countByUserId(u.getId()));
+            m.put("fileCount", fileCounts.getOrDefault(u.getId(), 0L));
             return m;
         }).toList();
 

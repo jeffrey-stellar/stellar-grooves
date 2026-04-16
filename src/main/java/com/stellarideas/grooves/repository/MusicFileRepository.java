@@ -24,6 +24,12 @@ public interface MusicFileRepository extends MongoRepository<MusicFile, String>,
     long countByUserId(String userId);
     List<MusicFile> findByUserIdAndFilePathIn(String userId, Set<String> filePaths);
 
+    @Aggregation(pipeline = {
+        "{ '$match': { 'userId': { '$in': ?0 } } }",
+        "{ '$group': { '_id': '$userId', 'count': { '$sum': 1 } } }"
+    })
+    List<org.bson.Document> countByUserIdIn(java.util.Collection<String> userIds);
+
     // Keep the original methods for internal use (scanning, etc.)
     List<MusicFile> findByUserId(String userId);
     Optional<MusicFile> findByIdAndUserId(String id, String userId);

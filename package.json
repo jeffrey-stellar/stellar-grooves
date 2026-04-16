@@ -1,0 +1,27 @@
+{
+  "name": "stellar-grooves",
+  "version": "1.0.0",
+  "description": "A self-hosted, multi-user music library for rock and metal collections. Scan local directories for audio files, auto-categorize tracks by sub-genre, manage playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI.",
+  "main": "index.js",
+  "scripts": {
+    "copy-vendor": "cp node_modules/bootstrap/dist/css/bootstrap.min.css src/main/resources/static/vendor/bootstrap/css/ && cp node_modules/bootstrap/dist/css/bootstrap.min.css.map src/main/resources/static/vendor/bootstrap/css/ && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js src/main/resources/static/vendor/bootstrap/js/ && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js.map src/main/resources/static/vendor/bootstrap/js/ && cp node_modules/sockjs-client/dist/sockjs.min.js src/main/resources/static/vendor/sockjs/ && cp node_modules/@stomp/stompjs/bundles/stomp.umd.min.js src/main/resources/static/vendor/stomp/",
+    "postinstall": "npm run copy-vendor"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffrey-stellar/stellar-grooves.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jeffrey-stellar/stellar-grooves/issues"
+  },
+  "homepage": "https://github.com/jeffrey-stellar/stellar-grooves#readme",
+  "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "bootstrap": "^5.3.8",
+    "sockjs-client": "^1.6.1"
+  }
+}

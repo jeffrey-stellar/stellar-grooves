@@ -72,7 +72,8 @@ public class MusicScannerService implements DisposableBean {
 
     private volatile ExecutorService fileReadExecutor;
 
-    /** Per-user locks to prevent concurrent scans from racing on quota checks. */
+    /** Per-user locks to prevent concurrent scans from racing on quota checks.
+     *  Entries are removed after scan completes if the lock is not held by another thread. */
     private final ConcurrentHashMap<String, ReentrantLock> userScanLocks = new ConcurrentHashMap<>();
 
     private final MusicCatalogService catalogService;
@@ -119,7 +120,16 @@ public class MusicScannerService implements DisposableBean {
 
     @Override
     public void destroy() {
-        fileReadExecutor.shutdownNow();
+        fileReadExecutor.shutdown();
+        try {
+            if (!fileReadExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                logger.warn("Audio file reader executor did not terminate gracefully, forcing shutdown");
+                fileReadExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            fileReadExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         logger.info("Audio file reader executor shut down");
     }
 
@@ -143,6 +153,13 @@ public class MusicScannerService implements DisposableBean {
             throw e.getCause();
         } finally {
             lock.unlock();
+            // Remove lock from map if no other thread is waiting on it to prevent unbounded growth
+            userScanLocks.compute(user.getId(), (k, v) -> {
+                if (v != null && !v.isLocked() && !v.hasQueuedThreads()) {
+                    return null; // remove entry
+                }
+                return v;
+            });
         }
     }
 

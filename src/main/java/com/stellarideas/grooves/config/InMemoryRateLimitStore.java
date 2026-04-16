@@ -3,56 +3,86 @@ package com.stellarideas.grooves.config;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * In-memory rate-limit store using a sliding time window per key.
- * Suitable for single-instance deployments.
+ * In-memory rate-limit store using a sliding counter with gradual decay.
+ *
+ * <p>Unlike a fixed-window counter (which resets abruptly and allows burst
+ * behavior at window boundaries), this implementation decays the counter
+ * proportionally to elapsed time. A request that would have been allowed
+ * at second 61 of a 60s window under fixed-window is properly counted
+ * against the prior requests here.</p>
+ *
+ * <p>Suitable for single-instance deployments.</p>
  */
 public class InMemoryRateLimitStore implements RateLimitStore {
 
-    private final ConcurrentHashMap<String, WindowCounter> counters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, SlidingCounter> counters = new ConcurrentHashMap<>();
 
     @Override
     public int incrementAndGet(String key, long windowMs) {
         long now = System.currentTimeMillis();
         evictStaleEntries(now, windowMs);
 
-        WindowCounter counter = counters.compute(key, (k, existing) -> {
-            if (existing == null || now - existing.windowStart > windowMs) {
-                return new WindowCounter(now);
+        SlidingCounter counter = counters.compute(key, (k, existing) -> {
+            if (existing == null) {
+                return new SlidingCounter(now);
             }
+            existing.decay(now, windowMs);
             return existing;
         });
-        return counter.count.incrementAndGet();
+
+        counter.count += 1.0;
+        counter.lastAccess = now;
+        return (int) Math.ceil(counter.count);
     }
 
     @Override
     public long secondsUntilReset(String key, long windowMs) {
-        WindowCounter counter = counters.get(key);
+        SlidingCounter counter = counters.get(key);
         if (counter == null) {
             return 0;
         }
-        long elapsed = System.currentTimeMillis() - counter.windowStart;
-        return Math.max(1, (windowMs - elapsed) / 1000);
+        // Estimate when the counter will decay below the threshold
+        // Since we don't know the limit here, return time for one unit to decay
+        long elapsed = System.currentTimeMillis() - counter.lastAccess;
+        long remaining = windowMs - elapsed;
+        return Math.max(1, remaining / 1000);
     }
 
     private void evictStaleEntries(long now, long windowMs) {
-        Iterator<Map.Entry<String, WindowCounter>> it = counters.entrySet().iterator();
+        Iterator<Map.Entry<String, SlidingCounter>> it = counters.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, WindowCounter> entry = it.next();
-            if (now - entry.getValue().windowStart > windowMs * 2) {
+            Map.Entry<String, SlidingCounter> entry = it.next();
+            if (now - entry.getValue().lastAccess > windowMs * 2) {
                 it.remove();
             }
         }
     }
 
-    private static class WindowCounter {
-        final long windowStart;
-        final AtomicInteger count = new AtomicInteger(0);
+    static class SlidingCounter {
+        double count;
+        long lastAccess;
 
-        WindowCounter(long windowStart) {
-            this.windowStart = windowStart;
+        SlidingCounter(long now) {
+            this.count = 0;
+            this.lastAccess = now;
+        }
+
+        /**
+         * Decay the counter based on elapsed time. If a full window has passed,
+         * the counter resets to 0. For partial windows, the counter decays
+         * linearly — e.g., after half a window, half the count remains.
+         */
+        void decay(long now, long windowMs) {
+            long elapsed = now - lastAccess;
+            if (elapsed <= 0) return;
+            if (elapsed >= windowMs) {
+                count = 0;
+            } else {
+                double decayFactor = 1.0 - ((double) elapsed / windowMs);
+                count *= decayFactor;
+            }
         }
     }
 }
