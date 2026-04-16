@@ -107,6 +107,11 @@ SG.syncPlayerBtn = function() {
         b.textContent = (a && !activeAudio.paused) ? '\u23F8' : '\u25B6';
         b.classList.toggle('playing', a);
     });
+
+    // Update jukebox side panel active states
+    document.querySelectorAll('.wurl-side-item').forEach(li => {
+        li.classList.toggle('wurl-side-active', li.dataset.fileId === SG.currentFileId);
+    });
 };
 
 // ── Crossfade toggle ────────────────────────────────────
@@ -216,9 +221,9 @@ function drawEqualizer() {
             const y = H - barH;
 
             const grad = ctx.createLinearGradient(x, H, x, 0);
-            grad.addColorStop(0, 'rgba(77, 232, 224, 0.9)');
-            grad.addColorStop(0.5, 'rgba(255, 179, 71, 0.9)');
-            grad.addColorStop(1, 'rgba(255, 110, 180, 0.9)');
+            grad.addColorStop(0, 'rgba(255, 209, 102, 0.9)');
+            grad.addColorStop(0.5, 'rgba(255, 122, 26, 0.9)');
+            grad.addColorStop(1, 'rgba(255, 59, 31, 0.9)');
             ctx.fillStyle = grad;
 
             const radius = Math.min(barW / 2, 3);
@@ -232,7 +237,7 @@ function drawEqualizer() {
             ctx.fill();
 
             if (val > 0.6) {
-                ctx.shadowColor = 'rgba(255, 179, 71, 0.4)';
+                ctx.shadowColor = 'rgba(255, 59, 31, 0.4)';
                 ctx.shadowBlur = 6;
                 ctx.fill();
                 ctx.shadowBlur = 0;

@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Stellar Grooves Navigation Logo</title>
+  <desc id="desc">Horizontal logo for Stellar Grooves navbar with transparent background, dark wordmark for chrome surfaces.</desc>
+
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5f7fa"/>
+      <stop offset="22%" stop-color="#cfd5dd"/>
+      <stop offset="50%" stop-color="#7a828d"/>
+      <stop offset="76%" stop-color="#d7dce2"/>
+      <stop offset="100%" stop-color="#5a616b"/>
+    </linearGradient>
+
+    <linearGradient id="orangeArc" x1="140" y1="60" x2="250" y2="180">
+      <stop offset="0%" stop-color="#ffd166"/>
+      <stop offset="28%" stop-color="#ff8a1f"/>
+      <stop offset="65%" stop-color="#ff4a22"/>
+      <stop offset="100%" stop-color="#b91414"/>
+    </linearGradient>
+
+    <linearGradient id="recordGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0a0d"/>
+      <stop offset="30%" stop-color="#2d2d34"/>
+      <stop offset="52%" stop-color="#050506"/>
+      <stop offset="72%" stop-color="#383842"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+
+    <!-- Dark chrome wordmark for navbar -->
+    <linearGradient id="textDarkChrome" x1="300" y1="140" x2="1020" y2="290">
+      <stop offset="0%" stop-color="#2a2d33"/>
+      <stop offset="20%" stop-color="#40444c"/>
+      <stop offset="48%" stop-color="#1a1d22"/>
+      <stop offset="72%" stop-color="#3a3e46"/>
+      <stop offset="100%" stop-color="#15181c"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0
+                0 0.32 0 0 0
+                0 0 0 0 0
+                0 0 0 0.95 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="tightGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="dropShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+
+    <style>
+      .bgline { opacity: 0.9; }
+      .record-spin {
+        transform-origin: 170px 212px;
+        animation: spin 10s linear infinite;
+      }
+      .record-spin-slow {
+        transform-origin: 170px 212px;
+        animation: spin 24s linear infinite reverse;
+      }
+      .eq1 { transform-box: fill-box; transform-origin: center bottom; animation: eqA 1150ms ease-in-out infinite; }
+      .eq2 { transform-box: fill-box; transform-origin: center bottom; animation: eqB 900ms ease-in-out infinite; }
+      .eq3 { transform-box: fill-box; transform-origin: center bottom; animation: eqC 1280ms ease-in-out infinite; }
+      .eq4 { transform-box: fill-box; transform-origin: center bottom; animation: eqD 840ms ease-in-out infinite; }
+      .eq5 { transform-box: fill-box; transform-origin: center bottom; animation: eqA 1020ms ease-in-out infinite; }
+      .eq6 { transform-box: fill-box; transform-origin: center bottom; animation: eqC 970ms ease-in-out infinite; }
+      .eq7 { transform-box: fill-box; transform-origin: center bottom; animation: eqB 1200ms ease-in-out infinite; }
+      .eq8 { transform-box: fill-box; transform-origin: center bottom; animation: eqD 930ms ease-in-out infinite; }
+
+      .flare {
+        transform-origin: 94px 95px;
+        animation: twinkle 2.6s ease-in-out infinite;
+      }
+
+      .glowPulse {
+        animation: glowPulse 2.8s ease-in-out infinite;
+      }
+
+      .underlinePulse {
+        animation: underline 3s ease-in-out infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+
+      @keyframes eqA {
+        0%,100% { transform: scaleY(0.48); opacity: 0.75; }
+        50%     { transform: scaleY(1); opacity: 1; }
+      }
+
+      @keyframes eqB {
+        0%,100% { transform: scaleY(0.68); opacity: 0.8; }
+        50%     { transform: scaleY(0.34); opacity: 0.5; }
+      }
+
+      @keyframes eqC {
+        0%,100% { transform: scaleY(0.35); opacity: 0.7; }
+        45%     { transform: scaleY(0.92); opacity: 1; }
+      }
+
+      @keyframes eqD {
+        0%,100% { transform: scaleY(0.82); opacity: 0.95; }
+        50%     { transform: scaleY(0.40); opacity: 0.55; }
+      }
+
+      @keyframes twinkle {
+        0%,100% { transform: scale(0.92); opacity: 0.86; }
+        50%     { transform: scale(1.12); opacity: 1; }
+      }
+
+      @keyframes glowPulse {
+        0%,100% { opacity: 0.78; }
+        50%     { opacity: 1; }
+      }
+
+      @keyframes underline {
+        0%,100% { opacity: 0.55; }
+        50%     { opacity: 0.95; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .record-spin, .record-spin-slow, .eq1, .eq2, .eq3, .eq4, .eq5, .eq6, .eq7, .eq8, .flare, .glowPulse, .underlinePulse {
+          animation: none !important;
+        }
+      }
+    </style>
+  </defs>
+
+  <!-- No background — transparent -->
+
+  <!-- Brand icon -->
+  <g transform="translate(18,6)">
+    <!-- glow -->
+    <path class="glowPulse" d="M69 111C91 64 126 40 170 40C214 40 250 64 271 111" stroke="#ff5a1f" stroke-width="18" stroke-linecap="round" filter="url(#softGlow)" opacity="0.85"/>
+    <path d="M70 111C92 66 126 44 170 44C214 44 248 66 270 111" stroke="url(#orangeArc)" stroke-width="15" stroke-linecap="round"/>
+    <path d="M64 111C88 58 124 30 170 30C216 30 251 58 276 111" stroke="url(#metal)" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- metal spikes -->
+    <path d="M117 39L145 24L128 55Z" fill="url(#metal)" stroke="#424750" stroke-width="2"/>
+    <path d="M223 39L195 24L212 55Z" fill="url(#metal)" stroke="#424750" stroke-width="2"/>
+
+    <!-- side pillars -->
+    <g>
+      <path d="M58 114L84 114L86 209L61 217L50 200L50 132Z" fill="url(#metal)" stroke="#40444c" stroke-width="2"/>
+      <rect x="63" y="145" width="18" height="25" rx="4" fill="#1b1b22"/>
+      <rect x="63" y="151" width="18" height="6" rx="3" fill="#ff5621" filter="url(#tightGlow)"/>
+      <rect x="63" y="160" width="18" height="6" rx="3" fill="#ff8a1f" opacity="0.9"/>
+    </g>
+    <g>
+      <path d="M282 114L256 114L254 209L279 217L290 200L290 132Z" fill="url(#metal)" stroke="#40444c" stroke-width="2"/>
+      <rect x="259" y="145" width="18" height="25" rx="4" fill="#1b1b22"/>
+      <rect x="259" y="151" width="18" height="6" rx="3" fill="#ff5621" filter="url(#tightGlow)"/>
+      <rect x="259" y="160" width="18" height="6" rx="3" fill="#ff8a1f" opacity="0.9"/>
+    </g>
+
+    <!-- equalizer -->
+    <g filter="url(#tightGlow)">
+      <rect class="eq1" x="110" y="95" width="10" height="64" rx="2" fill="#ff561f"/>
+      <rect class="eq2" x="126" y="80" width="10" height="79" rx="2" fill="#ff7a1f"/>
+      <rect class="eq3" x="142" y="66" width="10" height="93" rx="2" fill="#ff9a27"/>
+      <rect class="eq4" x="158" y="52" width="10" height="107" rx="2" fill="#ffb02e"/>
+      <rect class="eq5" x="174" y="66" width="10" height="93" rx="2" fill="#ff9a27"/>
+      <rect class="eq6" x="190" y="80" width="10" height="79" rx="2" fill="#ff7a1f"/>
+      <rect class="eq7" x="206" y="95" width="10" height="64" rx="2" fill="#ff561f"/>
+      <rect class="eq8" x="222" y="108" width="10" height="51" rx="2" fill="#e63e1e"/>
+    </g>
+
+    <!-- record -->
+    <g>
+      <circle cx="170" cy="212" r="86" fill="#080809" stroke="#ff5a21" stroke-width="5" opacity="0.95"/>
+      <circle cx="170" cy="212" r="80" fill="url(#recordGrad)" stroke="#0a0a0d" stroke-width="2"/>
+      <g class="record-spin">
+        <circle cx="170" cy="212" r="73" fill="none" stroke="#1a1a20" stroke-width="3"/>
+        <circle cx="170" cy="212" r="66" fill="none" stroke="#2a2b31" stroke-width="2.5"/>
+        <circle cx="170" cy="212" r="58" fill="none" stroke="#17181d" stroke-width="2.5"/>
+        <circle cx="170" cy="212" r="50" fill="none" stroke="#303138" stroke-width="2"/>
+        <circle cx="170" cy="212" r="42" fill="none" stroke="#18191d" stroke-width="2"/>
+        <path d="M170 139 A73 73 0 0 1 222 161" stroke="#7e818b" stroke-width="3" opacity="0.75"/>
+        <path d="M124 244 A58 58 0 0 0 170 270" stroke="#5a5d66" stroke-width="2.4" opacity="0.65"/>
+        <path d="M200 173 A28 28 0 0 1 198 252" stroke="#ff4d21" stroke-width="2.5" opacity="0.7"/>
+      </g>
+      <g class="record-spin-slow" opacity="0.38">
+        <path d="M95 212H245" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.5"/>
+        <path d="M170 137V287" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+      </g>
+      <circle cx="170" cy="212" r="28" fill="#ff4f20" filter="url(#tightGlow)"/>
+      <circle cx="170" cy="212" r="17" fill="#cd2b16"/>
+      <circle cx="170" cy="212" r="5.4" fill="#0b0b0d"/>
+    </g>
+
+    <!-- lower cradle -->
+    <path d="M95 260L170 302L245 260" fill="none" stroke="url(#metal)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M95 268L170 309L245 268" fill="none" stroke="#ff5b22" stroke-width="4" opacity="0.85" filter="url(#tightGlow)"/>
+
+    <!-- flare -->
+    <g class="flare" filter="url(#softGlow)">
+      <path d="M94 76L98 88L111 92L98 96L94 110L90 96L77 92L90 88Z" fill="#ffd166"/>
+      <path d="M94 66L100 86L120 92L100 98L94 118L88 98L68 92L88 86Z" fill="#ff6a1f" opacity="0.75"/>
+    </g>
+  </g>
+
+  <!-- separator lines — darker for chrome background -->
+  <g class="underlinePulse">
+    <line class="bgline" x1="332" y1="182" x2="1090" y2="182" stroke="#b91c1c" stroke-width="2"/>
+    <line class="bgline" x1="332" y1="268" x2="1090" y2="268" stroke="#b91c1c" stroke-width="2"/>
+  </g>
+
+  <!-- wordmark — dark chrome for navbar readability -->
+  <g aria-label="Stellar Grooves">
+    <text x="340" y="250"
+      font-family="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif"
+      font-size="92"
+      letter-spacing="1.5"
+      fill="url(#textDarkChrome)"
+      stroke="#60656e"
+      stroke-width="1.5"
+      paint-order="stroke fill"
+      filter="url(#dropShadow)">STELLAR GROOVES</text>
+    <text x="340" y="250"
+      font-family="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif"
+      font-size="92"
+      letter-spacing="1.5"
+      fill="none"
+      stroke="#b91c1c"
+      stroke-width="0.8"
+      opacity="0.45"
+      filter="url(#tightGlow)">STELLAR GROOVES</text>
+  </g>
+</svg>

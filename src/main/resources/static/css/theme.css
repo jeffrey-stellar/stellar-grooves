@@ -3,52 +3,61 @@
    Variables, reset, base styles, light mode
    ============================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Righteous&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Righteous&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Special+Elite&display=swap');
 
 :root {
-    /* Wood & Chrome palette */
-    --bg-primary: #1a0e0a;
-    --bg-secondary: #2a1810;
-    --bg-card: #261612;
-    --bg-chrome: linear-gradient(180deg, #4a4a4a 0%, #2a2a2a 40%, #3d3d3d 50%, #1a1a1a 100%);
-    --border-color: #4a3228;
-    --border-chrome: #6b6b6b;
+    /* ── Core Palette ── */
+    --bg-primary: #070709;         /* Jet Black */
+    --bg-secondary: #111217;       /* Dark Panel */
+    --bg-card: #111217;            /* Dark Panel */
+    --bg-wood: #2a1f1a;            /* Warm Brown (background only) */
+    --bg-chrome: linear-gradient(180deg, #9ca3af 0%, #4b5563 40%, #6b7280 50%, #1f2937 100%);
+    --border-color: #1f2937;
+    --border-chrome: #4b5563;
 
-    /* Neon colors */
-    --accent: #ffb347;
-    --accent-hover: #ffd080;
-    --neon-pink: #ff6eb4;
-    --neon-cyan: #4de8e0;
-    --neon-amber: #ffb347;
-    --neon-blue: #5daaff;
+    /* Glow colors (accents only — use sparingly) */
+    --neon-red: #ff3b1f;           /* Primary Glow */
+    --neon-orange: #ff7a1a;        /* Secondary Glow */
+    --accent: #ffd166;             /* Star Gold */
+    --accent-hover: #ffe08a;
+    --deep-accent: #b91c1c;        /* Burnt Red */
+    /* Legacy aliases for existing component references */
+    --neon-pink: #ff3b1f;
+    --neon-cyan: #ffd166;
+    --neon-amber: #ffd166;
+    --neon-blue: #ff7a1a;
 
     /* Glow effects */
-    --glow-amber: 0 0 8px rgba(255, 179, 71, 0.5), 0 0 20px rgba(255, 179, 71, 0.2);
-    --glow-pink: 0 0 8px rgba(255, 110, 180, 0.5), 0 0 20px rgba(255, 110, 180, 0.2);
-    --glow-cyan: 0 0 8px rgba(77, 232, 224, 0.5), 0 0 20px rgba(77, 232, 224, 0.2);
+    --glow-red: 0 0 10px rgba(255, 59, 31, 0.5), 0 0 25px rgba(255, 59, 31, 0.2);
+    --glow-orange: 0 0 10px rgba(255, 122, 26, 0.5), 0 0 25px rgba(255, 122, 26, 0.2);
+    --glow-gold: 0 0 8px rgba(255, 209, 102, 0.5), 0 0 20px rgba(255, 209, 102, 0.2);
+    /* Legacy aliases */
+    --glow-amber: 0 0 8px rgba(255, 209, 102, 0.5), 0 0 20px rgba(255, 209, 102, 0.2);
+    --glow-pink: 0 0 10px rgba(255, 59, 31, 0.5), 0 0 25px rgba(255, 59, 31, 0.2);
+    --glow-cyan: 0 0 8px rgba(255, 209, 102, 0.5), 0 0 20px rgba(255, 209, 102, 0.2);
 
-    /* Text */
-    --text-primary: #f0e6d8;
-    --text-secondary: #b8a898;
-    --text-muted: #7a6a5a;
+    /* Chrome text hierarchy */
+    --text-primary: #e5e7eb;       /* Chrome Light */
+    --text-secondary: #9ca3af;     /* Chrome Mid */
+    --text-muted: #4b5563;         /* Chrome Dark */
 
     /* Status */
     --danger: #ff6b6b;
     --success: #6bdb8a;
-    --info: #5daaff;
+    --info: #ff7a1a;
 
     /* Shape & shadow */
     --radius: 12px;
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
-    --shadow-chrome: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+    --shadow-chrome: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
 
-    /* Wood texture (CSS-only) */
+    /* Wood texture (background only — subtle, low contrast) */
     --wood-grain: repeating-linear-gradient(
         92deg,
         transparent 0px,
         transparent 3px,
-        rgba(0,0,0,0.04) 3px,
-        rgba(0,0,0,0.04) 4px
+        rgba(42, 31, 26, 0.06) 3px,
+        rgba(42, 31, 26, 0.06) 4px
     );
 }
 
@@ -61,17 +70,17 @@ body {
     background-color: var(--bg-primary);
     background-image:
         var(--wood-grain),
-        radial-gradient(ellipse at 30% 20%, rgba(255, 179, 71, 0.03) 0%, transparent 60%),
-        radial-gradient(ellipse at 70% 80%, rgba(255, 110, 180, 0.02) 0%, transparent 60%);
+        radial-gradient(ellipse at 30% 20%, rgba(255, 59, 31, 0.02) 0%, transparent 60%),
+        radial-gradient(ellipse at 70% 80%, rgba(255, 122, 26, 0.015) 0%, transparent 60%);
     color: var(--text-primary);
-    font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 16px;
     line-height: 1.6;
     min-height: 100vh;
 }
 
-a { color: var(--neon-amber); text-decoration: none; transition: color 0.2s, text-shadow 0.2s; }
-a:hover { color: var(--accent-hover); text-decoration: none; text-shadow: 0 0 8px rgba(255, 179, 71, 0.4); }
+a { color: var(--accent); text-decoration: none; transition: color 0.25s, text-shadow 0.25s; }
+a:hover { color: var(--accent-hover); text-decoration: none; text-shadow: 0 0 8px rgba(255, 209, 102, 0.4); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -95,30 +104,37 @@ a:hover { color: var(--accent-hover); text-decoration: none; text-shadow: 0 0 8p
     }
 }
 
-/* ── Light mode ── */
+/* ── Light mode — "daytime jukebox" ── */
 @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
-        --bg-primary: #f5f0eb;
-        --bg-secondary: #ebe3da;
-        --bg-card: #ffffff;
+        --bg-primary: #f5f0e8;
+        --bg-secondary: #ede5da;
+        --bg-card: #faf8f5;
+        --bg-wood: #d4c4b0;
         --bg-chrome: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 40%, #ddd 50%, #c8c8c8 100%);
         --border-color: #c8b8a8;
         --border-chrome: #aaa;
         --accent: #c87820;
-        --accent-hover: #e89030;
-        --neon-pink: #d94080;
-        --neon-cyan: #2aaca4;
+        --accent-hover: #e07a18;
+        --deep-accent: #8b1a1a;
+        --neon-red: #c82818;
+        --neon-orange: #d06010;
+        --neon-pink: #c82818;
+        --neon-cyan: #c87820;
         --neon-amber: #c87820;
-        --neon-blue: #3878c8;
+        --neon-blue: #d06010;
+        --glow-red: 0 0 4px rgba(200, 40, 24, 0.2);
+        --glow-orange: 0 0 4px rgba(208, 96, 16, 0.2);
+        --glow-gold: 0 0 4px rgba(200, 120, 32, 0.25);
         --glow-amber: 0 0 4px rgba(200, 120, 32, 0.25);
-        --glow-pink: 0 0 4px rgba(217, 64, 128, 0.25);
-        --glow-cyan: 0 0 4px rgba(42, 172, 164, 0.25);
+        --glow-pink: 0 0 4px rgba(200, 40, 24, 0.2);
+        --glow-cyan: 0 0 4px rgba(200, 120, 32, 0.25);
         --text-primary: #2a1a10;
         --text-secondary: #5a4a3a;
         --text-muted: #8a7a6a;
         --danger: #d44;
         --success: #2a8a4a;
-        --info: #3878c8;
+        --info: #d06010;
         --radius: 12px;
         --shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
         --shadow-chrome: 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
@@ -130,27 +146,34 @@ a:hover { color: var(--accent-hover); text-decoration: none; text-shadow: 0 0 8p
 }
 
 [data-theme="light"] {
-    --bg-primary: #f5f0eb;
-    --bg-secondary: #ebe3da;
-    --bg-card: #ffffff;
+    --bg-primary: #f5f0e8;
+    --bg-secondary: #ede5da;
+    --bg-card: #faf8f5;
+    --bg-wood: #d4c4b0;
     --bg-chrome: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 40%, #ddd 50%, #c8c8c8 100%);
     --border-color: #c8b8a8;
     --border-chrome: #aaa;
     --accent: #c87820;
-    --accent-hover: #e89030;
-    --neon-pink: #d94080;
-    --neon-cyan: #2aaca4;
+    --accent-hover: #e07a18;
+    --deep-accent: #8b1a1a;
+    --neon-red: #c82818;
+    --neon-orange: #d06010;
+    --neon-pink: #c82818;
+    --neon-cyan: #c87820;
     --neon-amber: #c87820;
-    --neon-blue: #3878c8;
+    --neon-blue: #d06010;
+    --glow-red: 0 0 4px rgba(200, 40, 24, 0.2);
+    --glow-orange: 0 0 4px rgba(208, 96, 16, 0.2);
+    --glow-gold: 0 0 4px rgba(200, 120, 32, 0.25);
     --glow-amber: 0 0 4px rgba(200, 120, 32, 0.25);
-    --glow-pink: 0 0 4px rgba(217, 64, 128, 0.25);
-    --glow-cyan: 0 0 4px rgba(42, 172, 164, 0.25);
+    --glow-pink: 0 0 4px rgba(200, 40, 24, 0.2);
+    --glow-cyan: 0 0 4px rgba(200, 120, 32, 0.25);
     --text-primary: #2a1a10;
     --text-secondary: #5a4a3a;
     --text-muted: #8a7a6a;
     --danger: #d44;
     --success: #2a8a4a;
-    --info: #3878c8;
+    --info: #d06010;
     --radius: 12px;
     --shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
     --shadow-chrome: 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.6);

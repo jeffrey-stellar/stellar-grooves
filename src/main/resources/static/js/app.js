@@ -151,18 +151,26 @@ function updateStats() {
     document.getElementById('statsRow').classList.toggle('d-none', !show);
     document.getElementById('clearBtn').classList.toggle('d-none', !show);
 
-    // Populate artist/album filter dropdowns
+    // Populate artist filter dropdown; album dropdown updated via updateAlbumFilter()
     const af = document.getElementById('artistFilter');
     const prevArtist = af.value;
     af.innerHTML = '<option value="">All Artists</option>';
     [...artists].sort().forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; af.appendChild(o); });
     af.value = prevArtist;
 
+    updateAlbumFilter();
+}
+
+function updateAlbumFilter() {
+    const selectedArtist = document.getElementById('artistFilter').value;
+    const src = selectedArtist ? allFiles.filter(f => f.artist === selectedArtist) : allFiles;
+    const albums = new Set(src.map(f => f.album).filter(Boolean));
     const abf = document.getElementById('albumFilter');
     const prevAlbum = abf.value;
     abf.innerHTML = '<option value="">All Albums</option>';
     [...albums].sort().forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; abf.appendChild(o); });
-    abf.value = prevAlbum;
+    // Keep previous selection only if it's still valid
+    if (albums.has(prevAlbum)) abf.value = prevAlbum; else abf.value = '';
 }
 
 // ── Navigation ───────────────────────────────────────────
@@ -411,8 +419,9 @@ function renderTracksView() {
         td.innerHTML = '<div class="empty-state-icon">\uD83D\uDD0D</div><p>No tracks match your filters</p>';
         tr.appendChild(td); tbody.appendChild(tr); return;
     }
-    if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); return; }
+    if (cachedVisibleTracks.length <= VIRTUAL_THRESHOLD) { cachedVisibleTracks.forEach(f => tbody.appendChild(buildTrackRow(f))); renderJukeboxPanels(); return; }
     renderVirtualSlice();
+    renderJukeboxPanels();
 }
 
 function renderVirtualSlice() {
@@ -596,6 +605,7 @@ function hasActiveFilters() {
 }
 ['searchInput', 'genreFilter', 'artistFilter', 'albumFilter'].forEach(id => {
     document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', () => {
+        if (id === 'artistFilter') updateAlbumFilter();
         if (nav.view === 'library' || (nav.view === 'tracks' && !nav.artist && !nav.album)) {
             clearTimeout(searchDebounce);
             if (hasActiveFilters()) {
@@ -849,6 +859,51 @@ function getPlayableTrackList() {
 
 // ── Theme, keyboard shortcuts, lightbox (moved to theme.js) ──
 function openCoverArtLightbox(src, album, artist) { SG.openCoverArtLightbox(src, album, artist); }
+
+// ── Jukebox side panels (2700-style selection lists) ─────
+function renderJukeboxPanels() {
+    const listL = document.getElementById('jukeboxListL');
+    const listR = document.getElementById('jukeboxListR');
+    if (!listL || !listR) return;
+    listL.innerHTML = ''; listR.innerHTML = '';
+    const tracks = cachedVisibleTracks.length > 0 ? cachedVisibleTracks : allFiles;
+    if (tracks.length === 0) {
+        listL.innerHTML = '<li class="wurl-side-empty">No songs loaded</li>';
+        listR.innerHTML = '<li class="wurl-side-empty">No songs loaded</li>';
+        return;
+    }
+    const mid = Math.ceil(tracks.length / 2);
+    const buildItem = (file, idx) => {
+        const li = document.createElement('li');
+        li.className = 'wurl-side-item' + (SG.currentFileId === file.id ? ' wurl-side-active' : '');
+        li.dataset.fileId = file.id;
+        const num = document.createElement('span'); num.className = 'wurl-side-num';
+        num.textContent = String(idx + 1).padStart(2, '0');
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+        const title = document.createElement('div'); title.className = 'wurl-side-title';
+        title.textContent = file.title || file.fileName || '\u2014';
+        const artist = document.createElement('div'); artist.className = 'wurl-side-artist';
+        artist.textContent = file.artist || '';
+        info.appendChild(title); info.appendChild(artist);
+        li.appendChild(num); li.appendChild(info);
+        return li;
+    };
+    for (let i = 0; i < mid; i++) listL.appendChild(buildItem(tracks[i], i));
+    for (let i = mid; i < tracks.length; i++) listR.appendChild(buildItem(tracks[i], i));
+}
+
+// Click handler for side panels
+document.addEventListener('click', function(e) {
+    const item = e.target.closest('.wurl-side-item');
+    if (!item) return;
+    const fid = item.dataset.fileId;
+    const file = allFiles.find(f => f.id === fid);
+    if (file) { clearPlaylistContext(); playTrack(file); renderJukeboxPanels(); }
+});
+
+// Expose for player.js to call on track change
+SG.renderJukeboxPanels = renderJukeboxPanels;
 
 // ── Init ─────────────────────────────────────────────────
 loadLibrary();

@@ -15,8 +15,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container-fluid px-3">
             <a class="navbar-brand" href="#">
-                <img th:src="@{/images/logo.png}" alt="Stellar Grooves Logo" class="logo-sm">
-                Stellar Grooves
+                <img th:src="@{/images/stellar-grooves-logo-nav.svg}" alt="Stellar Grooves" class="navbar-logo">
             </a>
             <div class="ms-auto d-flex gap-3 align-items-center">
                 <button class="theme-toggle" id="shortcutHelp" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">?</button>
@@ -62,53 +61,231 @@
             </div>
         </div>
 
-        <div class="row g-4">
-            <!-- Scan Panel + Playlists + Queue -->
-            <div class="col-12 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">Scan Directory</div>
-                    <div class="card-body">
-                        <form id="scanForm" novalidate>
-                            <div class="mb-3">
-                                <label for="path" class="form-label">Music Directory Path</label>
-                                <input type="text" class="form-control" id="path" name="path"
-                                       placeholder="/home/user/Music" autocomplete="off" required>
-                                <div class="invalid-feedback">Please enter a valid directory path.</div>
+        <!-- Wurlitzer 1015×2700 Hybrid Jukebox Player -->
+        <div id="jukeboxPlayer" class="jukebox-player d-none mb-4">
+            <div class="jukebox-player-wrap">
+
+                <!-- 2700-style left selection panel -->
+                <div class="wurl-side-panel wurl-side-panel-l">
+                    <div class="wurl-side-chrome-top"></div>
+                    <div class="wurl-side-header">
+                        <span class="wurl-side-label">SELECT A SONG</span>
+                    </div>
+                    <div class="wurl-side-body">
+                        <ul id="jukeboxListL" class="wurl-side-list"></ul>
+                    </div>
+                    <div class="wurl-side-chrome-bottom"></div>
+                </div>
+
+                <!-- Left speaker cabinet -->
+                <div class="speaker-cabinet speaker-cabinet-l">
+                    <div class="speaker-trim-top"></div>
+                    <div class="speaker-body">
+                        <div class="speaker-group speaker-group-top">
+                            <div class="speaker-driver speaker-driver-lg">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
                             </div>
-                            <button type="submit" class="btn btn-primary btn-full-mobile w-100" id="scanBtn">
-                                Start Scan
-                            </button>
-                        </form>
-                        <div id="scanStatus" class="mt-3" aria-live="polite" aria-atomic="true"></div>
-
-                        <hr class="my-3">
-
-                        <button class="btn btn-outline-danger w-100 d-none" id="clearBtn">
-                            Clear Library
-                        </button>
-
-                        <!-- Scheduled Scan section -->
-                        <div id="scanScheduleSection" class="mt-3 d-none">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="section-label">SCHEDULED SCAN</span>
-                                <button class="btn-icon-sm text-danger" id="clearScheduleBtn" title="Remove schedule" aria-label="Remove schedule" style="display:none;">&times;</button>
+                            <div class="speaker-driver speaker-driver-sm">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
                             </div>
-                            <div id="scheduleInfo" class="small mb-2" style="color:var(--text-muted);"></div>
-                            <select class="form-select form-select-sm mb-2" id="schedulePreset">
-                                <option value="">Set a schedule...</option>
-                                <option value="0 0 * * *">Daily (midnight)</option>
-                                <option value="0 6 * * *">Daily (6 AM)</option>
-                                <option value="0 0 * * 0">Weekly (Sunday midnight)</option>
-                                <option value="0 0 1 * *">Monthly (1st of month)</option>
-                                <option value="custom">Custom cron...</option>
-                            </select>
-                            <input type="text" class="form-control form-control-sm mb-2 d-none" id="customCron"
-                                   placeholder="e.g. 0 0 */6 * *" autocomplete="off">
-                            <button class="btn btn-sm btn-outline-primary w-100 d-none" id="saveScheduleBtn">Save Schedule</button>
+                        </div>
+                        <div class="speaker-group speaker-group-mid">
+                            <div class="speaker-driver speaker-driver-md">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                        </div>
+                        <div class="speaker-group speaker-group-bottom">
+                            <div class="speaker-driver speaker-driver-sm">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                            <div class="speaker-driver speaker-driver-lg">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                        </div>
+                        <div class="speaker-grille-cloth"></div>
+                        <div class="speaker-badge">SG</div>
+                    </div>
+                    <div class="speaker-trim-bottom"></div>
+                </div>
+
+                <!-- Central 1015 player -->
+                <div class="wurl-center">
+                    <div class="wurlitzer">
+                        <!-- Bubble tube columns (left & right) -->
+                        <div class="wurl-bubble-tube wurl-bubble-tube-l">
+                            <div class="wurl-tube-glass"></div>
+                            <div class="wurl-bubbles"></div>
+                            <div class="wurl-bubbles wurl-bubbles-b"></div>
+                            <div class="wurl-bubbles wurl-bubbles-c"></div>
+                        </div>
+                        <div class="wurl-bubble-tube wurl-bubble-tube-r">
+                            <div class="wurl-tube-glass"></div>
+                            <div class="wurl-bubbles"></div>
+                            <div class="wurl-bubbles wurl-bubbles-b"></div>
+                            <div class="wurl-bubbles wurl-bubbles-c"></div>
                         </div>
 
-                        <hr class="my-3">
+                        <!-- Rainbow chrome arch crown (layered 1015 arches) -->
+                        <div class="wurl-arch-stack">
+                            <div class="wurl-arch wurl-arch-outer"></div>
+                            <div class="wurl-arch wurl-arch-amber"></div>
+                            <div class="wurl-arch wurl-arch-gold"></div>
+                            <div class="wurl-arch wurl-arch-inner"></div>
+                            <div class="wurl-arch wurl-arch-pink"></div>
+                        </div>
 
+                        <!-- Bubble dome top with turntable -->
+                        <div class="wurl-dome">
+                            <div class="wurl-dome-inner">
+                                <div class="wurl-turntable">
+                                    <div class="wurl-platter"></div>
+                                    <!-- Tonearm -->
+                                    <div id="tonearm" class="wurl-tonearm">
+                                        <div class="wurl-tonearm-base"></div>
+                                        <div class="wurl-tonearm-arm"></div>
+                                        <div class="wurl-tonearm-head"></div>
+                                    </div>
+                                    <!-- Album art (shown when cover exists) -->
+                                    <img id="playerArt" class="wurl-art d-none" alt="Album artwork" width="160" height="160">
+                                    <!-- Vinyl record placeholder (shown when no cover) -->
+                                    <div id="jukeboxArtPlaceholder" class="wurl-vinyl-record" role="presentation" aria-hidden="true">
+                                        <div class="wurl-vinyl-grooves"></div>
+                                        <div class="wurl-vinyl-label">
+                                            <div class="wurl-label-hole"></div>
+                                            <div class="wurl-label-text">NO ARTWORK</div>
+                                            <div class="wurl-label-subtext">STELLAR GROOVES</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="wurl-dome-glow"></div>
+                        </div>
+
+                        <!-- Art deco chrome divider -->
+                        <div class="wurl-chrome-divider">
+                            <div class="wurl-chrome-strip"></div>
+                            <div class="wurl-chrome-deco"></div>
+                            <div class="wurl-chrome-strip"></div>
+                        </div>
+
+                        <!-- Wood-grain selection panel (warm amber backlit) -->
+                        <div class="wurl-selection">
+                            <div class="wurl-pilaster wurl-pilaster-l"></div>
+                            <div class="wurl-pilaster wurl-pilaster-r"></div>
+                            <div class="wurl-track-info">
+                                <div id="playerTitle" class="wurl-title" aria-live="polite">Now Playing</div>
+                                <div id="playerArtist" class="wurl-artist"></div>
+                            </div>
+                            <canvas id="eqCanvas" class="wurl-eq" width="280" height="48" aria-hidden="true" role="presentation"></canvas>
+                        </div>
+
+                        <!-- Art deco chrome divider -->
+                        <div class="wurl-chrome-divider">
+                            <div class="wurl-chrome-strip"></div>
+                            <div class="wurl-chrome-deco"></div>
+                            <div class="wurl-chrome-strip"></div>
+                        </div>
+
+                        <!-- Controls panel with wood grain -->
+                        <div class="wurl-controls-panel">
+                            <div class="wurl-controls">
+                                <button id="playerShuffle" class="btn-wurl-sm" title="Shuffle" aria-label="Toggle shuffle" aria-pressed="false">&#x1F500;</button>
+                                <button id="playerCrossfade" class="btn-wurl-sm" title="Crossfade (3s)" aria-label="Toggle crossfade" aria-pressed="false">&#x2728;</button>
+                                <button id="playerPlayPause" class="btn-wurl-play" title="Play / Pause" aria-label="Play or pause">&#x25B6;</button>
+                            </div>
+                            <div class="wurl-seek-row">
+                                <span id="playerCurrentTime" class="wurl-time" aria-label="Current time">0:00</span>
+                                <input type="range" id="playerSeek" class="wurl-seek" min="0" max="100" value="0" step="0.1" aria-label="Seek position">
+                                <span id="playerDuration" class="wurl-time" aria-label="Duration">0:00</span>
+                            </div>
+                            <div class="wurl-volume-row">
+                                <span class="wurl-vol-icon" title="Volume">&#x1F509;</span>
+                                <input type="range" id="playerVolume" class="wurl-volume" min="0" max="1" step="0.05" value="1" title="Volume" aria-label="Volume">
+                            </div>
+                        </div>
+
+                        <!-- Speaker grille (1015 lower body) -->
+                        <div class="wurl-lower">
+                            <div class="wurl-grille"></div>
+                            <div class="wurl-grille-glow"></div>
+                            <div class="wurl-starburst wurl-starburst-l"></div>
+                            <div class="wurl-starburst wurl-starburst-c"></div>
+                            <div class="wurl-starburst wurl-starburst-r"></div>
+                        </div>
+
+                        <!-- Chrome base trim with feet -->
+                        <div class="wurl-base-trim">
+                            <div class="wurl-foot wurl-foot-l"></div>
+                            <div class="wurl-foot wurl-foot-r"></div>
+                        </div>
+                    </div>
+                    <audio id="audioPlayer" preload="none"></audio>
+                    <audio id="audioPlayerB" preload="none" style="display:none"></audio>
+                </div>
+
+                <!-- Right speaker cabinet -->
+                <div class="speaker-cabinet speaker-cabinet-r">
+                    <div class="speaker-trim-top"></div>
+                    <div class="speaker-body">
+                        <div class="speaker-group speaker-group-top">
+                            <div class="speaker-driver speaker-driver-lg">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                            <div class="speaker-driver speaker-driver-sm">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                        </div>
+                        <div class="speaker-group speaker-group-mid">
+                            <div class="speaker-driver speaker-driver-md">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                        </div>
+                        <div class="speaker-group speaker-group-bottom">
+                            <div class="speaker-driver speaker-driver-sm">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                            <div class="speaker-driver speaker-driver-lg">
+                                <div class="speaker-cone"><div class="speaker-cone-inner"></div><div class="speaker-dust-cap"></div></div>
+                                <div class="speaker-surround"></div>
+                            </div>
+                        </div>
+                        <div class="speaker-grille-cloth"></div>
+                        <div class="speaker-badge">SG</div>
+                    </div>
+                    <div class="speaker-trim-bottom"></div>
+                </div>
+
+                <!-- 2700-style right selection panel -->
+                <div class="wurl-side-panel wurl-side-panel-r">
+                    <div class="wurl-side-chrome-top"></div>
+                    <div class="wurl-side-header">
+                        <span class="wurl-side-label">SELECT A SONG</span>
+                    </div>
+                    <div class="wurl-side-body">
+                        <ul id="jukeboxListR" class="wurl-side-list"></ul>
+                    </div>
+                    <div class="wurl-side-chrome-bottom"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Queue/Playlists + Scan sidebar -->
+            <div class="col-12 col-lg-4">
+
+                <!-- Queue + Playlists -->
+                <div class="card mb-4">
+                    <div class="card-body">
                         <!-- Queue section -->
                         <div id="queueSection">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -138,121 +315,55 @@
                             </div>
                             <ul id="playlistList" class="playlist-list"></ul>
                         </div>
+                    </div>
+                </div>
 
-                        <hr class="my-3">
+                <!-- Scan Directory (collapsible) -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#scanCardBody" aria-expanded="false" aria-controls="scanCardBody" style="cursor:pointer;">
+                        Scan Directory
+                        <span class="scan-collapse-icon" style="font-size:0.7rem; color:var(--text-muted);">&#x25BC;</span>
+                    </div>
+                    <div id="scanCardBody" class="collapse">
+                        <div class="card-body">
+                            <form id="scanForm" novalidate>
+                                <div class="mb-3">
+                                    <label for="path" class="form-label">Music Directory Path</label>
+                                    <input type="text" class="form-control" id="path" name="path"
+                                           placeholder="/home/user/Music" autocomplete="off" required>
+                                    <div class="invalid-feedback">Please enter a valid directory path.</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-full-mobile w-100" id="scanBtn">
+                                    Start Scan
+                                </button>
+                            </form>
+                            <div id="scanStatus" class="mt-3" aria-live="polite" aria-atomic="true"></div>
 
-                        <!-- Wurlitzer 1015 Jukebox Player -->
-                        <div id="jukeboxPlayer" class="jukebox-player d-none">
-                            <div class="wurlitzer">
-                                <!-- Bubble tube columns (left & right) -->
-                                <div class="wurl-bubble-tube wurl-bubble-tube-l">
-                                    <div class="wurl-tube-glass"></div>
-                                    <div class="wurl-bubbles"></div>
-                                    <div class="wurl-bubbles wurl-bubbles-b"></div>
-                                </div>
-                                <div class="wurl-bubble-tube wurl-bubble-tube-r">
-                                    <div class="wurl-tube-glass"></div>
-                                    <div class="wurl-bubbles"></div>
-                                    <div class="wurl-bubbles wurl-bubbles-b"></div>
-                                </div>
+                            <hr class="my-3">
 
-                                <!-- Rainbow chrome arch crown (layered 1015 arches) -->
-                                <div class="wurl-arch-stack">
-                                    <div class="wurl-arch wurl-arch-outer"></div>
-                                    <div class="wurl-arch wurl-arch-gold"></div>
-                                    <div class="wurl-arch wurl-arch-inner"></div>
-                                </div>
+                            <button class="btn btn-outline-danger w-100 d-none" id="clearBtn">
+                                Clear Library
+                            </button>
 
-                                <!-- Bubble dome top with turntable -->
-                                <div class="wurl-dome">
-                                    <div class="wurl-dome-inner">
-                                        <div class="wurl-turntable">
-                                            <div class="wurl-platter"></div>
-                                            <!-- Tonearm -->
-                                            <div id="tonearm" class="wurl-tonearm">
-                                                <div class="wurl-tonearm-base"></div>
-                                                <div class="wurl-tonearm-arm"></div>
-                                                <div class="wurl-tonearm-head"></div>
-                                            </div>
-                                            <!-- Album art (shown when cover exists) -->
-                                            <img id="playerArt" class="wurl-art d-none" alt="Album artwork" width="120" height="120">
-                                            <!-- Vinyl record placeholder (shown when no cover) -->
-                                            <div id="jukeboxArtPlaceholder" class="wurl-vinyl-record" role="presentation" aria-hidden="true">
-                                                <div class="wurl-vinyl-grooves"></div>
-                                                <div class="wurl-vinyl-label">
-                                                    <div class="wurl-label-hole"></div>
-                                                    <div class="wurl-label-text">NO ARTWORK</div>
-                                                    <div class="wurl-label-subtext">STELLAR GROOVES</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="wurl-dome-glow"></div>
+                            <!-- Scheduled Scan section -->
+                            <div id="scanScheduleSection" class="mt-3 d-none">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="section-label">SCHEDULED SCAN</span>
+                                    <button class="btn-icon-sm text-danger" id="clearScheduleBtn" title="Remove schedule" aria-label="Remove schedule" style="display:none;">&times;</button>
                                 </div>
-
-                                <!-- Art deco chrome divider -->
-                                <div class="wurl-chrome-divider">
-                                    <div class="wurl-chrome-strip"></div>
-                                    <div class="wurl-chrome-deco"></div>
-                                    <div class="wurl-chrome-strip"></div>
-                                </div>
-
-                                <!-- Wood-grain selection panel (warm amber backlit) -->
-                                <div class="wurl-selection">
-                                    <div class="wurl-pilaster wurl-pilaster-l"></div>
-                                    <div class="wurl-pilaster wurl-pilaster-r"></div>
-                                    <div class="wurl-track-info">
-                                        <div id="playerTitle" class="wurl-title" aria-live="polite">Now Playing</div>
-                                        <div id="playerArtist" class="wurl-artist"></div>
-                                    </div>
-                                    <canvas id="eqCanvas" class="wurl-eq" width="240" height="40" aria-hidden="true" role="presentation"></canvas>
-                                </div>
-
-                                <!-- Art deco chrome divider -->
-                                <div class="wurl-chrome-divider">
-                                    <div class="wurl-chrome-strip"></div>
-                                    <div class="wurl-chrome-deco"></div>
-                                    <div class="wurl-chrome-strip"></div>
-                                </div>
-
-                                <!-- Controls panel with wood grain -->
-                                <div class="wurl-controls-panel">
-                                    <div class="wurl-controls">
-                                        <button id="playerShuffle" class="btn-wurl-sm" title="Shuffle" aria-label="Toggle shuffle" aria-pressed="false">&#x1F500;</button>
-                                        <button id="playerCrossfade" class="btn-wurl-sm" title="Crossfade (3s)" aria-label="Toggle crossfade" aria-pressed="false">&#x2728;</button>
-                                        <button id="playerPlayPause" class="btn-wurl-play" title="Play / Pause" aria-label="Play or pause">&#x25B6;</button>
-                                    </div>
-                                    <div class="wurl-seek-row">
-                                        <span id="playerCurrentTime" class="wurl-time" aria-label="Current time">0:00</span>
-                                        <input type="range" id="playerSeek" class="wurl-seek" min="0" max="100" value="0" step="0.1" aria-label="Seek position">
-                                        <span id="playerDuration" class="wurl-time" aria-label="Duration">0:00</span>
-                                    </div>
-                                    <div class="wurl-volume-row">
-                                        <span class="wurl-vol-icon" title="Volume">&#x1F509;</span>
-                                        <input type="range" id="playerVolume" class="wurl-volume" min="0" max="1" step="0.05" value="1" title="Volume" aria-label="Volume">
-                                    </div>
-                                </div>
-
-                                <!-- Speaker grille (1015 lower body) -->
-                                <div class="wurl-lower">
-                                    <div class="wurl-grille"></div>
-                                    <div class="wurl-grille-glow"></div>
-                                    <div class="wurl-starburst wurl-starburst-l"></div>
-                                    <div class="wurl-starburst wurl-starburst-r"></div>
-                                </div>
-
-                                <!-- Chrome base trim with feet -->
-                                <div class="wurl-base-trim">
-                                    <div class="wurl-foot wurl-foot-l"></div>
-                                    <div class="wurl-foot wurl-foot-r"></div>
-                                </div>
+                                <div id="scheduleInfo" class="small mb-2" style="color:var(--text-muted);"></div>
+                                <select class="form-select form-select-sm mb-2" id="schedulePreset">
+                                    <option value="">Set a schedule...</option>
+                                    <option value="0 0 * * *">Daily (midnight)</option>
+                                    <option value="0 6 * * *">Daily (6 AM)</option>
+                                    <option value="0 0 * * 0">Weekly (Sunday midnight)</option>
+                                    <option value="0 0 1 * *">Monthly (1st of month)</option>
+                                    <option value="custom">Custom cron...</option>
+                                </select>
+                                <input type="text" class="form-control form-control-sm mb-2 d-none" id="customCron"
+                                       placeholder="e.g. 0 0 */6 * *" autocomplete="off">
+                                <button class="btn btn-sm btn-outline-primary w-100 d-none" id="saveScheduleBtn">Save Schedule</button>
                             </div>
-                            <audio id="audioPlayer" preload="none"></audio>
-                            <audio id="audioPlayerB" preload="none" style="display:none"></audio>
-                        </div>
-
-                        <div class="mt-3 text-center">
-                            <img th:src="@{/images/rocknroll.png}" src="/images/rocknroll.png" alt="Rock and Roll" class="img-fluid rounded img-rocker">
                         </div>
                     </div>
                 </div>
