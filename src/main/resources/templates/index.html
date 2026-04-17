@@ -7,12 +7,13 @@
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <meta name="_userId" th:content="${userId}">
+    <meta name="_appVersion" th:content="${appVersion}">
     <title>Stellar Grooves - Dashboard</title>
     <link rel="icon" th:href="@{/images/logo.png}" type="image/png">
     <link rel="apple-touch-icon" th:href="@{/images/icon-192.png}">
     <link rel="manifest" th:href="@{/manifest.json}">
     <link rel="stylesheet" th:href="@{/vendor/bootstrap/css/bootstrap.min.css}">
-    <link rel="stylesheet" th:href="@{/css/main.css}">
+    <link rel="stylesheet" th:href="@{/css/main.css(v=${appVersion})}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg">
@@ -528,18 +529,18 @@
     </div>
 
     <!-- Add to Playlist Modal -->
-    <div class="modal fade" id="addToPlaylistModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="addToPlaylistModal" tabindex="-1" aria-hidden="true" aria-labelledby="addToPlaylistTitle">
         <div class="modal-dialog modal-sm modal-dialog-centered">
             <div class="modal-content sg-modal">
                 <div class="modal-header sg-modal-header">
-                    <h6 class="modal-title">Add to Playlist</h6>
+                    <h6 class="modal-title" id="addToPlaylistTitle">Add to Playlist</h6>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p id="addToPlaylistTrackName" class="small mb-2 text-secondary-themed"></p>
                     <select id="addToPlaylistSelect" class="form-select form-select-sm mb-2"></select>
                     <button id="addToPlaylistConfirm" class="btn btn-primary w-100 btn-sm">Add Track</button>
-                    <div id="addToPlaylistStatus" class="mt-2 small"></div>
+                    <div id="addToPlaylistStatus" class="mt-2 small" aria-live="polite"></div>
                 </div>
             </div>
         </div>
@@ -560,10 +561,10 @@
     <script th:src="@{/vendor/bootstrap/js/bootstrap.bundle.min.js}"></script>
     <script th:src="@{/vendor/sockjs/sockjs.min.js}"></script>
     <script th:src="@{/vendor/stomp/stomp.umd.min.js}"></script>
-    <script th:src="@{/js/app.js}"></script>
-    <script th:src="@{/js/queue.js}"></script>
-    <script th:src="@{/js/scan.js}"></script>
-    <script th:src="@{/js/theme.js}"></script>
-    <script th:src="@{/js/player.js}"></script>
+    <script th:src="@{/js/app.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/queue.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/scan.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/theme.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/player.js(v=${appVersion})}"></script>
 </body>
 </html>

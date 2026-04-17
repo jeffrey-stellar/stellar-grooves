@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -165,11 +166,16 @@ class PlaylistServiceTest {
         Playlist playlist = new Playlist();
         playlist.setTrackIds(new ArrayList<>(List.of("f1", "f2")));
 
-        List<MusicFileDTO> tracks = service.getPlaylistTracks(playlist, "user1");
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1");
+        @SuppressWarnings("unchecked")
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) result.get("tracks");
 
         assertEquals(2, tracks.size());
         assertEquals("Song 1", tracks.get(0).getTitle());
         assertEquals("Song 2", tracks.get(1).getTitle());
+        @SuppressWarnings("unchecked")
+        List<String> missing = (List<String>) result.get("missingTracks");
+        assertTrue(missing.isEmpty());
     }
 
     @Test
@@ -177,7 +183,9 @@ class PlaylistServiceTest {
         Playlist playlist = new Playlist();
         playlist.setTrackIds(new ArrayList<>());
 
-        List<MusicFileDTO> tracks = service.getPlaylistTracks(playlist, "user1");
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1");
+        @SuppressWarnings("unchecked")
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) result.get("tracks");
 
         assertTrue(tracks.isEmpty());
     }

@@ -105,6 +105,12 @@ public class LibraryService {
         return musicFileRepository.findByIdAndUserIdAndDeletedFalse(id, userId);
     }
 
+    public Set<String> findOwnedTrackIds(List<String> trackIds, String userId) {
+        return musicFileRepository.findByIdInAndUserId(trackIds, userId).stream()
+                .map(MusicFile::getId)
+                .collect(Collectors.toSet());
+    }
+
     public MusicFile updateGenre(MusicFile file, Genre genre, String userId) {
         file.setGenre(genre);
         musicFileRepository.save(file);
@@ -141,6 +147,12 @@ public class LibraryService {
         return musicFileRepository.findByUserIdAndDeletedTrue(userId).stream()
                 .map(MusicFileDTO::from)
                 .collect(Collectors.toList());
+    }
+
+    public Page<MusicFileDTO> getTrash(String userId, int page, int size) {
+        size = clamp(size, MAX_PAGE_SIZE);
+        return musicFileRepository.findByUserIdAndDeletedTrue(userId, PageRequest.of(page, size))
+                .map(MusicFileDTO::from);
     }
 
     @Transactional
@@ -256,10 +268,15 @@ public class LibraryService {
         int tracksSkipped = 0;
         int playlistsRestored = 0;
 
-        // Build set of existing file paths to avoid duplicates
-        Set<String> existingPaths = musicFileRepository.findByUserId(userId).stream()
+        // Fetch all user files once — reused for both dedup and playlist mapping
+        List<MusicFile> allExisting = musicFileRepository.findByUserId(userId);
+        Set<String> existingPaths = allExisting.stream()
                 .map(MusicFile::getFilePath)
                 .collect(Collectors.toSet());
+        // Build initial fileName->ID map from existing non-deleted files
+        Map<String, String> fileNameToId = allExisting.stream()
+                .filter(f -> !f.isDeleted())
+                .collect(Collectors.toMap(MusicFile::getFileName, MusicFile::getId, (a, b) -> a));
 
         // Restore tracks
         List<MusicFile> toSave = new ArrayList<>();
@@ -295,12 +312,12 @@ public class LibraryService {
             tracksRestored++;
         }
         if (!toSave.isEmpty()) {
-            musicFileRepository.saveAll(toSave);
+            List<MusicFile> saved = musicFileRepository.saveAll(toSave);
+            // Add newly saved files to the fileName->ID map for playlist restoration
+            for (MusicFile mf : saved) {
+                fileNameToId.putIfAbsent(mf.getFileName(), mf.getId());
+            }
         }
-
-        // Restore playlists — map file names back to IDs
-        Map<String, String> fileNameToId = musicFileRepository.findByUserIdAndDeletedFalse(userId).stream()
-                .collect(Collectors.toMap(MusicFile::getFileName, MusicFile::getId, (a, b) -> a));
 
         if (backup.getPlaylists() != null) {
             for (LibraryBackup.PlaylistBackup pb : backup.getPlaylists()) {

@@ -6,6 +6,7 @@ import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,6 +48,7 @@ class CoverArtExtractionTest {
         ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
         ReflectionTestUtils.setField(scannerService, "batchSize", 200);
         ReflectionTestUtils.setField(scannerService, "maxCoverArtBytes", 10485760);
+        ReflectionTestUtils.setField(scannerService, "coverArtQuotaBytes", 524288000L);
         ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
         ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
         scannerService.initExecutor();
@@ -57,6 +59,11 @@ class CoverArtExtractionTest {
 
         when(repository.findByUserId("user1")).thenReturn(List.of());
         when(catalogService.identifyGenres(any())).thenReturn(Set.of(Genre.OTHER));
+    }
+
+    @AfterEach
+    void tearDown() {
+        scannerService.destroy();
     }
 
     /**

@@ -163,26 +163,45 @@ public class MusicScannerService implements DisposableBean {
         }
     }
 
+    /** Mutable state carried through a single scan pass. */
+    private static class ScanContext {
+        final String userId;
+        final String username;
+        final Set<String> existingPaths;
+        final Set<String> existingTitleArtist;
+        final Set<String> coverArtKeys = new HashSet<>();
+        long coverArtUsedBytes;
+        boolean coverArtQuotaExceeded;
+
+        ScanContext(String userId, String username, Set<String> existingPaths,
+                    Set<String> existingTitleArtist, long coverArtUsedBytes, long quotaBytes) {
+            this.userId = userId;
+            this.username = username;
+            this.existingPaths = existingPaths;
+            this.existingTitleArtist = existingTitleArtist;
+            this.coverArtUsedBytes = coverArtUsedBytes;
+            this.coverArtQuotaExceeded = coverArtUsedBytes >= quotaBytes;
+        }
+    }
+
     private ScanResult doScanDirectory(User user, String directoryPath) throws IOException {
         Path root = Paths.get(directoryPath).normalize();
         int effectiveDepth = Math.min(maxDepth, hardMaxDepth);
 
-        Set<String> existingPaths = repository.findByUserId(user.getId()).stream()
+        List<MusicFile> allUserFiles = repository.findByUserId(user.getId());
+        Set<String> existingPaths = allUserFiles.stream()
                 .map(MusicFile::getFilePath)
                 .collect(Collectors.toSet());
-        Set<String> existingTitleArtist = repository.findByUserId(user.getId()).stream()
+        Set<String> existingTitleArtist = allUserFiles.stream()
                 .filter(f -> f.getTitle() != null && !f.getTitle().isBlank()
                         && f.getArtist() != null && !f.getArtist().isBlank())
                 .map(f -> f.getTitle() + "\0" + f.getArtist())
                 .collect(Collectors.toSet());
 
-        // Track which artist+album combos already have cover art
-        Set<String> coverArtKeys = new HashSet<>();
-
-        // Check current cover art usage against quota
         Long currentUsage = coverArtRepository.getTotalCoverArtSizeByUserId(user.getId());
-        long coverArtUsedBytes = currentUsage != null ? currentUsage : 0;
-        boolean coverArtQuotaExceeded = coverArtUsedBytes >= coverArtQuotaBytes;
+        ScanContext ctx = new ScanContext(user.getId(), user.getUsername(),
+                existingPaths, existingTitleArtist,
+                currentUsage != null ? currentUsage : 0, coverArtQuotaBytes);
 
         ScanResult result = new ScanResult();
         List<MusicFile> batch = new ArrayList<>(batchSize);
@@ -205,94 +224,14 @@ public class MusicScannerService implements DisposableBean {
                 }
                 Path path = it.next();
                 try {
-                    if (existingPaths.contains(path.toString())) {
-                        result.incrementSkipped();
-                        continue;
-                    }
-                    AudioFile f;
-                    try {
-                        Future<AudioFile> future = fileReadExecutor.submit(() -> AudioFileIO.read(path.toFile()));
-                        f = future.get(perFileTimeoutSeconds, TimeUnit.SECONDS);
-                    } catch (TimeoutException te) {
-                        logger.warn("Timed out reading file '{}' after {}s", path.getFileName(), perFileTimeoutSeconds);
-                        result.addError(path.getFileName().toString(), "File read timed out after " + perFileTimeoutSeconds + "s");
-                        continue;
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new IOException("Scan interrupted while reading file", ie);
-                    } catch (ExecutionException ee) {
-                        Throwable cause = ee.getCause();
-                        if (cause instanceof IOException ioe) throw ioe;
-                        if (cause instanceof RuntimeException re) throw re;
-                        throw new IOException("Failed to read audio file", cause != null ? cause : ee);
-                    }
-                    Tag tag = f.getTag();
-
-                    String artist = safeGet(tag, FieldKey.ARTIST);
-                    String album  = safeGet(tag, FieldKey.ALBUM);
-                    String title  = safeGet(tag, FieldKey.TITLE);
-                    String year   = safeGet(tag, FieldKey.YEAR);
-
-                    if (!title.isBlank() && !artist.isBlank()
-                            && existingTitleArtist.contains(title + "\0" + artist)) {
-                        result.incrementSkipped();
-                        continue;
-                    }
-
-                    Set<Genre> genres = catalogService.identifyGenres(artist);
-                    Genre genre = genres.isEmpty() ? Genre.OTHER : genres.iterator().next();
-                    List<Genre> additionalGenres = genres.size() > 1
-                            ? genres.stream().filter(g -> g != genre).collect(Collectors.toList())
-                            : null;
-
-                    // Extract cover art if available and within quota
-                    boolean hasCover = false;
-                    if (!artist.isBlank() && !album.isBlank()) {
-                        String artKey = artist.toLowerCase() + "\0" + album.toLowerCase();
-                        if (!coverArtKeys.contains(artKey)) {
-                            if (coverArtQuotaExceeded) {
-                                logger.debug("Cover art quota exceeded for user '{}', skipping art extraction",
-                                        user.getUsername());
-                            } else {
-                                long artSize = extractCoverArt(tag, user.getId(), artist, album);
-                                hasCover = artSize > 0;
-                                if (hasCover) {
-                                    coverArtKeys.add(artKey);
-                                    coverArtUsedBytes += artSize;
-                                    coverArtQuotaExceeded = coverArtUsedBytes >= coverArtQuotaBytes;
-                                }
-                            }
-                        } else {
-                            hasCover = true; // already extracted for this album
+                    MusicFile musicFile = processAudioFile(path, ctx, result);
+                    if (musicFile != null) {
+                        batch.add(musicFile);
+                        if (batch.size() >= batchSize) {
+                            repository.saveAll(batch);
+                            result.addSaved(batch.size());
+                            batch.clear();
                         }
-                    }
-
-                    String fileHash = computeFileHash(path);
-
-                    MusicFile musicFile = MusicFile.builder()
-                            .userId(user.getId())
-                            .filePath(path.toString())
-                            .fileName(path.getFileName().toString())
-                            .artist(artist)
-                            .album(album)
-                            .title(title)
-                            .year(year)
-                            .genre(genre)
-                            .additionalGenres(additionalGenres)
-                            .fileHash(fileHash)
-                            .hasCoverArt(hasCover)
-                            .build();
-
-                    batch.add(musicFile);
-                    existingPaths.add(path.toString());
-                    if (!title.isBlank() && !artist.isBlank()) {
-                        existingTitleArtist.add(title + "\0" + artist);
-                    }
-
-                    if (batch.size() >= batchSize) {
-                        repository.saveAll(batch);
-                        result.addSaved(batch.size());
-                        batch.clear();
                     }
                 } catch (IOException e) {
                     logger.warn("Skipping file '{}': {}", path.getFileName(), e.getMessage());
@@ -301,7 +240,6 @@ public class MusicScannerService implements DisposableBean {
                     logger.error("Unexpected error processing file '{}': {}", path.getFileName(), e.getMessage(), e);
                     result.addError(path.getFileName().toString(), e.getMessage());
                 }
-                // Emit progress every 10 files
                 int total = result.getSaved() + result.getSkipped() + result.getErrors();
                 if (total % 10 == 0) {
                     progressEmitter.sendProgress(user.getId(), result.getSaved(), result.getSkipped(),
@@ -319,6 +257,105 @@ public class MusicScannerService implements DisposableBean {
                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
         progressEmitter.sendComplete(user.getId(), result.getSaved(), result.getSkipped(), result.getErrors());
         return result;
+    }
+
+    /**
+     * Process a single audio file: read metadata, check for duplicates, extract cover art.
+     * @return a MusicFile to save, or null if the file was skipped
+     */
+    private MusicFile processAudioFile(Path path, ScanContext ctx, ScanResult result) throws IOException {
+        if (ctx.existingPaths.contains(path.toString())) {
+            result.incrementSkipped();
+            return null;
+        }
+
+        AudioFile f = readAudioFile(path);
+        Tag tag = f.getTag();
+
+        String artist = safeGet(tag, FieldKey.ARTIST);
+        String album  = safeGet(tag, FieldKey.ALBUM);
+        String title  = safeGet(tag, FieldKey.TITLE);
+        String year   = safeGet(tag, FieldKey.YEAR);
+
+        if (!title.isBlank() && !artist.isBlank()
+                && ctx.existingTitleArtist.contains(title + "\0" + artist)) {
+            result.incrementSkipped();
+            return null;
+        }
+
+        Set<Genre> genres = catalogService.identifyGenres(artist);
+        Genre genre = genres.isEmpty() ? Genre.OTHER : genres.iterator().next();
+        List<Genre> additionalGenres = genres.size() > 1
+                ? genres.stream().filter(g -> g != genre).collect(Collectors.toList())
+                : null;
+
+        boolean hasCover = processCoverArt(tag, ctx, artist, album);
+        String fileHash = computeFileHash(path);
+
+        MusicFile musicFile = MusicFile.builder()
+                .userId(ctx.userId)
+                .filePath(path.toString())
+                .fileName(path.getFileName().toString())
+                .artist(artist)
+                .album(album)
+                .title(title)
+                .year(year)
+                .genre(genre)
+                .additionalGenres(additionalGenres)
+                .fileHash(fileHash)
+                .hasCoverArt(hasCover)
+                .build();
+
+        ctx.existingPaths.add(path.toString());
+        if (!title.isBlank() && !artist.isBlank()) {
+            ctx.existingTitleArtist.add(title + "\0" + artist);
+        }
+        return musicFile;
+    }
+
+    /**
+     * Read an audio file with a per-file timeout.
+     */
+    private AudioFile readAudioFile(Path path) throws IOException {
+        try {
+            Future<AudioFile> future = fileReadExecutor.submit(() -> AudioFileIO.read(path.toFile()));
+            return future.get(perFileTimeoutSeconds, TimeUnit.SECONDS);
+        } catch (TimeoutException te) {
+            throw new IOException("File read timed out after " + perFileTimeoutSeconds + "s");
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Scan interrupted while reading file", ie);
+        } catch (ExecutionException ee) {
+            Throwable cause = ee.getCause();
+            if (cause instanceof IOException ioe) throw ioe;
+            if (cause instanceof RuntimeException re) throw re;
+            throw new IOException("Failed to read audio file", cause != null ? cause : ee);
+        }
+    }
+
+    /**
+     * Extract and store cover art if available, respecting per-user quota.
+     * @return true if this file has cover art (either newly extracted or already present)
+     */
+    private boolean processCoverArt(Tag tag, ScanContext ctx, String artist, String album) {
+        if (artist.isBlank() || album.isBlank()) return false;
+
+        String artKey = artist.toLowerCase() + "\0" + album.toLowerCase();
+        if (ctx.coverArtKeys.contains(artKey)) {
+            return true; // already extracted for this album
+        }
+        if (ctx.coverArtQuotaExceeded) {
+            logger.debug("Cover art quota exceeded for user '{}', skipping art extraction", ctx.username);
+            return false;
+        }
+        long artSize = extractCoverArt(tag, ctx.userId, artist, album);
+        if (artSize > 0) {
+            ctx.coverArtKeys.add(artKey);
+            ctx.coverArtUsedBytes += artSize;
+            ctx.coverArtQuotaExceeded = ctx.coverArtUsedBytes >= coverArtQuotaBytes;
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -341,6 +378,12 @@ public class MusicScannerService implements DisposableBean {
             // Check if we already have art for this album
             if (coverArtRepository.findByUserIdAndArtistAndAlbum(userId, artist, album).isPresent()) {
                 return dataLength;
+            }
+            // Re-check live quota before writing to prevent race conditions
+            Long liveUsage = coverArtRepository.getTotalCoverArtSizeByUserId(userId);
+            if (liveUsage != null && liveUsage + dataLength > coverArtQuotaBytes) {
+                logger.debug("Cover art quota would be exceeded for user '{}', skipping", userId);
+                return 0;
             }
             CoverArt art = new CoverArt();
             art.setUserId(userId);

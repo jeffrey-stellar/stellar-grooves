@@ -61,8 +61,19 @@ public class GlobalExceptionHandler {
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
         }
+        logger.debug("Validation failed: {}", fieldErrors);
         ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "Validation failed");
         pd.setProperty("fields", fieldErrors);
+        return ResponseEntity.badRequest().body(pd);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+        Map<String, String> violations = new HashMap<>();
+        ex.getConstraintViolations().forEach(v -> violations.put(v.getPropertyPath().toString(), v.getMessage()));
+        logger.debug("Constraint violation: {}", violations);
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "Validation failed");
+        pd.setProperty("fields", violations);
         return ResponseEntity.badRequest().body(pd);
     }
 

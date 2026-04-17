@@ -10,7 +10,7 @@ const GENRE_LABELS = {
     CLASSIC_ROCK: 'Classic Rock', HARD_ROCK: 'Hard Rock', HAIR_METAL: 'Hair Metal',
     HEAVY_METAL: 'Heavy Metal', THRASH_METAL: 'Thrash Metal', OTHER: 'Other'
 };
-const VIRTUAL_ROW_HEIGHT_DEFAULT = 42, VIRTUAL_BUFFER = 20, VIRTUAL_THRESHOLD = 500;
+const VIRTUAL_ROW_HEIGHT_DEFAULT = 42, VIRTUAL_BUFFER = 20, VIRTUAL_THRESHOLD = 250;
 let virtualRowHeight = VIRTUAL_ROW_HEIGHT_DEFAULT;
 
 /** Measure actual row height from the DOM. Call once after first render. */
@@ -37,18 +37,19 @@ let playlistContext = null; // { playlistId, playlistName, tracks: [{id, title, 
 window.SG = window.SG || {};
 SG.currentFileId = null;
 
-// Expose mutable state getters/setters for modules
-SG.__defineGetter__('allFiles', () => allFiles);
-SG.__defineGetter__('playlists', () => playlists);
-SG.__defineGetter__('queue', () => queue);
-SG.__defineSetter__('queue', (v) => { queue = v; });
-SG.__defineGetter__('nav', () => nav);
-SG.__defineGetter__('playlistContext', () => playlistContext);
+// Expose mutable state via proper accessors for modules (player.js, queue.js, scan.js)
+Object.defineProperties(SG, {
+    allFiles:        { get() { return allFiles; },   configurable: true },
+    playlists:       { get() { return playlists; },  configurable: true },
+    queue:           { get() { return queue; },      set(v) { queue = v; },           configurable: true },
+    nav:             { get() { return nav; },        configurable: true },
+    playlistContext: { get() { return playlistContext; }, configurable: true }
+});
 SG.setAllFiles = (v) => { allFiles = v; };
 SG.setPlaylists = (v) => { playlists = v; };
 SG.setQueue = (v) => { queue = v; };
 
-// ── CSRF + Helpers ───────────────────────────────────────
+// ── CSRF + Correlation ID + Helpers ─────────────────────
 function csrfToken() {
     const meta = document.querySelector('meta[name="_csrf"]');
     return meta ? meta.getAttribute('content') : '';
@@ -57,7 +58,13 @@ function csrfHeaderName() {
     const meta = document.querySelector('meta[name="_csrf_header"]');
     return meta ? meta.getAttribute('content') : 'X-CSRF-TOKEN';
 }
-function csrfHeaders(extra = {}) { const h = {}; h[csrfHeaderName()] = csrfToken(); return Object.assign(h, extra); }
+let _correlationSeq = 0;
+function correlationId() {
+    return (window._sgSessionId || 'ui') + '-' + (++_correlationSeq);
+}
+// Generate a short session ID for correlating client requests with server logs
+window._sgSessionId = Math.random().toString(36).substring(2, 10);
+function csrfHeaders(extra = {}) { const h = { 'X-Correlation-Id': correlationId() }; h[csrfHeaderName()] = csrfToken(); return Object.assign(h, extra); }
 function text(v) { return (v && v.trim()) ? v.trim() : '\u2014'; }
 function escapeHtml(s) { const d = document.createElement('div'); d.appendChild(document.createTextNode(s || '')); return d.innerHTML; }
 function formatTime(s) { if (isNaN(s) || s < 0) return '0:00'; return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0'); }
@@ -133,6 +140,8 @@ SG.renderPlaylistUpNext = renderPlaylistUpNext;
 function buildStarRating(fileId, currentRating) {
     const div = document.createElement('span');
     div.className = 'star-rating';
+    div.setAttribute('role', 'group');
+    div.setAttribute('aria-label', 'Rate this track');
     for (let i = 1; i <= 5; i++) {
         const btn = document.createElement('button');
         btn.className = 'star' + (i <= currentRating ? ' filled' : '');
@@ -229,8 +238,11 @@ function renderArtistsView() {
     const tbody = document.getElementById('artistsBody'); tbody.innerHTML = '';
     Object.entries(m).sort((a, b) => a[0].localeCompare(b[0])).forEach(([artist, d]) => {
         const tr = document.createElement('tr'); tr.className = 'drill-row';
+        tr.setAttribute('role', 'button'); tr.setAttribute('tabindex', '0');
         tr.innerHTML = `<td><span class="drill-link">${escapeHtml(artist)}</span></td><td class="text-end hide-xs">${d.al.size}</td><td class="text-end">${d.t}</td>`;
-        tr.addEventListener('click', () => navigate({ view: 'albums', artist, album: null }));
+        const go = () => navigate({ view: 'albums', artist, album: null });
+        tr.addEventListener('click', go);
+        tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
         tbody.appendChild(tr);
     });
 }
@@ -301,8 +313,11 @@ function renderAlbumsView() {
         const tbody = document.getElementById('albumsBody'); tbody.innerHTML = '';
         sorted.forEach(({ album, artist, tracks }) => {
             const tr = document.createElement('tr'); tr.className = 'drill-row';
+            tr.setAttribute('role', 'button'); tr.setAttribute('tabindex', '0');
             tr.innerHTML = `<td><span class="drill-link">${escapeHtml(album)}</span></td><td class="hide-xs">${escapeHtml(artist)}</td><td class="text-end">${tracks}</td>`;
-            tr.addEventListener('click', () => navigate({ view: 'tracks', artist: nav.artist || artist, album }));
+            const go = () => navigate({ view: 'tracks', artist: nav.artist || artist, album });
+            tr.addEventListener('click', go);
+            tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
             tbody.appendChild(tr);
         });
     }
@@ -504,7 +519,7 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
                 method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ rating })
             }).then(async r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; } else showToast(await errorMsg(r, 'Failed to update rating')); })
-              .catch(() => showToast('Failed to update rating'))
+              .catch(e => { console.error('Rating update failed:', e); showToast('Failed to update rating — check your connection'); })
               .finally(() => { if (starWrap) starWrap.classList.remove('loading'); renderTracksView(); });
         } break;
         case 'select': {
@@ -521,7 +536,7 @@ document.getElementById('musicTableBody').addEventListener('change', function(e)
     sel.classList.add('loading');
     fetch(`/api/v1/library/files/${file.id}/genre`, { method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ genre: ng }) })
         .then(async r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].genre = ng; renderTracksView(); } else { sel.value = file.genre; showToast(await errorMsg(r, 'Failed to update genre')); } })
-        .catch(() => { sel.value = file.genre; showToast('Failed to update genre'); })
+        .catch(e => { console.error('Genre update failed:', e); sel.value = file.genre; showToast('Failed to update genre — check your connection'); })
         .finally(() => sel.classList.remove('loading'));
 });
 
@@ -623,7 +638,7 @@ function hasActiveFilters() {
             clearTimeout(searchDebounce);
             if (hasActiveFilters()) {
                 const q = document.getElementById('searchInput').value.trim();
-                searchDebounce = setTimeout(() => serverSearch(q.length >= 2 ? q : null), 300);
+                searchDebounce = setTimeout(() => serverSearch(q.length >= 2 ? q : null), 450);
             } else {
                 renderTracksView();
             }
@@ -732,7 +747,13 @@ function openAddToPlaylistModal(file) {
     if (playlists.length === 0) { const o = document.createElement('option'); o.textContent = 'No playlists'; o.disabled = true; sel.appendChild(o); }
     else playlists.forEach(pl => { const o = document.createElement('option'); o.value = pl.id; o.textContent = pl.name + ' (' + pl.trackCount + ')'; sel.appendChild(o); });
     document.getElementById('addToPlaylistStatus').textContent = '';
-    if (!addToPlaylistModal) addToPlaylistModal = new bootstrap.Modal(document.getElementById('addToPlaylistModal'));
+    if (!addToPlaylistModal) {
+        addToPlaylistModal = new bootstrap.Modal(document.getElementById('addToPlaylistModal'));
+        document.getElementById('addToPlaylistModal').addEventListener('shown.bs.modal', () => {
+            const sel = document.getElementById('addToPlaylistSelect');
+            if (sel) sel.focus();
+        });
+    }
     addToPlaylistModal.show();
 }
 
@@ -890,6 +911,7 @@ function renderJukeboxPanels() {
         const li = document.createElement('li');
         li.className = 'wurl-side-item' + (SG.currentFileId === file.id ? ' wurl-side-active' : '');
         li.dataset.fileId = file.id;
+        li.setAttribute('role', 'button'); li.setAttribute('tabindex', '0');
         const num = document.createElement('span'); num.className = 'wurl-side-num';
         num.textContent = String(idx + 1).padStart(2, '0');
         const info = document.createElement('div');
@@ -906,17 +928,44 @@ function renderJukeboxPanels() {
     for (let i = mid; i < tracks.length; i++) listR.appendChild(buildItem(tracks[i], i));
 }
 
-// Click handler for side panels
-document.addEventListener('click', function(e) {
+// Click + keyboard handler for side panels
+function handleSideItemActivate(e) {
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.type === 'keydown') e.preventDefault();
     const item = e.target.closest('.wurl-side-item');
     if (!item) return;
     const fid = item.dataset.fileId;
     const file = allFiles.find(f => f.id === fid);
     if (file) { clearPlaylistContext(); playTrack(file); renderJukeboxPanels(); }
-});
+}
+document.addEventListener('click', handleSideItemActivate);
+document.addEventListener('keydown', handleSideItemActivate);
 
 // Expose for player.js to call on track change
 SG.renderJukeboxPanels = renderJukeboxPanels;
+
+// ── Web Vitals ──────────────────────────────────────────
+function reportWebVitals() {
+    if (typeof PerformanceObserver === 'undefined') return;
+    const report = (name, value) => console.debug('[WebVital]', name, Math.round(value) + 'ms');
+    try {
+        // Largest Contentful Paint
+        new PerformanceObserver(list => {
+            const entries = list.getEntries();
+            if (entries.length > 0) report('LCP', entries[entries.length - 1].startTime);
+        }).observe({ type: 'largest-contentful-paint', buffered: true });
+        // First Input Delay
+        new PerformanceObserver(list => {
+            list.getEntries().forEach(e => report('FID', e.processingStart - e.startTime));
+        }).observe({ type: 'first-input', buffered: true });
+        // Cumulative Layout Shift
+        let clsValue = 0;
+        new PerformanceObserver(list => {
+            list.getEntries().forEach(e => { if (!e.hadRecentInput) clsValue += e.value; });
+            console.debug('[WebVital] CLS', clsValue.toFixed(4));
+        }).observe({ type: 'layout-shift', buffered: true });
+    } catch (e) { /* PerformanceObserver type not supported in this browser */ }
+}
 
 // ── Init ─────────────────────────────────────────────────
 loadLibrary();
@@ -926,9 +975,14 @@ window.addEventListener('load', () => {
     if (SG.loadSavedQueue) SG.loadSavedQueue();
     if (SG.loadScanSchedule) SG.loadScanSchedule();
 
+    // Web Vitals — report core metrics for performance monitoring
+    reportWebVitals();
+
     // PWA: Service Worker registration
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
+        const v = document.querySelector('meta[name="_appVersion"]');
+        const swUrl = '/sw.js' + (v && v.content ? '?v=' + encodeURIComponent(v.content) : '');
+        navigator.serviceWorker.register(swUrl)
             .then(reg => console.log('SW registered, scope:', reg.scope))
             .catch(err => console.warn('SW registration failed:', err));
     }

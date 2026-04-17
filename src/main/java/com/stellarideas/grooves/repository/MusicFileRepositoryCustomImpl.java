@@ -44,16 +44,32 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
         return quotedPatternCache.computeIfAbsent(input, java.util.regex.Pattern::quote);
     }
 
+    /** Projection pushed per file in duplicate groups — avoids $$ROOT memory bloat. */
+    private static Document duplicateFileProjection() {
+        return new Document("_id", "$_id")
+                .append("title", "$title")
+                .append("artist", "$artist")
+                .append("filePath", "$filePath")
+                .append("fileName", "$fileName")
+                .append("format", "$format")
+                .append("fileHash", "$fileHash")
+                .append("genre", "$genre")
+                .append("rating", "$rating")
+                .append("year", "$year")
+                .append("album", "$album")
+                .append("hasCoverArt", "$hasCoverArt")
+                .append("userId", "$userId");
+    }
+
     @Override
     public List<Map<String, Object>> findDuplicatesByUserId(String userId) {
-        // Use raw BSON stages for $toLower which has no clean Spring Data wrapper for group keys
         AggregationOperation groupStage = context -> new Document("$group",
                 new Document("_id", new Document("titleLower", new Document("$toLower", "$title"))
                         .append("artistLower", new Document("$toLower", "$artist")))
                         .append("count", new Document("$sum", 1))
                         .append("title", new Document("$first", "$title"))
                         .append("artist", new Document("$first", "$artist"))
-                        .append("files", new Document("$push", "$$ROOT")));
+                        .append("files", new Document("$push", duplicateFileProjection())));
 
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("userId").is(userId)
@@ -79,37 +95,45 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
                         .append("count", new Document("$sum", 1))
                         .append("title", new Document("$first", "$title"))
                         .append("artist", new Document("$first", "$artist"))
-                        .append("files", new Document("$push", "$$ROOT")));
+                        .append("files", new Document("$push", duplicateFileProjection())));
 
-        // Count total duplicate groups first
-        Aggregation countAgg = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId)
-                        .and("title").ne(null).ne("")
-                        .and("artist").ne(null).ne("")),
-                groupStage,
-                Aggregation.match(Criteria.where("count").gt(1)),
-                Aggregation.count().as("total")
-        );
-        List<Document> countResult = mongoTemplate.aggregate(countAgg, "music_files", Document.class).getMappedResults();
-        long total = countResult.isEmpty() ? 0 : countResult.get(0).getInteger("total", 0);
+        AggregationOperation matchDuplicates = context -> new Document("$match",
+                new Document("count", new Document("$gt", 1)));
 
-        // Fetch the paginated slice
+        // Single $facet pipeline for both count and paginated results
+        AggregationOperation facetStage = context -> new Document("$facet",
+                new Document("metadata", List.of(new Document("$count", "total")))
+                        .append("data", List.of(
+                                new Document("$sort", new Document("count", -1)),
+                                new Document("$skip", skip),
+                                new Document("$limit", limit))));
+
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("userId").is(userId)
                         .and("title").ne(null).ne("")
                         .and("artist").ne(null).ne("")),
                 groupStage,
-                Aggregation.match(Criteria.where("count").gt(1)),
-                Aggregation.sort(org.springframework.data.domain.Sort.Direction.DESC, "count"),
-                Aggregation.skip((long) skip),
-                Aggregation.limit(limit)
+                matchDuplicates,
+                facetStage
         );
 
-        List<Document> results = mongoTemplate.aggregate(
+        List<Document> facetResults = mongoTemplate.aggregate(
                 aggregation, "music_files", Document.class
         ).getMappedResults();
 
-        List<Map<String, Object>> duplicates = mapDuplicateResults(results);
+        long total = 0;
+        List<Document> data = List.of();
+        if (!facetResults.isEmpty()) {
+            Document facet = facetResults.get(0);
+            List<Document> metadata = facet.getList("metadata", Document.class);
+            if (metadata != null && !metadata.isEmpty()) {
+                total = metadata.get(0).getInteger("total", 0);
+            }
+            data = facet.getList("data", Document.class);
+            if (data == null) data = List.of();
+        }
+
+        List<Map<String, Object>> duplicates = mapDuplicateResults(data);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("duplicates", duplicates);
@@ -145,38 +169,46 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
         AggregationOperation groupStage = context -> new Document("$group",
                 new Document("_id", "$fileHash")
                         .append("count", new Document("$sum", 1))
-                        .append("files", new Document("$push", "$$ROOT")));
+                        .append("files", new Document("$push", duplicateFileProjection())));
 
-        // Count total hash-duplicate groups
-        Aggregation countAgg = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId)
-                        .and("deleted").ne(true)
-                        .and("fileHash").ne(null)),
-                groupStage,
-                Aggregation.match(Criteria.where("count").gt(1)),
-                Aggregation.count().as("total")
-        );
-        List<Document> countResult = mongoTemplate.aggregate(countAgg, "music_files", Document.class).getMappedResults();
-        long total = countResult.isEmpty() ? 0 : countResult.get(0).getInteger("total", 0);
+        AggregationOperation matchDuplicates = context -> new Document("$match",
+                new Document("count", new Document("$gt", 1)));
 
-        // Fetch the paginated slice
+        // Single $facet pipeline for both count and paginated results
+        AggregationOperation facetStage = context -> new Document("$facet",
+                new Document("metadata", List.of(new Document("$count", "total")))
+                        .append("data", List.of(
+                                new Document("$sort", new Document("count", -1)),
+                                new Document("$skip", skip),
+                                new Document("$limit", limit))));
+
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("userId").is(userId)
                         .and("deleted").ne(true)
                         .and("fileHash").ne(null)),
                 groupStage,
-                Aggregation.match(Criteria.where("count").gt(1)),
-                Aggregation.sort(org.springframework.data.domain.Sort.Direction.DESC, "count"),
-                Aggregation.skip((long) skip),
-                Aggregation.limit(limit)
+                matchDuplicates,
+                facetStage
         );
 
-        List<Document> results = mongoTemplate.aggregate(
+        List<Document> facetResults = mongoTemplate.aggregate(
                 aggregation, "music_files", Document.class
         ).getMappedResults();
 
+        long total = 0;
+        List<Document> data = List.of();
+        if (!facetResults.isEmpty()) {
+            Document facet = facetResults.get(0);
+            List<Document> metadata = facet.getList("metadata", Document.class);
+            if (metadata != null && !metadata.isEmpty()) {
+                total = metadata.get(0).getInteger("total", 0);
+            }
+            data = facet.getList("data", Document.class);
+            if (data == null) data = List.of();
+        }
+
         List<Map<String, Object>> duplicates = new ArrayList<>();
-        for (Document doc : results) {
+        for (Document doc : data) {
             Map<String, Object> group = new LinkedHashMap<>();
             group.put("fileHash", doc.getString("_id"));
             List<Document> fileDocs = doc.getList("files", Document.class);

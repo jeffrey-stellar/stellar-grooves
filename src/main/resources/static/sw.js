@@ -1,4 +1,5 @@
-const CACHE_NAME = 'stellar-grooves-v1';
+const SW_VERSION = new URL(self.location).searchParams.get('v') || 'dev';
+const CACHE_NAME = 'stellar-grooves-' + SW_VERSION;
 const STATIC_ASSETS = [
   '/offline.html',
   '/css/main.css',

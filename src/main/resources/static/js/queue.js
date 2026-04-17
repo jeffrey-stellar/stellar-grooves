@@ -9,7 +9,7 @@ function saveQueue() {
     try {
         const minimal = SG.queue.map(f => ({ id: f.id, title: f.title, artist: f.artist, hasCoverArt: f.hasCoverArt }));
         localStorage.setItem('sg-queue', JSON.stringify(minimal));
-    } catch (e) {}
+    } catch (e) { console.warn('Failed to save queue to localStorage:', e); }
     clearTimeout(_queueSaveTimer);
     _queueSaveTimer = setTimeout(syncQueueToServer, 2000);
 }
@@ -26,7 +26,7 @@ async function syncQueueToServer() {
                 shuffle: !!window._shuffleEnabled
             })
         });
-    } catch (e) {}
+    } catch (e) { console.warn('Failed to sync queue to server:', e); }
 }
 
 SG.addToQueue = function(file) {
@@ -64,16 +64,16 @@ SG.loadSavedQueue = async function() {
                 if (SG.queue.length > 0) { SG.renderQueue(); return; }
             }
         }
-    } catch (e) {}
+    } catch (e) { console.warn('Failed to load queue from server:', e); }
     try {
         const saved = localStorage.getItem('sg-queue');
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed) && parsed.length > 0) { SG.queue = parsed; SG.renderQueue(); } }
-    } catch (e) {}
+    } catch (e) { console.warn('Failed to load queue from localStorage:', e); }
 };
 
 document.getElementById('clearQueueBtn').addEventListener('click', async () => {
     SG.queue = []; SG.renderQueue();
-    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: SG.csrfHeaders() }); } catch (e) {}
+    try { await fetch('/api/v1/library/queue', { method: 'DELETE', headers: SG.csrfHeaders() }); } catch (e) { console.warn('Failed to clear queue on server:', e); }
 });
 
 })();

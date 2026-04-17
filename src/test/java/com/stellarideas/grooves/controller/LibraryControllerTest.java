@@ -484,15 +484,20 @@ class LibraryControllerTest {
     // ---- trash endpoints ----
 
     @Test
+    @SuppressWarnings("unchecked")
     void getTrashSuccess() {
-        List<MusicFileDTO> trashFiles = List.of(MusicFileDTO.from(
-                MusicFile.builder().id("f1").title("Trashed").deleted(true).build()));
-        when(libraryService.getTrash("user1")).thenReturn(trashFiles);
+        MusicFileDTO dto = MusicFileDTO.from(
+                MusicFile.builder().id("f1").title("Trashed").deleted(true).build());
+        Page<MusicFileDTO> trashPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(dto), org.springframework.data.domain.PageRequest.of(0, 50), 1);
+        when(libraryService.getTrash("user1", 0, 50)).thenReturn(trashPage);
 
-        ResponseEntity<?> response = controller.getTrash(testUser);
+        ResponseEntity<?> response = controller.getTrash(testUser, 0, 50);
 
         assertEquals(200, response.getStatusCode().value());
-        assertEquals(trashFiles, response.getBody());
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals(1L, body.get("totalElements"));
     }
 
     @Test
@@ -764,6 +769,8 @@ class LibraryControllerTest {
     @Test
     void saveQueueCreatesNew() {
         when(playbackQueueRepository.findByUserId("user1")).thenReturn(Optional.empty());
+        when(libraryService.findOwnedTrackIds(List.of("t1", "t2", "t3"), "user1"))
+                .thenReturn(java.util.Set.of("t1", "t2", "t3"));
 
         PlaybackQueueDTO dto = new PlaybackQueueDTO();
         dto.setTrackIds(List.of("t1", "t2", "t3"));
@@ -788,6 +795,8 @@ class LibraryControllerTest {
         existing.setUserId("user1");
         existing.setTrackIds(List.of("old1"));
         when(playbackQueueRepository.findByUserId("user1")).thenReturn(Optional.of(existing));
+        when(libraryService.findOwnedTrackIds(List.of("new1", "new2"), "user1"))
+                .thenReturn(java.util.Set.of("new1", "new2"));
 
         PlaybackQueueDTO dto = new PlaybackQueueDTO();
         dto.setTrackIds(List.of("new1", "new2"));

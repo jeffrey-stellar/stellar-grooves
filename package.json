@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "copy-vendor": "cp node_modules/bootstrap/dist/css/bootstrap.min.css src/main/resources/static/vendor/bootstrap/css/ && cp node_modules/bootstrap/dist/css/bootstrap.min.css.map src/main/resources/static/vendor/bootstrap/css/ && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js src/main/resources/static/vendor/bootstrap/js/ && cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js.map src/main/resources/static/vendor/bootstrap/js/ && cp node_modules/sockjs-client/dist/sockjs.min.js src/main/resources/static/vendor/sockjs/ && cp node_modules/@stomp/stompjs/bundles/stomp.umd.min.js src/main/resources/static/vendor/stomp/",
-    "postinstall": "npm run copy-vendor"
+    "postinstall": "npm run copy-vendor",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -23,5 +25,9 @@
     "@stomp/stompjs": "^7.3.0",
     "bootstrap": "^5.3.8",
     "sockjs-client": "^1.6.1"
+  },
+  "devDependencies": {
+    "jsdom": "^29.0.2",
+    "vitest": "^4.1.4"
   }
 }

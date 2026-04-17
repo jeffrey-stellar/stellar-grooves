@@ -37,6 +37,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${stellar.grooves.rateLimit.windowMs:60000}")
     private long windowMs;
 
+    @Value("${stellar.grooves.rateLimit.login.maxRequests:5}")
+    private int loginMaxRequests;
+
+    @Value("${stellar.grooves.rateLimit.login.windowMs:60000}")
+    private long loginWindowMs;
+
     @Value("${stellar.grooves.rateLimit.shared.maxRequests:5}")
     private int sharedMaxRequests;
 
@@ -72,11 +78,25 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String ip = getClientIp(request);
         String path = request.getRequestURI();
         boolean isShared = path.startsWith("/api/v1/shared/");
+        boolean isLogin = path.equals("/api/v1/auth/signin") || path.equals("/api/v1/auth/signup");
 
-        // Use separate bucket keys so auth and shared limits are independent
-        String bucketKey = isShared ? "shared:" + ip : "auth:" + ip;
-        int limit = isShared ? sharedMaxRequests : maxRequests;
-        long window = isShared ? sharedWindowMs : windowMs;
+        // Use separate bucket keys so auth, login, and shared limits are independent
+        String bucketKey;
+        int limit;
+        long window;
+        if (isShared) {
+            bucketKey = "shared:" + ip;
+            limit = sharedMaxRequests;
+            window = sharedWindowMs;
+        } else if (isLogin) {
+            bucketKey = "login:" + ip;
+            limit = loginMaxRequests;
+            window = loginWindowMs;
+        } else {
+            bucketKey = "auth:" + ip;
+            limit = maxRequests;
+            window = windowMs;
+        }
 
         int count = store.incrementAndGet(bucketKey, window);
 

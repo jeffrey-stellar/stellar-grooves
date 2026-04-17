@@ -37,6 +37,17 @@
                 <totalSizeCap>2GB</totalSizeCap>
             </rollingPolicy>
         </appender>
+
+        <!-- Structured JSON console output for centralized log aggregation (ELK/Loki) -->
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>correlationId</includeMdcKeyName>
+                <fieldNames>
+                    <timestamp>@timestamp</timestamp>
+                    <version>[ignore]</version>
+                </fieldNames>
+            </encoder>
+        </appender>
     </springProfile>
 
     <!-- Audit logger — routed to its own file, not mixed with app logs -->
@@ -65,10 +76,18 @@
         </root>
     </springProfile>
 
-    <!-- Prod: console + file -->
-    <springProfile name="prod">
+    <!-- Prod with human-readable console (default) -->
+    <springProfile name="prod & !json-logging">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- Prod with structured JSON console (activate with: SPRING_PROFILES_ACTIVE=prod,json-logging) -->
+    <springProfile name="json-logging">
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
             <appender-ref ref="APP_FILE"/>
         </root>
     </springProfile>

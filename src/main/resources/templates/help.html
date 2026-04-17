@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" th:href="@{/images/icon-192.png}">
     <link rel="manifest" th:href="@{/manifest.json}">
     <link rel="stylesheet" th:href="@{/vendor/bootstrap/css/bootstrap.min.css}">
-    <link rel="stylesheet" th:href="@{/css/main.css}">
+    <link rel="stylesheet" th:href="@{/css/main.css(v=${appVersion})}">
     <style>
         .help-wrapper {
             max-width: 900px;
@@ -467,6 +467,6 @@
 
     </div>
 
-    <script th:src="@{/js/theme.js}"></script>
+    <script th:src="@{/js/theme.js(v=${appVersion})}"></script>
 </body>
 </html>

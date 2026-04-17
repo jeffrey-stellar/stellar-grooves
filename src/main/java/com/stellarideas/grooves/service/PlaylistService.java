@@ -58,16 +58,25 @@ public class PlaylistService {
         playlistRepository.save(playlist);
     }
 
-    public List<MusicFileDTO> getPlaylistTracks(Playlist playlist, String userId) {
+    public Map<String, Object> getPlaylistTracks(Playlist playlist, String userId) {
         List<String> trackIds = playlist.getTrackIds();
-        if (trackIds.isEmpty()) return List.of();
+        if (trackIds.isEmpty()) {
+            return Map.of("tracks", List.of(), "missingTracks", List.of());
+        }
         Map<String, MusicFile> byId = musicFileRepository.findByIdInAndUserId(trackIds, userId).stream()
                 .collect(Collectors.toMap(MusicFile::getId, f -> f));
-        return trackIds.stream()
+        List<MusicFileDTO> tracks = trackIds.stream()
                 .filter(byId::containsKey)
                 .map(byId::get)
                 .map(MusicFileDTO::from)
                 .collect(Collectors.toList());
+        List<String> missingTracks = trackIds.stream()
+                .filter(id -> !byId.containsKey(id))
+                .collect(Collectors.toList());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("tracks", tracks);
+        result.put("missingTracks", missingTracks);
+        return result;
     }
 
     public boolean reorderTracks(Playlist playlist, List<String> newOrder) {

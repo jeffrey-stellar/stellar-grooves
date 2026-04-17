@@ -16,7 +16,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Duplicate detection & resolution** — skips files already imported by both file path and metadata (title + artist); paginated duplicates view to compare and delete duplicate tracks; optional file-hash–based duplicate detection to find exact copies regardless of metadata differences
 - **In-browser playback** — persistent audio player bar with play/pause, seek, volume, shuffle, and album art display; HTTP Range support for seeking in large files; auto-advances to next track
 - **Crossfade & gapless playback** — toggle crossfade (3-second fade between tracks) for seamless listening; uses dual audio elements for smooth transitions
-- **Queue management** — add tracks to an "Up Next" queue; queue drains before sequential/shuffle playback resumes; clear queue with one click; queue persists to MongoDB across sessions and devices (falls back to localStorage); real-time sync across tabs/devices via WebSocket (STOMP over SockJS)
+- **Queue management** — add tracks to an "Up Next" queue; queue drains before sequential/shuffle playback resumes; clear queue with one click; queue persists to MongoDB across sessions and devices (falls back to localStorage); track ownership validated on save; real-time sync across tabs/devices via WebSocket (STOMP over SockJS)
 - **Media Session integration** — lock screen and notification controls (play/pause/skip/seek) with track metadata and album art on mobile and desktop; syncs playback position for OS-level progress bars
 - **Keyboard shortcuts** — Space to play/pause, left/right arrows to seek, up/down for volume (active when player is visible and no input is focused)
 - **Audio transcoding** — on-the-fly FLAC/M4A to MP3 conversion via ffmpeg; request `?format=mp3` on the transcode endpoint; gracefully degrades if ffmpeg is not installed
@@ -28,13 +28,13 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Library export** — download full library metadata as JSON or CSV for backup
 - **Backup & restore** — full library backup (tracks, playlists, ratings, genre corrections, file hashes) as a single portable JSON file; restore on any instance to recreate your library metadata and playlists
 - **Library statistics** — genre distribution, top 10 artists, decade distribution, and average rating via MongoDB aggregation
-- **Soft delete / trash** — deleted tracks go to a 30-day trash instead of being permanently removed; restore or permanently delete from trash
+- **Soft delete / trash** — deleted tracks go to a 30-day trash instead of being permanently removed; restore or permanently delete from trash; paginated trash listing
 - **Advanced filtering** — simultaneous artist, album, and genre dropdown filters alongside full-text search; all filters combine with AND logic
 - **Browse views** — drill-down by artist, album, and genre; album grid view with cover art thumbnails (toggleable to list view); sortable columns including rating and decade
 - **Bulk operations** — checkbox selection with select-all toggle; bulk delete and bulk add-to-playlist
 - **User ratings** — 5-star rating widget on each track; sortable by rating
 - **Inline genre editing** — reclassify any track tagged as "Other" directly from the library table
-- **Virtual scrolling** — DOM virtualization for libraries with 10,000+ tracks; only visible rows are rendered
+- **Virtual scrolling** — DOM virtualization kicks in at 250+ tracks; only visible rows are rendered, supporting libraries with 10,000+ tracks
 
 ### Administration & Security
 - **Multi-user** — per-user libraries with session-based (form login) and JWT authentication; 15-minute access tokens with 7-day refresh tokens; 30-minute idle session timeout (configurable via `SESSION_TIMEOUT`)
@@ -47,23 +47,24 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Request body size limits** — Tomcat max post size, max header size, and multipart limits configured to prevent oversized payloads
 - **Optimistic locking** — playlists use `@Version`-based optimistic locking to prevent lost updates from concurrent modifications; conflicts return 409 with a retry prompt
 - **Per-user scan locking** — only one scan can run per user at a time; concurrent scan attempts are rejected, preventing cover art quota race conditions
-- **Security** — CSRF protection (HttpOnly cookies with meta-tag delivery), rate limiting on auth and scan endpoints (with proxy-aware IP detection, trusted proxy validation, and `Retry-After` header), configurable CORS origins (explicit origins, not patterns), path traversal prevention on scan and stream endpoints, symlink detection, server-side input validation with typed DTOs, Content Security Policy headers (no `unsafe-inline` for scripts), Permissions-Policy header (disables geolocation, microphone, camera, payment, USB), password complexity requirements (enforced on both signup and password reset), case-insensitive username normalization (prevents `User`/`user` duplicates), JWT with `jti`/`iss` claims and full role propagation on token refresh, token blacklisting on logout, regex search query timeout (5s) and length limit (200 chars)
+- **Security** — CSRF protection (HttpOnly cookies with meta-tag delivery), rate limiting on auth and scan endpoints (with proxy-aware IP detection, trusted proxy validation, and `Retry-After` header), stricter IP-based rate limiting on login/signup endpoints (separate bucket, default 5 req/min), configurable CORS origins (explicit origins, not patterns), path traversal prevention on scan and stream endpoints, symlink detection, server-side input validation with typed DTOs and `@Size`/`@Pattern` constraints on search and scan parameters, Content Security Policy headers (no `unsafe-inline` for scripts), Permissions-Policy header (disables geolocation, microphone, camera, payment, USB), password complexity requirements (enforced on both signup and password reset), case-insensitive username normalization (prevents `User`/`user` duplicates), JWT with `jti`/`iss` claims and full role propagation on token refresh, token blacklisting on both logout and refresh, regex search query timeout (5s) and length limit (200 chars)
 - **RFC 7807 error responses** — all API error responses follow the Problem Details standard (`type`, `title`, `status`, `detail`) with backwards-compatible `error` property
 - **Audit logging** — dedicated `AUDIT` logger routed to a separate `logs/audit.log` file with 90-day retention; structured MDC context tracks all security-sensitive operations: logins, signups, password resets, file deletions, genre changes, playlist modifications, and admin actions
 - **API documentation** — interactive Swagger UI at `/swagger-ui.html` with OpenAPI 3.0 spec at `/api-docs`; JWT bearer auth support; disabled in production profile
 - **API versioning** — all REST endpoints under `/api/v1/` for forward compatibility
-- **Structured logging** — correlation IDs on every request (`X-Correlation-Id` header), MDC-based log pattern for request tracing
+- **Structured logging** — correlation IDs on every request (`X-Correlation-Id` header), MDC-based log pattern for request tracing; optional JSON log output for production via Logstash encoder (activate with `json-logging` profile); client-side correlation IDs automatically sent in fetch headers for end-to-end tracing
 - **Prometheus metrics** — `/actuator/prometheus` endpoint exposes application metrics (request counts, latencies, JVM stats) for Prometheus scraping; `/actuator/metrics` for JSON metric queries
 - **Health check** — `/actuator/health` endpoint for monitoring; health details (including MongoDB connectivity) are only visible to authenticated users (`show-details=when-authorized`)
 
 ### UI & Accessibility
-- **Progressive Web App (PWA)** — installable on desktop and mobile via "Add to Home Screen"; service worker caches static assets for instant loading; offline fallback page when the network is unavailable; web app manifest with themed icons
+- **Progressive Web App (PWA)** — installable on desktop and mobile via "Add to Home Screen"; service worker caches static assets for instant loading with build-version-aware cache invalidation; offline fallback page when the network is unavailable; web app manifest with themed icons; cache-busted CSS/JS includes via version query parameters
 - **Jukebox theme** — retro dark UI with neon glow effects, chrome accents, wood grain textures, and "Righteous" display typography
 - **Light mode** — full light theme with manual toggle (sun/moon button in navbar); respects `prefers-color-scheme` media query; preference saved to localStorage
 - **Loading states** — spinner feedback on genre changes, rating updates, bulk delete, add-to-playlist, and search operations
 - **Toast notifications** — non-intrusive error and success toasts for all async operations (genre changes, rating updates, deletions, playlist actions, search failures)
 - **Album art** — embedded cover art extracted during scan, displayed in the player bar, album grid view, and available via API
-- **Accessibility** — ARIA labels on all interactive elements, `aria-sort` on sortable columns, `aria-pressed` on toggle buttons, `aria-live` regions for status updates and toast notifications, `aria-hidden` on decorative elements (equalizer canvas), `:focus-visible` outlines for keyboard navigation, keyboard-navigable sort headers, `prefers-reduced-motion` support
+- **Accessibility** — ARIA labels on all interactive elements, `aria-sort` on sortable columns, `aria-pressed` on toggle buttons, `aria-live` regions for status updates and toast notifications, `aria-hidden` on decorative elements (equalizer canvas), `role="group"` on star rating widget, `role="button"` with keyboard handlers on drill-down rows and jukebox side items, modal focus management (auto-focus first element on open), `:focus-visible` outlines for keyboard navigation, keyboard-navigable sort headers, `prefers-reduced-motion` support
+- **Performance monitoring** — Web Vitals reporting (LCP, FID, CLS) via PerformanceObserver API; virtual scrolling for libraries with 250+ tracks
 - **Responsive design** — mobile-first layout with Bootstrap 5.3; columns hide on small screens; track action buttons visible on touch devices (no hover required)
 
 ---
@@ -134,13 +135,13 @@ The app starts at **http://localhost:8080**.
 The fastest way to get started — requires only Docker:
 
 ```bash
-docker compose up --build
+JWT_SECRET=$(openssl rand -base64 64) docker compose up --build
 ```
 
-This starts the app and MongoDB together. Set `MUSIC_DIR` to mount your music library:
+`JWT_SECRET` is **required** — Docker Compose will fail immediately if it is not set. This starts the app and MongoDB together with hardened container security (`no-new-privileges`, dropped capabilities, read-only root filesystem). Set `MUSIC_DIR` to mount your music library:
 
 ```bash
-MUSIC_DIR=/path/to/your/music docker compose up --build
+JWT_SECRET=$JWT_SECRET MUSIC_DIR=/path/to/your/music docker compose up --build
 ```
 
 To enable Redis-backed distributed rate limiting, uncomment the `redis` service in `docker-compose.yml`.
@@ -155,12 +156,17 @@ JWT_SECRET=$JWT_SECRET java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar --spr
 ### Run tests
 
 ```bash
+# Backend (Java)
 mvn test                    # Unit tests only
 mvn verify                  # Unit tests + JaCoCo coverage check + OWASP dependency check
 mvn test -Dtest='*IT'       # Integration tests only (requires Docker for Testcontainers)
+
+# Frontend (JavaScript)
+npm test                    # Vitest unit tests (helpers, filtering, crossfade, virtual scroll)
+npm run test:watch          # Vitest in watch mode
 ```
 
-Unit tests generate a JaCoCo coverage report at `target/site/jacoco/index.html`.
+Backend tests generate a JaCoCo coverage report at `target/site/jacoco/index.html`.
 
 ### Check code formatting
 
@@ -193,8 +199,10 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.cors.allowedOrigins` | `CORS_ALLOWED_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | Comma-separated CORS origin patterns |
 | `stellar.grooves.login.maxFailedAttempts` | `LOGIN_MAX_FAILED_ATTEMPTS` | `5` | Failed login attempts before account lockout |
 | `stellar.grooves.login.lockoutDurationMinutes` | `LOGIN_LOCKOUT_MINUTES` | `15` | Minutes before a locked account auto-unlocks |
-| `stellar.grooves.rateLimit.maxRequests` | — | `10` | Max auth requests per IP per window |
-| `stellar.grooves.rateLimit.windowMs` | — | `60000` (1 min) | Rate limit window in milliseconds |
+| `stellar.grooves.rateLimit.maxRequests` | — | `10` | Max general auth requests per IP per window |
+| `stellar.grooves.rateLimit.windowMs` | — | `60000` (1 min) | General auth rate limit window in milliseconds |
+| `stellar.grooves.rateLimit.login.maxRequests` | — | `5` | Max login/signup requests per IP per window |
+| `stellar.grooves.rateLimit.login.windowMs` | — | `60000` (1 min) | Login/signup rate limit window in milliseconds |
 | `stellar.grooves.rateLimit.trustProxy` | `RATE_LIMIT_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` header for client IP detection |
 | `stellar.grooves.rateLimit.trustedProxies` | `RATE_LIMIT_TRUSTED_PROXIES` | *(empty)* | Comma-separated proxy IPs allowed to set `X-Forwarded-For` (required when `trustProxy=true`; empty list disables proxy trust even if `trustProxy=true`) |
 | `server.servlet.session.timeout` | `SESSION_TIMEOUT` | `30m` | Idle session timeout |
@@ -240,6 +248,7 @@ When `EMAIL_VERIFICATION_REQUIRED=true`, new users receive a verification email 
 |---------|--------------|-------------|
 | `dev` | `--spring.profiles.active=dev` | Debug logging, Thymeleaf cache disabled, CORS allows `localhost:8080`, Swagger enabled |
 | `prod` | `--spring.profiles.active=prod` | INFO logging, requires `CORS_ALLOWED_ORIGINS` env var, trusts proxy headers from configured IPs, Swagger disabled, audit + app logs written to files |
+| `json-logging` | `--spring.profiles.active=prod,json-logging` | Structured JSON console output via Logstash encoder; use with `prod` for centralized log aggregation (ELK, Grafana Loki) |
 
 When no profile is active, the base `application.properties` defaults apply.
 
@@ -253,6 +262,11 @@ RATE_LIMIT_TRUST_PROXY=true \
 RATE_LIMIT_TRUSTED_PROXIES=127.0.0.1,::1 \
 ADMIN_PASSWORD=changeme \
 java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+```
+
+**Example — production with structured JSON logs (for ELK/Loki):**
+```bash
+java -jar target/stellar-grooves-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod,json-logging
 ```
 
 > **Security note:** `JWT_SECRET` is required. Generate a strong Base64-encoded key (minimum 32 bytes decoded) with `openssl rand -base64 64`.
@@ -355,7 +369,7 @@ All endpoints under `/api/v1/library/*`, `/api/v1/playlists/*`, and `/api/v1/adm
 
 Session-authenticated requests (form login) must include the CSRF token header for any mutating request (POST, PUT, PATCH, DELETE). The token is available from `<meta name="_csrf">` tags in Thymeleaf pages, or from the HttpOnly `XSRF-TOKEN` cookie for non-browser clients.
 
-Auth endpoints are rate-limited to 10 requests per minute per IP by default. Scan endpoints have a per-user cooldown (default 60s). Rate-limited responses include a `Retry-After` header.
+Login/signup endpoints are rate-limited to 5 requests per minute per IP. Other auth endpoints are limited to 10 per minute. Scan endpoints have a per-user cooldown (default 60s). Rate-limited responses include a `Retry-After` header.
 
 All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org/rfc/rfc7807) format with `type`, `title`, `status`, `detail`, and an `error` property for backwards compatibility.
 
@@ -365,7 +379,7 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 |--------|----------|------|-------------|
 | `POST` | `/api/v1/auth/signup` | `{ "username", "email", "password" }` | Register a new user (password: min 8 chars, requires upper + lower + digit) |
 | `POST` | `/api/v1/auth/signin` | `{ "username", "password" }` | Log in; returns `{ token, refreshToken, username }`; returns 401 for invalid credentials or locked accounts (uniform response to prevent enumeration) |
-| `POST` | `/api/v1/auth/refresh` | `{ "refreshToken": "..." }` | Exchange a valid refresh token for a new access token + refresh token |
+| `POST` | `/api/v1/auth/refresh` | `{ "refreshToken": "..." }` | Exchange a valid refresh token for a new access token + refresh token; blacklists the old JWT |
 | `POST` | `/api/v1/auth/logout` | — | Blacklist the current JWT and delete refresh tokens (requires `Authorization: Bearer` header) |
 | `POST` | `/api/v1/auth/password-reset/request` | `{ "email": "..." }` | Request a password reset token (always returns 200 to prevent enumeration; token logged at INFO) |
 | `POST` | `/api/v1/auth/password-reset/execute` | `{ "token": "...", "newPassword": "..." }` | Reset password using a valid one-time token (15-min expiry); same complexity requirements as signup |
@@ -390,7 +404,7 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 | `GET` | `/api/v1/library/duplicates/by-hash` | — | Get duplicate track groups by file hash (paginated); `?page=0&size=50` |
 | `DELETE` | `/api/v1/library/files/{id}` | — | Soft-delete a single track (moves to trash) |
 | `DELETE` | `/api/v1/library/files` | — | Clear the current user's entire library |
-| `GET` | `/api/v1/library/trash` | — | List tracks in trash |
+| `GET` | `/api/v1/library/trash` | — | List tracks in trash (paginated); `?page=0&size=50` |
 | `POST` | `/api/v1/library/trash/{id}/restore` | — | Restore a trashed track |
 | `DELETE` | `/api/v1/library/trash/{id}` | — | Permanently delete a trashed track |
 | `DELETE` | `/api/v1/library/trash` | — | Empty trash (permanently delete all trashed tracks) |
@@ -413,7 +427,7 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 | `GET` | `/api/v1/playlists` | — | List all playlists with track counts |
 | `POST` | `/api/v1/playlists` | `{ "name": "My Playlist" }` | Create a new playlist (max 80 chars) |
 | `DELETE` | `/api/v1/playlists/{id}` | — | Delete a playlist |
-| `GET` | `/api/v1/playlists/{id}/tracks` | — | Get tracks in playlist order |
+| `GET` | `/api/v1/playlists/{id}/tracks` | — | Get tracks in playlist order; response includes `missingTracks` array of IDs for deleted tracks |
 | `POST` | `/api/v1/playlists/{id}/tracks` | `{ "fileId": "..." }` | Add a track to a playlist |
 | `DELETE` | `/api/v1/playlists/{id}/tracks/{fileId}` | — | Remove a track from a playlist |
 | `PUT` | `/api/v1/playlists/{id}/tracks/reorder` | `{ "trackIds": ["id1","id2",...] }` | Reorder playlist tracks (IDs must match) |
@@ -551,6 +565,7 @@ src/main/resources/
 │   │   └── components.css               # UI component styles (player, cards, buttons)
 │   ├── js/
 │   │   ├── app.js                       # Main application (library, search, filters, bulk ops)
+│   │   ├── helpers.js                   # Pure utility functions (testable module: text, escapeHtml, formatTime, crossfade, filtering, virtual scroll)
 │   │   ├── player.js                    # Audio playback engine (crossfade, seek, shuffle)
 │   │   ├── queue.js                     # Playback queue (WebSocket sync, localStorage fallback)
 │   │   ├── scan.js                      # Directory scanning (SSE progress, cooldown timer)
@@ -569,13 +584,17 @@ src/main/resources/
     ├── login.html                       # Login page
     └── signup.html                      # Registration page
 
-package.json                             # Frontend vendor dependency management
+src/test/js/
+└── helpers.test.js                      # Vitest frontend unit tests (60 tests)
+
+package.json                             # Frontend vendor dependency management + test scripts
+vitest.config.js                         # Vitest configuration (jsdom environment)
 Dockerfile                               # Multi-stage build (JDK build + JRE runtime, non-root user)
 docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**436 tests** across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**494 tests** (434 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
 
 ---
 
@@ -595,8 +614,9 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers (436 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (494 tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
+| Observability | Logstash encoder (structured JSON logs) + correlation IDs + Web Vitals |
 
 ---
 

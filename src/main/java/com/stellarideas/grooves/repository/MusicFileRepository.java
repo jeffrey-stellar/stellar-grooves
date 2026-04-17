@@ -35,6 +35,7 @@ public interface MusicFileRepository extends MongoRepository<MusicFile, String>,
     Optional<MusicFile> findByIdAndUserId(String id, String userId);
 
     List<MusicFile> findByUserIdAndDeletedTrue(String userId);
+    Page<MusicFile> findByUserIdAndDeletedTrue(String userId, Pageable pageable);
 
     @org.springframework.data.mongodb.repository.Meta(maxExecutionTimeMs = 5000)
     @Query("{ 'userId': ?0, 'deleted': false, '$or': [ " +

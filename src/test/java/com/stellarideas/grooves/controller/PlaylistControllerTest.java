@@ -157,7 +157,8 @@ class PlaylistControllerTest {
         dto1.setId("f1");
         MusicFileDTO dto2 = new MusicFileDTO();
         dto2.setId("f2");
-        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(List.of(dto1, dto2));
+        when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(
+                Map.of("tracks", List.of(dto1, dto2), "missingTracks", List.of()));
 
         ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1");
 

@@ -23,6 +23,8 @@ class RateLimitFilterTest {
         filter = new RateLimitFilter(new InMemoryRateLimitStore(), new SimpleMeterRegistry());
         ReflectionTestUtils.setField(filter, "maxRequests", 3);
         ReflectionTestUtils.setField(filter, "windowMs", 60000L);
+        ReflectionTestUtils.setField(filter, "loginMaxRequests", 3);
+        ReflectionTestUtils.setField(filter, "loginWindowMs", 60000L);
         ReflectionTestUtils.setField(filter, "sharedMaxRequests", 2);
         ReflectionTestUtils.setField(filter, "sharedWindowMs", 60000L);
         ReflectionTestUtils.setField(filter, "trustProxy", false);

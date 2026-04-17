@@ -14,6 +14,7 @@ import com.stellarideas.grooves.service.ScanProgressEmitter;
 import com.stellarideas.grooves.service.ScanRateLimiter;
 import com.stellarideas.grooves.service.UserRateLimiter;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/library")
 @Tag(name = "Library", description = "Music library scanning, file management, search, streaming, export, and playback queue")
+@org.springframework.validation.annotation.Validated
 public class LibraryController {
 
     private static final Logger logger = LoggerFactory.getLogger(LibraryController.class);
@@ -154,11 +156,11 @@ public class LibraryController {
     @GetMapping("/search")
     public ResponseEntity<?> searchFiles(
             @CurrentUser User user,
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false) String genre,
-            @RequestParam(required = false) String artist,
-            @RequestParam(required = false) String year,
-            @RequestParam(required = false) String format,
+            @RequestParam(required = false) @Size(max = 200) String q,
+            @RequestParam(required = false) @Size(max = 50) String genre,
+            @RequestParam(required = false) @Size(max = 100) String artist,
+            @RequestParam(required = false) @Size(max = 4) String year,
+            @RequestParam(required = false) @Size(max = 10) String format,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         boolean hasQuery = q != null && !q.isBlank();
@@ -497,8 +499,17 @@ public class LibraryController {
     // --- Trash endpoints ---
 
     @GetMapping("/trash")
-    public ResponseEntity<?> getTrash(@CurrentUser User user) {
-        return ResponseEntity.ok(libraryService.getTrash(user.getId()));
+    public ResponseEntity<?> getTrash(@CurrentUser User user,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "50") int size) {
+        Page<MusicFileDTO> result = libraryService.getTrash(user.getId(), page, size);
+        return ResponseEntity.ok(Map.of(
+                "content", result.getContent(),
+                "page", result.getNumber(),
+                "size", result.getSize(),
+                "totalElements", result.getTotalElements(),
+                "totalPages", result.getTotalPages()
+        ));
     }
 
     @PostMapping("/trash/{id}/restore")
@@ -701,6 +712,11 @@ public class LibraryController {
                     .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST,
                             "Queue cannot exceed " + maxQueueTracks + " tracks"));
         }
+        // Validate that all track IDs belong to the requesting user
+        if (!trackIds.isEmpty()) {
+            Set<String> ownedIds = libraryService.findOwnedTrackIds(trackIds, user.getId());
+            trackIds = trackIds.stream().filter(ownedIds::contains).collect(Collectors.toList());
+        }
         PlaybackQueue queue = playbackQueueRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     PlaybackQueue q = new PlaybackQueue();
@@ -708,7 +724,11 @@ public class LibraryController {
                     return q;
                 });
         queue.setTrackIds(trackIds);
-        queue.setCurrentTrackId(dto.getCurrentTrackId());
+        String currentTrackId = dto.getCurrentTrackId();
+        if (currentTrackId != null && !trackIds.contains(currentTrackId)) {
+            currentTrackId = null;
+        }
+        queue.setCurrentTrackId(currentTrackId);
         queue.setShuffle(dto.isShuffle());
         playbackQueueRepository.save(queue);
         return ResponseEntity.ok(Map.of("message", "Queue saved"));

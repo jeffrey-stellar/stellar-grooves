@@ -1,6 +1,8 @@
 package com.stellarideas.grooves.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -49,6 +51,8 @@ public class MusicFile {
 
     private String fileHash; // SHA-256 of file content
 
+    @Min(value = 0, message = "Rating must be between 0 and 5")
+    @Max(value = 5, message = "Rating must be between 0 and 5")
     private int rating; // 0-5, 0 = unrated
 
     private boolean hasCoverArt;

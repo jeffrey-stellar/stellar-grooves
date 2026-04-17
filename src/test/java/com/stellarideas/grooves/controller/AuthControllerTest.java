@@ -29,6 +29,7 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -227,7 +228,7 @@ class AuthControllerTest {
         RefreshTokenRequest request = new RefreshTokenRequest();
         request.setRefreshToken(rt.getToken());
 
-        ResponseEntity<?> response = controller.refreshToken(request);
+        ResponseEntity<?> response = controller.refreshToken(request, new MockHttpServletRequest());
 
         assertEquals(200, response.getStatusCode().value());
         verify(refreshTokenRepository).delete(rt);
@@ -245,7 +246,7 @@ class AuthControllerTest {
         RefreshTokenRequest request = new RefreshTokenRequest();
         request.setRefreshToken("expired-token");
 
-        ResponseEntity<?> response = controller.refreshToken(request);
+        ResponseEntity<?> response = controller.refreshToken(request, new MockHttpServletRequest());
 
         assertEquals(401, response.getStatusCode().value());
     }
@@ -257,7 +258,7 @@ class AuthControllerTest {
         RefreshTokenRequest request = new RefreshTokenRequest();
         request.setRefreshToken("unknown");
 
-        ResponseEntity<?> response = controller.refreshToken(request);
+        ResponseEntity<?> response = controller.refreshToken(request, new MockHttpServletRequest());
 
         assertEquals(401, response.getStatusCode().value());
     }

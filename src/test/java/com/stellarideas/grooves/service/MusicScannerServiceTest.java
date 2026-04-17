@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import org.junit.jupiter.api.AfterEach;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -58,6 +60,12 @@ class MusicScannerServiceTest {
 
         when(repository.findByUserId("user1")).thenReturn(List.of());
         when(catalogService.identifyGenres(any())).thenReturn(Set.of(Genre.OTHER));
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Shut down the executor so file handles are released before @TempDir cleanup (Windows)
+        scannerService.destroy();
     }
 
     @Test

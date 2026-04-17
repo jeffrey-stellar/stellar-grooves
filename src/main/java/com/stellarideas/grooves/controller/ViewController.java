@@ -10,9 +10,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class ViewController {
 
+    @org.springframework.beans.factory.annotation.Value("${app.version:dev}")
+    private String appVersion;
+
     @GetMapping("/")
     public String index(@CurrentUser User user, Model model) {
         model.addAttribute("userId", user.getId());
+        model.addAttribute("appVersion", appVersion);
         return "index";
     }
 
@@ -27,13 +31,15 @@ public class ViewController {
     }
 
     @GetMapping("/help")
-    public String help() {
+    public String help(Model model) {
+        model.addAttribute("appVersion", appVersion);
         return "help";
     }
 
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    public String admin() {
+    public String admin(Model model) {
+        model.addAttribute("appVersion", appVersion);
         return "admin";
     }
 }

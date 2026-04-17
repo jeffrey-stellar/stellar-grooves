@@ -187,7 +187,8 @@ public class AuthController {
 
     @Operation(summary = "Refresh token", description = "Exchange a refresh token for a new JWT and refresh token pair")
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request,
+                                          HttpServletRequest httpRequest) {
         return refreshTokenRepository.findByToken(request.getRefreshToken())
                 .filter(rt -> rt.getExpiresAt().isAfter(Instant.now()))
                 .map(rt -> {
@@ -198,6 +199,9 @@ public class AuthController {
                         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                 .body((Object) GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired"));
                     }
+
+                    // Blacklist the old JWT so it can't be reused
+                    blacklistCurrentJwt(httpRequest, user.getUsername());
 
                     // Generate new JWT with the user's actual roles
                     com.stellarideas.grooves.security.UserDetailsImpl principal =
@@ -219,6 +223,22 @@ public class AuthController {
                 })
                 .orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(GlobalExceptionHandler.problem(HttpStatus.UNAUTHORIZED, "Refresh token not found or expired")));
+    }
+
+    /**
+     * Blacklist the JWT from the current request's Authorization header, if present and valid.
+     */
+    private void blacklistCurrentJwt(HttpServletRequest request, String username) {
+        String headerAuth = request.getHeader("Authorization");
+        if (headerAuth == null || !headerAuth.startsWith("Bearer ")) {
+            return;
+        }
+        String token = headerAuth.substring(7);
+        String jti = jwtUtils.getJtiFromToken(token);
+        Instant expiration = jwtUtils.getExpirationFromToken(token);
+        if (jti != null && expiration != null) {
+            blacklistedTokenRepository.save(new BlacklistedToken(jti, expiration, username));
+        }
     }
 
     @Operation(summary = "Request password reset", description = "Send a password reset email. Always returns 200 to prevent email enumeration.")
