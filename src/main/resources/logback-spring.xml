@@ -77,7 +77,7 @@
     </springProfile>
 
     <!-- Prod with human-readable console (default) -->
-    <springProfile name="prod & !json-logging">
+    <springProfile name="prod &amp; !json-logging">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="APP_FILE"/>
