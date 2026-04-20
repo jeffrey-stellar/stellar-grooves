@@ -79,6 +79,57 @@ public class PlaylistService {
         return result;
     }
 
+    /**
+     * Paginated variant: hydrate only the trackIds in the requested page, preserving
+     * the user-defined playlist order. Avoids loading thousands of tracks into memory
+     * for large playlists.
+     *
+     * <p>Returns a map with {@code tracks} (page slice), {@code missingTracks} (ids from
+     * this page's slice that no longer exist), {@code totalTracks} (the playlist's full
+     * track count), {@code page}, and {@code size}.
+     */
+    public Map<String, Object> getPlaylistTracks(Playlist playlist, String userId, int page, int size) {
+        if (page < 0) page = 0;
+        if (size <= 0) size = 50;
+        if (size > 500) size = 500;
+
+        List<String> trackIds = playlist.getTrackIds();
+        int total = trackIds.size();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalTracks", total);
+        result.put("page", page);
+        result.put("size", size);
+
+        if (total == 0) {
+            result.put("tracks", List.of());
+            result.put("missingTracks", List.of());
+            return result;
+        }
+
+        int from = Math.min(page * size, total);
+        int to = Math.min(from + size, total);
+        List<String> slice = trackIds.subList(from, to);
+        if (slice.isEmpty()) {
+            result.put("tracks", List.of());
+            result.put("missingTracks", List.of());
+            return result;
+        }
+
+        Map<String, MusicFile> byId = musicFileRepository.findByIdInAndUserId(slice, userId).stream()
+                .collect(Collectors.toMap(MusicFile::getId, f -> f));
+        List<MusicFileDTO> tracks = slice.stream()
+                .filter(byId::containsKey)
+                .map(byId::get)
+                .map(MusicFileDTO::from)
+                .collect(Collectors.toList());
+        List<String> missingTracks = slice.stream()
+                .filter(id -> !byId.containsKey(id))
+                .collect(Collectors.toList());
+        result.put("tracks", tracks);
+        result.put("missingTracks", missingTracks);
+        return result;
+    }
+
     public boolean reorderTracks(Playlist playlist, List<String> newOrder) {
         Set<String> existing = new HashSet<>(playlist.getTrackIds());
         Set<String> incoming = new HashSet<>(newOrder);

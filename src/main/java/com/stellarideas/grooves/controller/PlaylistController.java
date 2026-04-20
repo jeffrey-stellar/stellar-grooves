@@ -92,11 +92,18 @@ public class PlaylistController {
         return ResponseEntity.ok(Map.of("message", msg.msg("playlist.track.removed"), "trackCount", playlist.getTrackIds().size()));
     }
 
-    @Operation(summary = "Get playlist tracks", description = "Get all tracks in a playlist in order")
+    @Operation(summary = "Get playlist tracks", description = "Get tracks in a playlist in order. Pass page+size for paginated hydration on large playlists; omit both for the full list (legacy behavior).")
     @GetMapping("/{id}/tracks")
-    public ResponseEntity<?> getPlaylistTracks(@CurrentUser User user, @PathVariable String id) {
+    public ResponseEntity<?> getPlaylistTracks(@CurrentUser User user, @PathVariable String id,
+                                               @RequestParam(required = false) Integer page,
+                                               @RequestParam(required = false) Integer size) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        if (page != null || size != null) {
+            int p = page != null ? page : 0;
+            int s = size != null ? size : 50;
+            return ResponseEntity.ok(playlistService.getPlaylistTracks(opt.get(), user.getId(), p, s));
+        }
         return ResponseEntity.ok(playlistService.getPlaylistTracks(opt.get(), user.getId()));
     }
 

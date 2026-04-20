@@ -209,4 +209,103 @@ class PlaylistServiceTest {
 
         assertTrue(result.isPresent());
     }
+
+    @Test
+    void paginatedGetPlaylistTracksReturnsOnlyPageSlice() {
+        Playlist playlist = new Playlist();
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < 250; i++) ids.add("t" + i);
+        playlist.setTrackIds(ids);
+
+        // Only the slice is hydrated — simulate the repo returning exactly those
+        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenAnswer(inv -> {
+            List<String> slice = inv.getArgument(0);
+            return slice.stream().map(id -> MusicFile.builder().id(id).build()).toList();
+        });
+
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1", 1, 50);
+
+        assertEquals(250, result.get("totalTracks"));
+        assertEquals(1, result.get("page"));
+        assertEquals(50, result.get("size"));
+        @SuppressWarnings("unchecked")
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) result.get("tracks");
+        assertEquals(50, tracks.size());
+        assertEquals("t50", tracks.get(0).getId());
+        assertEquals("t99", tracks.get(49).getId());
+    }
+
+    @Test
+    void paginatedGetPlaylistTracksPreservesOrderOnPartialMongoResult() {
+        Playlist playlist = new Playlist();
+        playlist.setTrackIds(new ArrayList<>(List.of("a", "b", "c", "d", "e")));
+        // Mongo returns them in a different order (set-like) to prove we reorder
+        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenReturn(List.of(
+                MusicFile.builder().id("c").build(),
+                MusicFile.builder().id("a").build(),
+                MusicFile.builder().id("b").build()));
+
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1", 0, 3);
+
+        @SuppressWarnings("unchecked")
+        List<MusicFileDTO> tracks = (List<MusicFileDTO>) result.get("tracks");
+        assertEquals(List.of("a", "b", "c"), tracks.stream().map(MusicFileDTO::getId).toList());
+    }
+
+    @Test
+    void paginatedReportsMissingInSlice() {
+        Playlist playlist = new Playlist();
+        playlist.setTrackIds(new ArrayList<>(List.of("a", "b", "c", "d")));
+        // Mongo only returns 'a' and 'c' — 'b' and 'd' were purged
+        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenReturn(List.of(
+                MusicFile.builder().id("a").build(),
+                MusicFile.builder().id("c").build()));
+
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1", 0, 4);
+
+        @SuppressWarnings("unchecked")
+        List<String> missing = (List<String>) result.get("missingTracks");
+        assertEquals(List.of("b", "d"), missing);
+    }
+
+    @Test
+    void paginatedHandlesEmptyPlaylist() {
+        Playlist playlist = new Playlist();
+        playlist.setTrackIds(new ArrayList<>());
+
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1", 0, 50);
+
+        assertEquals(0, result.get("totalTracks"));
+        assertEquals(List.of(), result.get("tracks"));
+        verify(musicFileRepository, never()).findByIdInAndUserId(anyList(), anyString());
+    }
+
+    @Test
+    void paginatedClampsNegativePageAndSize() {
+        Playlist playlist = new Playlist();
+        playlist.setTrackIds(new ArrayList<>(List.of("a")));
+        when(musicFileRepository.findByIdInAndUserId(anyList(), eq("user1"))).thenReturn(List.of(
+                MusicFile.builder().id("a").build()));
+
+        Map<String, Object> r1 = service.getPlaylistTracks(playlist, "user1", -1, 50);
+        assertEquals(0, r1.get("page"));
+
+        Map<String, Object> r2 = service.getPlaylistTracks(playlist, "user1", 0, 0);
+        assertEquals(50, r2.get("size"));
+
+        Map<String, Object> r3 = service.getPlaylistTracks(playlist, "user1", 0, 99999);
+        assertEquals(500, r3.get("size"));
+    }
+
+    @Test
+    void paginatedPageBeyondTotalReturnsEmpty() {
+        Playlist playlist = new Playlist();
+        playlist.setTrackIds(new ArrayList<>(List.of("a", "b")));
+
+        Map<String, Object> result = service.getPlaylistTracks(playlist, "user1", 5, 50);
+
+        assertEquals(2, result.get("totalTracks"));
+        assertEquals(List.of(), result.get("tracks"));
+        verify(musicFileRepository, never()).findByIdInAndUserId(anyList(), anyString());
+    }
 }

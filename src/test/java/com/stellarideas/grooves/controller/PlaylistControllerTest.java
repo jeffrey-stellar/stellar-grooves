@@ -160,7 +160,7 @@ class PlaylistControllerTest {
         when(playlistService.getPlaylistTracks(playlist, "user1")).thenReturn(
                 Map.of("tracks", List.of(dto1, dto2), "missingTracks", List.of()));
 
-        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1");
+        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "pl1", null, null);
 
         assertEquals(200, response.getStatusCode().value());
     }
@@ -169,7 +169,7 @@ class PlaylistControllerTest {
     void getPlaylistTracksReturns404() {
         when(playlistService.findByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
 
-        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "nope");
+        ResponseEntity<?> response = controller.getPlaylistTracks(testUser, "nope", null, null);
 
         assertEquals(404, response.getStatusCode().value());
     }
