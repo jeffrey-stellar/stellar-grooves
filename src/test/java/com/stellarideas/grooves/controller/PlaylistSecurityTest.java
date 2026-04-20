@@ -53,7 +53,7 @@ class PlaylistSecurityTest {
     void userCannotAccessOtherUsersPlaylist() {
         when(playlistService.findByIdAndUserId("pl-bob", "userA")).thenReturn(Optional.empty());
 
-        ResponseEntity<?> response = controller.getPlaylistTracks(userA, "pl-bob");
+        ResponseEntity<?> response = controller.getPlaylistTracks(userA, "pl-bob", null, null);
         assertEquals(404, response.getStatusCode().value());
     }
 
