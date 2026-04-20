@@ -61,6 +61,31 @@
     50%      { opacity: 1;   filter: hue-rotate(15deg); }
 }
 
+/* Light-mode navbar — brushed-chrome rail instead of the dark tungsten wash.
+   The base .navbar stacks a heavy black gradient that muddies cream surfaces. */
+[data-theme="light"] .navbar {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(227, 212, 173, 0.85) 100%),
+        var(--bg-chrome) !important;
+    border-bottom: 1px solid rgba(139, 98, 54, 0.35);
+    box-shadow:
+        0 2px 12px rgba(120, 82, 40, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1px 0 rgba(139, 98, 54, 0.35);
+}
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .navbar {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(227, 212, 173, 0.85) 100%),
+            var(--bg-chrome) !important;
+        border-bottom: 1px solid rgba(139, 98, 54, 0.35);
+        box-shadow:
+            0 2px 12px rgba(120, 82, 40, 0.12),
+            inset 0 1px 0 rgba(255, 255, 255, 0.9),
+            inset 0 -1px 0 rgba(139, 98, 54, 0.35);
+    }
+}
+
 .navbar-logo { height: 48px; width: auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7)); }
 
 .navbar-brand {
