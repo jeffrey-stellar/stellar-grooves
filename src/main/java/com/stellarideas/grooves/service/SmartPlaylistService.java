@@ -92,7 +92,7 @@ public class SmartPlaylistService {
     /** Dry-run: parse and execute a query without persisting. */
     public Page<MusicFile> execute(String userId, String queryString, int page, int size) {
         ParsedQuery parsed = parser.parse(queryString);
-        Criteria criteria = translator.translate(parsed.predicates(), userId);
+        Criteria criteria = translator.translate(parsed.expression(), userId);
 
         if (parsed.sort().map(SortSpec::isRandom).orElse(false)) {
             int sampleSize = parsed.limit().orElseThrow();
@@ -125,7 +125,7 @@ public class SmartPlaylistService {
     /** Count matches for an ad-hoc query (dry-run). Applies the query's limit when present. */
     public long count(String userId, String queryString) {
         ParsedQuery parsed = parser.parse(queryString);
-        Criteria criteria = translator.translate(parsed.predicates(), userId);
+        Criteria criteria = translator.translate(parsed.expression(), userId);
         long raw = mongoTemplate.count(new Query(criteria), MusicFile.class);
         return parsed.limit().isPresent() ? Math.min(raw, parsed.limit().getAsInt()) : raw;
     }
@@ -138,7 +138,7 @@ public class SmartPlaylistService {
      */
     public MaterializeResult materialize(SmartPlaylist source, String name) {
         ParsedQuery parsed = parser.parse(source.getQueryString());
-        Criteria criteria = translator.translate(parsed.predicates(), source.getUserId());
+        Criteria criteria = translator.translate(parsed.expression(), source.getUserId());
 
         int userLimit = parsed.limit().orElse(Integer.MAX_VALUE);
         int effectiveCap = Math.min(userLimit, materializeMax);

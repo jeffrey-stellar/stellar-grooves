@@ -7,13 +7,19 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Converts a parsed predicate list into a MongoDB {@link Criteria} scoped to a user.
- * Positive predicates are AND'd at the root; negated predicates ({@link QueryPredicate.Not})
- * are collected into a single {@code $nor} clause. Ownership and soft-delete filters
- * are always appended.
+ * Converts a parsed {@link QueryExpr} tree into a MongoDB {@link Criteria} scoped
+ * to a user. The root always includes ownership ({@code userId}) and soft-delete
+ * ({@code deleted != true}) filters.
+ *
+ * <p>The translator flattens the common case — a pure conjunction of leaf predicates
+ * (with optional single-level negations) — into a flat criteria with chained
+ * {@code .and()} calls and a single {@code $nor} for negations. This keeps queries
+ * compatible with compound indexes. When OR or nested groups appear, the expression
+ * is emitted under an {@code $and} wrapper alongside the ownership base.
  */
 @Component
 public class SmartPlaylistQueryTranslator {
@@ -28,26 +34,95 @@ public class SmartPlaylistQueryTranslator {
         this.clock = clock;
     }
 
-    public Criteria translate(List<QueryPredicate> predicates, String userId) {
+    public Criteria translate(Optional<QueryExpr> expression, String userId) {
         Criteria base = Criteria.where("userId").is(userId).and("deleted").ne(true);
-        if (predicates == null || predicates.isEmpty()) return base;
+        if (expression.isEmpty()) return base;
 
-        List<Criteria> negated = new ArrayList<>();
-        for (QueryPredicate p : predicates) {
-            if (p instanceof QueryPredicate.Not not) {
-                negated.add(standaloneCriteriaFor(not.inner()));
-            } else {
-                applyTo(base, p);
-            }
+        QueryExpr root = expression.get();
+        if (canFlatten(root)) {
+            applyFlatTerms(base, root);
+            return base;
         }
-
-        if (!negated.isEmpty()) {
-            base.norOperator(negated.toArray(new Criteria[0]));
-        }
-        return base;
+        return new Criteria().andOperator(base, translateExpr(root));
     }
 
-    private void applyTo(Criteria root, QueryPredicate p) {
+    public Criteria translate(QueryExpr expression, String userId) {
+        return translate(Optional.ofNullable(expression), userId);
+    }
+
+    // ---------- flat fast-path ----------
+
+    private static boolean canFlatten(QueryExpr e) {
+        if (e instanceof QueryExpr.Leaf) return true;
+        if (e instanceof QueryExpr.Not not) return not.child() instanceof QueryExpr.Leaf;
+        if (e instanceof QueryExpr.And and) {
+            for (QueryExpr child : and.children()) {
+                if (child instanceof QueryExpr.Leaf) continue;
+                if (child instanceof QueryExpr.Not n && n.child() instanceof QueryExpr.Leaf) continue;
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void applyFlatTerms(Criteria base, QueryExpr e) {
+        List<QueryPredicate> positives = new ArrayList<>();
+        List<QueryPredicate> negatives = new ArrayList<>();
+        collectFlat(e, positives, negatives);
+        for (QueryPredicate p : positives) applyPredicate(base, p);
+        if (!negatives.isEmpty()) {
+            Criteria[] nor = new Criteria[negatives.size()];
+            for (int i = 0; i < negatives.size(); i++) {
+                Criteria c = new Criteria();
+                applyPredicate(c, negatives.get(i));
+                nor[i] = c;
+            }
+            base.norOperator(nor);
+        }
+    }
+
+    private void collectFlat(QueryExpr e, List<QueryPredicate> pos, List<QueryPredicate> neg) {
+        if (e instanceof QueryExpr.Leaf leaf) {
+            pos.add(leaf.predicate());
+        } else if (e instanceof QueryExpr.Not not && not.child() instanceof QueryExpr.Leaf leaf) {
+            neg.add(leaf.predicate());
+        } else if (e instanceof QueryExpr.And and) {
+            for (QueryExpr child : and.children()) collectFlat(child, pos, neg);
+        } else {
+            throw new IllegalStateException("Not flattenable: " + e);
+        }
+    }
+
+    // ---------- general recursive translation ----------
+
+    private Criteria translateExpr(QueryExpr e) {
+        if (e instanceof QueryExpr.Leaf leaf) {
+            Criteria c = new Criteria();
+            applyPredicate(c, leaf.predicate());
+            return c;
+        }
+        if (e instanceof QueryExpr.And and) {
+            Criteria[] kids = and.children().stream()
+                    .map(this::translateExpr)
+                    .toArray(Criteria[]::new);
+            return new Criteria().andOperator(kids);
+        }
+        if (e instanceof QueryExpr.Or or) {
+            Criteria[] kids = or.children().stream()
+                    .map(this::translateExpr)
+                    .toArray(Criteria[]::new);
+            return new Criteria().orOperator(kids);
+        }
+        if (e instanceof QueryExpr.Not not) {
+            return new Criteria().norOperator(translateExpr(not.child()));
+        }
+        throw new IllegalStateException("Unhandled expression: " + e);
+    }
+
+    // ---------- predicate → criteria ----------
+
+    private void applyPredicate(Criteria root, QueryPredicate p) {
         if (p instanceof QueryPredicate.GenreEq g) {
             root.and("genre").is(g.genre());
         } else if (p instanceof QueryPredicate.TextContains tc) {
@@ -70,26 +145,12 @@ public class SmartPlaylistQueryTranslator {
         } else if (p instanceof QueryPredicate.TagEq te) {
             root.and("customTags").is(te.tag());
         } else if (p instanceof QueryPredicate.LastPlayedSince lps) {
-            Instant threshold = Instant.now(clock).minus(lps.window());
-            root.and("lastPlayedAt").gte(threshold);
+            root.and("lastPlayedAt").gte(Instant.now(clock).minus(lps.window()));
         } else if (p instanceof QueryPredicate.LastPlayedBefore lpb) {
-            Instant threshold = Instant.now(clock).minus(lpb.window());
-            root.and("lastPlayedAt").lt(threshold);
-        } else if (p instanceof QueryPredicate.Not) {
-            throw new IllegalStateException("Not predicate must be applied via $nor, not AND'd inline");
+            root.and("lastPlayedAt").lt(Instant.now(clock).minus(lpb.window()));
         } else {
             throw new IllegalStateException("Unhandled predicate: " + p);
         }
-    }
-
-    /** Build a standalone {@link Criteria} for a single predicate, suitable for use inside {@code $nor}. */
-    private Criteria standaloneCriteriaFor(QueryPredicate p) {
-        if (p instanceof QueryPredicate.Not) {
-            throw new IllegalStateException("Nested negation is not supported");
-        }
-        Criteria holder = new Criteria();
-        applyTo(holder, p);
-        return holder;
     }
 
     private static String fieldName(QueryPredicate.TextField f) {

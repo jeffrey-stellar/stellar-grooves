@@ -1,24 +1,23 @@
 package com.stellarideas.grooves.smartplaylist;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
  * Output of {@link SmartPlaylistQueryParser#parse(String)}. Carries the filter
- * predicates plus optional ordering and result-count limit parsed from
- * {@code sort:} and {@code limit:} clauses.
+ * expression tree plus optional ordering and result-count limit parsed from the
+ * top-level {@code sort:} and {@code limit:} clauses.
  */
 public record ParsedQuery(
-        List<QueryPredicate> predicates,
+        Optional<QueryExpr> expression,
         Optional<SortSpec> sort,
         OptionalInt limit) {
 
     public static ParsedQuery empty() {
-        return new ParsedQuery(List.of(), Optional.empty(), OptionalInt.empty());
+        return new ParsedQuery(Optional.empty(), Optional.empty(), OptionalInt.empty());
     }
 
     public boolean isEmpty() {
-        return predicates.isEmpty() && sort.isEmpty() && limit.isEmpty();
+        return expression.isEmpty() && sort.isEmpty() && limit.isEmpty();
     }
 }

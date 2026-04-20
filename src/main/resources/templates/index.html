@@ -614,10 +614,11 @@
                                 <strong>Operators</strong> — equality (<code>rating:5</code>), comparators (<code>rating:&gt;=4</code>, <code>playCount:&lt;10</code>), ranges (<code>year:1984..1990</code>).<br>
                                 <strong>Relative dates</strong> — <code>lastPlayed:&gt;6mo</code> (not played in 6+ months), <code>lastPlayed:&lt;30d</code> (played in the last 30 days). Units: <code>d</code>, <code>w</code>, <code>mo</code>, <code>y</code>.<br>
                                 <strong>Quoting</strong> — use double quotes for values with spaces: <code>artist:"The Who"</code>.<br>
-                                <strong>Negation</strong> — prefix a clause with <code>-</code> to exclude: <code>-tag:skip</code>, <code>-artist:"Justin Bieber"</code>.<br>
+                                <strong>Negation</strong> — prefix a clause with <code>-</code> to exclude: <code>-tag:skip</code>, <code>-artist:"Justin Bieber"</code>. Use <code>-(...)</code> to negate a group.<br>
+                                <strong>Combining clauses</strong> — whitespace is implicit AND; use <code>OR</code> (or <code>||</code>) for disjunction, <code>AND</code>/<code>&amp;&amp;</code> for explicit AND. AND binds tighter than OR. Group with parentheses: <code>(genre:thrash_metal OR genre:hard_rock) rating:&gt;=4</code>.<br>
                                 <strong>Sort</strong> — <code>sort:rating</code>, <code>sort:year:asc</code>, <code>sort:lastPlayed</code>, <code>sort:random</code> (requires <code>limit:</code>). Numeric/date default desc; text default asc.<br>
-                                <strong>Limit</strong> — <code>limit:50</code> caps the result count.<br>
-                                <strong>Clauses</strong> are AND-combined. Example: <code>genre:thrash_metal year:1984..1990 rating:&gt;=4 -tag:skip sort:rating limit:50</code>.
+                                <strong>Limit</strong> — <code>limit:50</code> caps the result count. <code>sort:</code> and <code>limit:</code> must be top-level (not inside parens or across OR).<br>
+                                <strong>Example</strong> — <code>(genre:thrash_metal OR genre:hard_rock) year:1984..1990 rating:&gt;=4 -tag:skip sort:rating limit:50</code>.
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mb-2">
