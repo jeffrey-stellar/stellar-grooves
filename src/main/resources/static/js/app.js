@@ -785,7 +785,7 @@ async function renderPlaylistView() {
     tbody.innerHTML = ''; empty.classList.add('d-none');
     try {
         const r = await fetch(`/api/v1/playlists/${nav.playlistId}/tracks`); if (!r.ok) return;
-        let tracks = await r.json();
+        let { tracks } = await r.json();
         if (tracks.length === 0) { empty.classList.remove('d-none'); renderJukeboxPanels([]); return; }
 
         // Apply sort
