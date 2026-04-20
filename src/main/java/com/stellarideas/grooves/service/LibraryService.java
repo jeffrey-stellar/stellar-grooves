@@ -6,6 +6,7 @@ import com.stellarideas.grooves.model.*;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
 import com.stellarideas.grooves.repository.PlaybackQueueRepository;
+import com.stellarideas.grooves.repository.PlayEventRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ public class LibraryService {
     private final PlaylistRepository playlistRepository;
     private final CoverArtRepository coverArtRepository;
     private final PlaybackQueueRepository playbackQueueRepository;
+    private final PlayEventRepository playEventRepository;
     private final MusicCatalogService catalogService;
     private final MongoTemplate mongoTemplate;
 
@@ -36,12 +38,14 @@ public class LibraryService {
                           PlaylistRepository playlistRepository,
                           CoverArtRepository coverArtRepository,
                           PlaybackQueueRepository playbackQueueRepository,
+                          PlayEventRepository playEventRepository,
                           MusicCatalogService catalogService,
                           MongoTemplate mongoTemplate) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
         this.playbackQueueRepository = playbackQueueRepository;
+        this.playEventRepository = playEventRepository;
         this.catalogService = catalogService;
         this.mongoTemplate = mongoTemplate;
     }
@@ -196,6 +200,7 @@ public class LibraryService {
         playlistRepository.deleteByUserId(userId);
         coverArtRepository.deleteByUserId(userId);
         playbackQueueRepository.deleteByUserId(userId);
+        playEventRepository.deleteByUserId(userId);
         return fileCount;
     }
 

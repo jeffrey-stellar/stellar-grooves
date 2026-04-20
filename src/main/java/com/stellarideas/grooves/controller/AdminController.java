@@ -4,6 +4,7 @@ import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import com.stellarideas.grooves.repository.PlayEventRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.CurrentUser;
@@ -37,17 +38,20 @@ public class AdminController {
     private final MusicFileRepository musicFileRepository;
     private final PlaylistRepository playlistRepository;
     private final CoverArtRepository coverArtRepository;
+    private final PlayEventRepository playEventRepository;
     private final MessageHelper msg;
     private final AuditService auditService;
     private final MusicCatalogService catalogService;
 
     public AdminController(UserRepository userRepository, MusicFileRepository musicFileRepository,
                            PlaylistRepository playlistRepository, CoverArtRepository coverArtRepository,
+                           PlayEventRepository playEventRepository,
                            MessageHelper msg, AuditService auditService, MusicCatalogService catalogService) {
         this.userRepository = userRepository;
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
+        this.playEventRepository = playEventRepository;
         this.msg = msg;
         this.auditService = auditService;
         this.catalogService = catalogService;
@@ -126,6 +130,7 @@ public class AdminController {
                     long fileCount = musicFileRepository.deleteByUserId(user.getId());
                     long playlistCount = playlistRepository.deleteByUserId(user.getId());
                     coverArtRepository.deleteByUserId(user.getId());
+                    playEventRepository.deleteByUserId(user.getId());
                     userRepository.deleteById(id);
                     auditService.log(admin.getUsername(), AuditService.Action.ADMIN_DELETE_USER,
                             user.getUsername(), fileCount + " files, " + playlistCount + " playlists removed");

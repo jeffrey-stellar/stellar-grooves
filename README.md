@@ -34,6 +34,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Bulk operations** — checkbox selection with select-all toggle; bulk delete and bulk add-to-playlist
 - **User ratings** — 5-star rating widget on each track; sortable by rating
 - **Inline genre editing** — reclassify any track tagged as "Other" directly from the library table
+- **Play history tracking** — every track that reaches 50% of its duration (or plays to completion) is recorded as a `PlayEvent`; per-track play counts and last-played timestamps are denormalized onto each track to power future rediscovery features (smart playlists, "haven't played in 6 months," top-played views); seeks are excluded from listened-time via a wall-clock vs playback-position check
 - **Virtual scrolling** — DOM virtualization kicks in at 250+ tracks; only visible rows are rendered, supporting libraries with 10,000+ tracks
 
 ### Administration & Security
@@ -399,6 +400,7 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 | `GET` | `/api/v1/library/files/{id}/cover` | — | Get album cover art (30-day cache) |
 | `PATCH` | `/api/v1/library/files/{id}/genre` | `{ "genre": "CLASSIC_ROCK" }` | Update a track's genre; records a correction for the artist so future scans use this genre |
 | `PATCH` | `/api/v1/library/files/{id}/rating` | `{ "rating": 4 }` | Set track rating (0-5, 0 = unrated) |
+| `POST` | `/api/v1/library/files/{id}/plays` | `{ "listenedMs": 120000, "completed": true }` | Record a play event (fired automatically by the web player at 50% listened or on track end); atomically increments `playCount` and sets `lastPlayedAt` |
 | `POST` | `/api/v1/library/files/bulk-delete` | `{ "fileIds": ["id1", "id2"] }` | Soft-delete tracks (max 100); moves to trash |
 | `GET` | `/api/v1/library/duplicates` | — | Get duplicate track groups by title+artist (paginated); `?page=0&size=50` |
 | `GET` | `/api/v1/library/duplicates/by-hash` | — | Get duplicate track groups by file hash (paginated); `?page=0&size=50` |
@@ -449,7 +451,7 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 | `GET` | `/api/v1/admin/stats` | System stats: `{ totalUsers, totalFiles, totalPlaylists }` |
 | `GET` | `/api/v1/admin/users` | List users with file counts; `?page=0&size=50` |
 | `GET` | `/api/v1/admin/users/{id}` | Get a single user |
-| `DELETE` | `/api/v1/admin/users/{id}` | Delete a user and all their data (files, playlists, cover art, queue) |
+| `DELETE` | `/api/v1/admin/users/{id}` | Delete a user and all their data (files, playlists, cover art, queue, play history) |
 
 **Valid genre values:** `CLASSIC_ROCK`, `HARD_ROCK`, `HAIR_METAL`, `HEAVY_METAL`, `THRASH_METAL`, `OTHER`
 
@@ -482,10 +484,11 @@ src/main/java/com/stellarideas/grooves/
 │   └── GlobalExceptionHandler.java      # RFC 7807 Problem Details error handling
 ├── model/
 │   ├── User.java                        # User document (with scan schedule fields, emailVerified flag)
-│   ├── MusicFile.java                   # Track document (with rating, hasCoverArt, fileHash, soft delete)
+│   ├── MusicFile.java                   # Track document (with rating, hasCoverArt, fileHash, soft delete, playCount, lastPlayedAt)
 │   ├── Playlist.java                    # Playlist document (with shareToken, @Version optimistic locking)
 │   ├── EmailVerificationToken.java      # Email verification tokens (SHA-256 hashed, 24h TTL)
 │   ├── PlaybackQueue.java               # Persisted playback queue (per user)
+│   ├── PlayEvent.java                   # Individual play history events (userId + musicFileId + playedAt + listenedMs + completed)
 │   ├── CoverArt.java                    # Album cover art storage (binary, quota-managed)
 │   ├── BlacklistedToken.java            # Revoked JWT tokens (TTL-indexed)
 │   ├── RefreshToken.java                # Long-lived refresh tokens (TTL-indexed)
@@ -504,6 +507,7 @@ src/main/java/com/stellarideas/grooves/
 │   ├── PasswordResetExecuteDTO.java     # Password reset execution (token + new password)
 │   ├── PlaybackQueueDTO.java            # Playback queue state
 │   ├── PlaylistDTO.java                 # Playlist response (with shareToken)
+│   ├── RecordPlayRequest.java           # Play history event (listenedMs + completed)
 │   ├── RefreshTokenRequest.java         # Refresh token exchange
 │   ├── ReorderTracksRequest.java        # Playlist track reorder
 │   ├── ScanRequest.java                 # Directory scan request
@@ -522,6 +526,7 @@ src/main/java/com/stellarideas/grooves/
 │   ├── EmailVerificationTokenRepository.java
 │   ├── PasswordResetTokenRepository.java
 │   ├── PlaybackQueueRepository.java     # Playback queue persistence
+│   ├── PlayEventRepository.java         # Play history events (query by user, cascade delete)
 │   ├── PlaylistRepository.java          # Includes findByShareToken
 │   ├── RefreshTokenRepository.java
 │   └── UserRepository.java
@@ -542,6 +547,7 @@ src/main/java/com/stellarideas/grooves/
     ├── MusicCatalogService.java         # Artist -> genre mapping (JSON catalog + user corrections)
     ├── MusicScannerService.java         # Directory scanning + batch import + per-file timeout + file hashing + cover art extraction
     ├── PasswordResetMailService.java     # Password reset email delivery
+    ├── PlayHistoryService.java          # Records play events; atomic $inc playCount + $set lastPlayedAt on MusicFile
     ├── PlaylistService.java             # Playlist business logic (CRUD, sharing, track management)
     ├── ScanProgressEmitter.java         # SSE emitter for real-time scan progress (with scheduled stale cleanup)
     ├── ScanRateLimiter.java             # Per-user scan cooldown
@@ -594,7 +600,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**494 tests** (434 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**510 tests** (450 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
 
 ---
 
@@ -614,7 +620,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (494 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (510 tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
 | Observability | Logstash encoder (structured JSON logs) + correlation IDs + Web Vitals |
 

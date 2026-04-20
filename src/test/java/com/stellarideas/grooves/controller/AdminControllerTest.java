@@ -4,6 +4,7 @@ import com.stellarideas.grooves.model.Role;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import com.stellarideas.grooves.repository.PlayEventRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.AuditService;
@@ -30,6 +31,7 @@ class AdminControllerTest {
     private MusicFileRepository musicFileRepository;
     private PlaylistRepository playlistRepository;
     private CoverArtRepository coverArtRepository;
+    private PlayEventRepository playEventRepository;
     private AuditService auditService;
     private MusicCatalogService catalogService;
     private User adminUser;
@@ -40,6 +42,7 @@ class AdminControllerTest {
         musicFileRepository = mock(MusicFileRepository.class);
         playlistRepository = mock(PlaylistRepository.class);
         coverArtRepository = mock(CoverArtRepository.class);
+        playEventRepository = mock(PlayEventRepository.class);
         auditService = mock(AuditService.class);
         catalogService = mock(MusicCatalogService.class);
 
@@ -48,7 +51,7 @@ class AdminControllerTest {
         MessageHelper msgHelper = new MessageHelper(messageSource);
 
         controller = new AdminController(userRepository, musicFileRepository,
-                playlistRepository, coverArtRepository, msgHelper, auditService, catalogService);
+                playlistRepository, coverArtRepository, playEventRepository, msgHelper, auditService, catalogService);
 
         adminUser = new User();
         adminUser.setId("admin1");

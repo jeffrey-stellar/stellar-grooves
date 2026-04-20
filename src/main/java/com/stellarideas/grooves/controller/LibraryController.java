@@ -10,6 +10,7 @@ import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.PlayHistoryService;
 import com.stellarideas.grooves.service.ScanPathValidator;
 import com.stellarideas.grooves.service.ScanProgressEmitter;
 import com.stellarideas.grooves.service.ScanRateLimiter;
@@ -68,6 +69,7 @@ public class LibraryController {
     private final ScanProgressEmitter scanProgressEmitter;
     private final UserRateLimiter userRateLimiter;
     private final ScanPathValidator scanPathValidator;
+    private final PlayHistoryService playHistoryService;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -78,7 +80,8 @@ public class LibraryController {
                              PlaybackQueueRepository playbackQueueRepository,
                              ScanProgressEmitter scanProgressEmitter,
                              UserRateLimiter userRateLimiter,
-                             ScanPathValidator scanPathValidator) {
+                             ScanPathValidator scanPathValidator,
+                             PlayHistoryService playHistoryService) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -89,6 +92,7 @@ public class LibraryController {
         this.scanProgressEmitter = scanProgressEmitter;
         this.userRateLimiter = userRateLimiter;
         this.scanPathValidator = scanPathValidator;
+        this.playHistoryService = playHistoryService;
     }
 
     @PostMapping("/scan")
@@ -437,6 +441,17 @@ public class LibraryController {
         MusicFile file = libraryService.updateRating(fileOpt.get(), request.getRating());
         auditService.log(user.getUsername(), AuditService.Action.RATING_UPDATE, id, String.valueOf(request.getRating()));
         return ResponseEntity.ok(Map.of("rating", file.getRating()));
+    }
+
+    @PostMapping("/files/{id}/plays")
+    public ResponseEntity<?> recordPlay(@CurrentUser User user, @PathVariable String id,
+                                        @Valid @RequestBody RecordPlayRequest request) {
+        boolean recorded = playHistoryService.recordPlay(user.getId(), id,
+                request.getListenedMs(), request.isCompleted());
+        if (!recorded) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("recorded", true));
     }
 
     @PostMapping("/files/bulk-delete")

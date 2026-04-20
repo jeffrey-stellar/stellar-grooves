@@ -39,6 +39,7 @@ class LibraryControllerTest {
     private PlaybackQueueRepository playbackQueueRepository;
     private ScanProgressEmitter scanProgressEmitter;
     private UserRateLimiter userRateLimiter;
+    private PlayHistoryService playHistoryService;
     private User testUser;
 
     @TempDir
@@ -54,6 +55,7 @@ class LibraryControllerTest {
         playbackQueueRepository = mock(PlaybackQueueRepository.class);
         scanProgressEmitter = mock(ScanProgressEmitter.class);
         userRateLimiter = mock(UserRateLimiter.class);
+        playHistoryService = mock(PlayHistoryService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
@@ -64,7 +66,8 @@ class LibraryControllerTest {
 
         controller = new LibraryController(scannerService, libraryService, msgHelper,
                 auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter,
-                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""));
+                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
+                playHistoryService);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);
@@ -354,6 +357,38 @@ class LibraryControllerTest {
         request.setRating(3);
 
         ResponseEntity<?> response = controller.updateFileRating(testUser, "missing", request);
+
+        assertEquals(404, response.getStatusCode().value());
+    }
+
+    // ---- recordPlay ----
+
+    @Test
+    void recordPlaySuccess() {
+        when(playHistoryService.recordPlay("user1", "f1", 120_000, true)).thenReturn(true);
+
+        RecordPlayRequest request = new RecordPlayRequest();
+        request.setListenedMs(120_000);
+        request.setCompleted(true);
+
+        ResponseEntity<?> response = controller.recordPlay(testUser, "f1", request);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals(true, body.get("recorded"));
+        verify(playHistoryService).recordPlay("user1", "f1", 120_000, true);
+    }
+
+    @Test
+    void recordPlayFileNotFound() {
+        when(playHistoryService.recordPlay("user1", "missing", 60_000, false)).thenReturn(false);
+
+        RecordPlayRequest request = new RecordPlayRequest();
+        request.setListenedMs(60_000);
+        request.setCompleted(false);
+
+        ResponseEntity<?> response = controller.recordPlay(testUser, "missing", request);
 
         assertEquals(404, response.getStatusCode().value());
     }

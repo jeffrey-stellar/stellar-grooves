@@ -23,6 +23,56 @@ let _crossfadeTriggered = false;
 let audioCtx = null, analyser = null, eqAnimId = null, eqConnected = false;
 const eqSources = new Map();
 
+// ── Play history accumulator ────────────────────────────
+// Track listened time per play. Seeks don't count — we only add time when
+// currentTime advanced roughly in real time since the last tick.
+const PLAY_REPORT_THRESHOLD = 0.5; // fire at 50% listened OR on `ended`
+let _playFileId = null;
+let _playListenedMs = 0;
+let _playLastPos = 0;
+let _playLastTickAt = 0;
+let _playReported = false;
+
+function _resetPlayAccumulator(fileId) {
+    _playFileId = fileId || null;
+    _playListenedMs = 0;
+    _playLastPos = 0;
+    _playLastTickAt = Date.now();
+    _playReported = false;
+}
+
+function _reportPlay(completed) {
+    if (!_playFileId || _playReported) return;
+    _playReported = true;
+    const fileId = _playFileId;
+    const listenedMs = Math.max(0, Math.round(_playListenedMs));
+    const headers = (window.SG && SG.csrfHeaders)
+        ? SG.csrfHeaders({ 'Content-Type': 'application/json' })
+        : { 'Content-Type': 'application/json' };
+    fetch(`/api/v1/library/files/${fileId}/plays`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ listenedMs, completed: !!completed })
+    }).catch(() => { /* play recording is best-effort */ });
+}
+
+function _accumulateListened(el) {
+    const now = Date.now();
+    const elapsed = now - _playLastTickAt;
+    _playLastTickAt = now;
+    const delta = el.currentTime - _playLastPos;
+    _playLastPos = el.currentTime;
+    // Only count forward motion that roughly matches wall-clock time (rejects seeks).
+    // Allow a 2x slop to tolerate timeupdate jitter.
+    if (delta > 0 && delta * 1000 <= elapsed * 2) {
+        _playListenedMs += delta * 1000;
+    }
+    if (!_playReported && el.duration > 0
+            && (_playListenedMs / 1000) / el.duration >= PLAY_REPORT_THRESHOLD) {
+        _reportPlay(false);
+    }
+}
+
 // ── Public API (consumed by app.js) ─────────────────────
 window.SG = window.SG || {};
 
@@ -32,6 +82,11 @@ SG.isPlaying      = function() { return !activeAudio.paused; };
 
 SG.playTrack = function(file, useCrossfade) {
     const sw = SG.currentFileId !== file.id;
+    if (sw) {
+        // If switching tracks, finalize the prior play first
+        _reportPlay(false);
+        _resetPlayAccumulator(file.id);
+    }
     SG.currentFileId = file.id;
     window._currentTrack = file;
     document.getElementById('playerTitle').textContent = SG.text(file.title);
@@ -156,6 +211,7 @@ audioElB.addEventListener('pause', SG.syncPlayerBtn);
 // ── Time update & track end ─────────────────────────────
 function handleTrackTimeUpdate(el) {
     if (!isNaN(el.duration) && el.duration > 0 && el === activeAudio) {
+        _accumulateListened(el);
         document.getElementById('playerSeek').value = (el.currentTime / el.duration) * 100;
         document.getElementById('playerCurrentTime').textContent = SG.formatTime(el.currentTime);
         if (crossfadeEnabled && !_crossfadeTriggered && el.duration - el.currentTime <= CROSSFADE_DURATION) {
@@ -177,6 +233,7 @@ function handleTrackTimeUpdate(el) {
 function handleTrackEnded(el) {
     SG.syncPlayerBtn();
     if (el !== activeAudio) return;
+    _reportPlay(true);
     _crossfadeTriggered = false;
     if (!crossfadeEnabled) SG.playNextTrack(false);
 }
@@ -189,6 +246,15 @@ audioEl.addEventListener('loadedmetadata', () => { if (activeAudio === audioEl) 
 audioElB.addEventListener('loadedmetadata', () => { if (activeAudio === audioElB) document.getElementById('playerDuration').textContent = SG.formatTime(audioElB.duration); });
 audioEl.addEventListener('loadstart', () => { if (activeAudio === audioEl) _crossfadeTriggered = false; });
 audioElB.addEventListener('loadstart', () => { if (activeAudio === audioElB) _crossfadeTriggered = false; });
+
+// Seek events reset the listened-time baseline so scrubs don't count as listening.
+function _onSeeked(el) {
+    if (el !== activeAudio) return;
+    _playLastPos = el.currentTime;
+    _playLastTickAt = Date.now();
+}
+audioEl.addEventListener('seeked', () => _onSeeked(audioEl));
+audioElB.addEventListener('seeked', () => _onSeeked(audioElB));
 
 document.getElementById('playerSeek').addEventListener('input', () => {
     if (!isNaN(activeAudio.duration)) activeAudio.currentTime = (document.getElementById('playerSeek').value / 100) * activeAudio.duration;

@@ -53,7 +53,8 @@ class QueueEdgeCaseTest {
         controller = new LibraryController(scannerService, libraryService, msgHelper,
                 auditService, userRepository, scanRateLimiter,
                 playbackQueueRepository, scanProgressEmitter, userRateLimiter,
-                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""));
+                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
+                mock(com.stellarideas.grooves.service.PlayHistoryService.class));
 
         testUser = new User();
         testUser.setId("user1");
