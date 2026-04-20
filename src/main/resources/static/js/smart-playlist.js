@@ -7,6 +7,10 @@
 
 const SG = window.SG;
 
+// Ceiling on how many tracks we pull for "Play" — keeps the first fetch
+// cheap and the player queue sane. Materialize is the tool for huge sets.
+const PLAY_MAX = 500;
+
 let smartPlaylists = [];
 let currentMatches = [];
 
@@ -66,6 +70,9 @@ function renderView() {
     statusEl.textContent = '';
     currentMatches = [];
 
+    const playBtn = document.getElementById('spPlayBtn');
+    if (playBtn) playBtn.disabled = true;
+
     if (nav.smartPlaylistId) {
         const existing = smartPlaylists.find(sp => sp.id === nav.smartPlaylistId);
         if (!existing) {
@@ -120,22 +127,84 @@ async function preview() {
         matchCountEl.textContent = `${data.totalElements} match${data.totalElements === 1 ? '' : 'es'}` +
                 (data.totalElements > currentMatches.length ? ` (showing ${currentMatches.length})` : '');
         resultsEl.innerHTML = '';
-        currentMatches.forEach(t => {
-            const tr = document.createElement('tr');
-            tr.innerHTML =
-                `<td>${SG.escapeHtml(t.title || '\u2014')}</td>` +
-                `<td>${SG.escapeHtml(t.artist || '\u2014')}</td>` +
-                `<td class="hide-xs">${SG.escapeHtml(t.album || '\u2014')}</td>` +
-                `<td>${SG.escapeHtml(t.genre || '\u2014')}</td>` +
-                `<td class="hide-xs">${t.rating ? '\u2605'.repeat(t.rating) : ''}</td>` +
-                `<td class="hide-xs">${SG.escapeHtml(t.year || '\u2014')}</td>`;
-            resultsEl.appendChild(tr);
-        });
+        currentMatches.forEach(t => resultsEl.appendChild(buildResultRow(t)));
+        const playBtn = document.getElementById('spPlayBtn');
+        if (playBtn) playBtn.disabled = currentMatches.length === 0;
         statusEl.textContent = '';
     } catch (e) {
         statusEl.textContent = 'Network error';
         statusEl.className = 'sp-status status-error';
     }
+}
+
+function buildResultRow(t) {
+    const tr = document.createElement('tr');
+    tr.dataset.fileId = t.id;
+    const tdPlay = document.createElement('td');
+    tdPlay.className = 'col-play';
+    const btn = document.createElement('button');
+    btn.className = 'btn-play-row';
+    btn.setAttribute('aria-label', 'Play ' + (t.title || ''));
+    btn.textContent = '\u25B6';
+    btn.addEventListener('click', () => playFromMatch(t));
+    tdPlay.appendChild(btn);
+    tr.appendChild(tdPlay);
+    tr.insertAdjacentHTML('beforeend',
+        `<td>${SG.escapeHtml(t.title || '\u2014')}</td>` +
+        `<td>${SG.escapeHtml(t.artist || '\u2014')}</td>` +
+        `<td class="hide-xs">${SG.escapeHtml(t.album || '\u2014')}</td>` +
+        `<td>${SG.escapeHtml(t.genre || '\u2014')}</td>` +
+        `<td class="hide-xs">${t.rating ? '\u2605'.repeat(t.rating) : ''}</td>` +
+        `<td class="hide-xs">${SG.escapeHtml(t.year || '\u2014')}</td>`);
+    return tr;
+}
+
+// ── Play ───────────────────────────────────────────────
+// Fetch up to PLAY_MAX matches fresh (sort+limit in the DSL are respected
+// server-side), set playlist context so next/shuffle/up-next work, and
+// kick off playback on the first track.
+async function playAll() {
+    const nav = window.nav || {};
+    const query = document.getElementById('spQuery').value.trim();
+    const statusEl = document.getElementById('spStatus');
+    if (!query) return;
+    try {
+        const r = await fetch(`/api/v1/smart-playlists/preview?page=0&size=${PLAY_MAX}`, {
+            method: 'POST',
+            headers: SG.csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ queryString: query })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+            statusEl.textContent = data.detail || data.error || 'Query failed';
+            statusEl.className = 'sp-status status-error';
+            return;
+        }
+        const tracks = data.content || [];
+        if (tracks.length === 0) {
+            SG.showToast('No matches to play', 'error');
+            return;
+        }
+        const ctxId = nav.smartPlaylistId ? ('smart:' + nav.smartPlaylistId) : 'smart:adhoc';
+        const name = (document.getElementById('spName').value || 'Smart Playlist').trim();
+        SG.setPlaylistContext(ctxId, name, tracks);
+        SG.playTrack(tracks[0]);
+    } catch (e) {
+        statusEl.textContent = 'Network error';
+        statusEl.className = 'sp-status status-error';
+    }
+}
+
+function playFromMatch(track) {
+    // Single-row play: reuse the already-loaded preview as context,
+    // so next/shuffle stays within the smart-playlist results.
+    const nav = window.nav || {};
+    if (currentMatches.length > 0) {
+        const ctxId = nav.smartPlaylistId ? ('smart:' + nav.smartPlaylistId) : 'smart:adhoc';
+        const name = (document.getElementById('spName').value || 'Smart Playlist').trim();
+        SG.setPlaylistContext(ctxId, name, currentMatches);
+    }
+    SG.playTrack(track);
 }
 
 async function save() {
@@ -251,6 +320,8 @@ function init() {
     });
     const matBtn = document.getElementById('spMaterializeBtn');
     if (matBtn) matBtn.addEventListener('click', () => SG.guardClick(matBtn, materialize));
+    const playBtn = document.getElementById('spPlayBtn');
+    if (playBtn) playBtn.addEventListener('click', () => SG.guardClick(playBtn, playAll));
     const helpBtn = document.getElementById('spSyntaxHelpBtn');
     if (helpBtn) helpBtn.addEventListener('click', toggleSyntaxHelp);
 

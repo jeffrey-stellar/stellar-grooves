@@ -106,6 +106,8 @@ function setPlaylistContext(playlistId, playlistName, tracks) {
 function clearPlaylistContext() {
     if (playlistContext) { playlistContext = null; renderPlaylistUpNext(); }
 }
+SG.setPlaylistContext = setPlaylistContext;
+SG.clearPlaylistContext = clearPlaylistContext;
 function renderPlaylistUpNext() {
     const ul = document.getElementById('playlistUpNext');
     if (!ul) return;
@@ -225,6 +227,7 @@ function renderBreadcrumb() {
     else if (nav.view === 'smartPlaylist') { crumb('My Music Library', hc); crumb('Smart Playlists', null); }
     else if (nav.view === 'duplicates') { crumb('My Music Library', hc); crumb('Duplicates', null); }
     else if (nav.view === 'history') { crumb('My Music Library', hc); crumb('Listening History', null); }
+    else if (nav.view === 'rediscover') { crumb('My Music Library', hc); crumb('Rediscover', null); }
     else crumb('My Music Library', null);
 
     const showFilters = nav.view === 'library' || (nav.view === 'tracks' && !nav.album && !nav.artist);
@@ -233,7 +236,7 @@ function renderBreadcrumb() {
 
 // ── View rendering ───────────────────────────────────────
 function renderCurrentView() {
-    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewSmartPlaylist','viewDuplicates','viewHistory','emptyState'].forEach(id => document.getElementById(id).classList.add('d-none'));
+    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewSmartPlaylist','viewDuplicates','viewHistory','viewRediscover','emptyState'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('d-none'); });
     document.getElementById('bulkBar').classList.add('d-none');
     if (nav.view === 'smartPlaylist') {
         document.getElementById('viewSmartPlaylist').classList.remove('d-none');
@@ -243,6 +246,12 @@ function renderCurrentView() {
     if (nav.view === 'history') {
         document.getElementById('viewHistory').classList.remove('d-none');
         if (typeof SG.renderHistoryView === 'function') SG.renderHistoryView();
+        return;
+    }
+    if (nav.view === 'rediscover') {
+        const el = document.getElementById('viewRediscover');
+        if (el) el.classList.remove('d-none');
+        if (typeof SG.renderRediscoverView === 'function') SG.renderRediscoverView();
         return;
     }
     if (allFiles.length === 0) { document.getElementById('emptyState').classList.remove('d-none'); return; }

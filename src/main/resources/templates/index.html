@@ -358,6 +358,13 @@
                             </a>
                         </div>
 
+                        <!-- Rediscover section -->
+                        <div id="rediscoverSection" class="mb-2">
+                            <a href="#" id="showRediscoverBtn" class="history-link d-flex align-items-center gap-2" role="button">
+                                <span class="section-label">Rediscover</span>
+                            </a>
+                        </div>
+
                         <hr class="my-3">
 
                         <!-- Tags section -->
@@ -524,6 +531,16 @@
                         <div id="duplicatesContent" class="p-3"></div>
                     </div>
 
+                    <!-- Rediscover view -->
+                    <div id="viewRediscover" class="d-none" role="region" aria-label="Rediscovery surfaces">
+                        <div class="px-3 pt-3 pb-2">
+                            <p class="small text-secondary-themed mb-0">
+                                Prompts built from your library metadata. Shake loose what you've forgotten, unearth ratings you haven't revisited, and explore the rest of a one-hit-wonder's catalog.
+                            </p>
+                        </div>
+                        <div id="rediscoverContent" class="px-2 pb-3"></div>
+                    </div>
+
                     <!-- History view -->
                     <div id="viewHistory" class="d-none" role="region" aria-label="Listening history">
                         <div class="d-flex justify-content-between align-items-center gap-2 px-3 pt-2 flex-wrap">
@@ -599,6 +616,7 @@
                                 <div class="col-12 col-md-7 d-flex gap-2 justify-content-md-end flex-wrap">
                                     <button class="btn btn-sm btn-outline-secondary" id="spSyntaxHelpBtn" type="button">Syntax</button>
                                     <button class="btn btn-sm btn-outline-primary" id="spPreviewBtn" type="button">Preview</button>
+                                    <button class="btn btn-sm btn-success" id="spPlayBtn" type="button" disabled title="Play the current matches">&#9654; Play</button>
                                     <button class="btn btn-sm btn-primary" id="spSaveBtn" type="button">Save</button>
                                     <button class="btn btn-sm btn-outline-success" id="spMaterializeBtn" type="button" disabled title="Snapshot matches into a regular playlist">Materialize</button>
                                     <button class="btn btn-sm btn-outline-danger d-none" id="spDeleteBtn" type="button">Delete</button>
@@ -629,6 +647,7 @@
                             <div class="table-responsive">
                                 <table class="table table-sm" aria-label="Smart playlist results">
                                     <thead><tr>
+                                        <th scope="col" class="col-play"><span class="visually-hidden">Play</span></th>
                                         <th scope="col">Title</th>
                                         <th scope="col">Artist</th>
                                         <th scope="col" class="hide-xs">Album</th>
@@ -735,5 +754,6 @@
     <script th:src="@{/js/smart-playlist.js(v=${appVersion})}"></script>
     <script th:src="@{/js/tags.js(v=${appVersion})}"></script>
     <script th:src="@{/js/history.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/rediscover.js(v=${appVersion})}"></script>
 </body>
 </html>
