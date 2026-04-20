@@ -999,4 +999,52 @@ class LibraryControllerTest {
         assertEquals("My Song (Live).mp3", LibraryController.sanitizeFilename("My Song (Live).mp3"));
         assertEquals("track-01_remix.mp3", LibraryController.sanitizeFilename("track-01_remix.mp3"));
     }
+
+    @Test
+    void bulkUpdateTagsReturnsCountsOnSuccess() {
+        when(libraryService.bulkUpdateTags(eq("user1"), any(), any(), any()))
+                .thenReturn(new LibraryService.BulkTagResult(3, 1));
+
+        BulkTagsRequest req = new BulkTagsRequest();
+        req.setFileIds(List.of("f1", "f2", "f3", "missing"));
+        req.setAdd(List.of("live"));
+
+        ResponseEntity<?> response = controller.bulkUpdateTags(testUser, req);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals(3, body.get("modified"));
+        assertEquals(1, body.get("notFound"));
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.TAGS_UPDATE), anyString(), anyString());
+    }
+
+    @Test
+    void bulkUpdateTagsRejectsEmptyAddAndRemove() {
+        BulkTagsRequest req = new BulkTagsRequest();
+        req.setFileIds(List.of("f1"));
+
+        ResponseEntity<?> response = controller.bulkUpdateTags(testUser, req);
+
+        assertEquals(400, response.getStatusCode().value());
+        verify(libraryService, never()).bulkUpdateTags(anyString(), any(), any(), any());
+    }
+
+    @Test
+    void listTagsReturnsCountsShape() {
+        when(libraryService.listTagsWithCounts("user1")).thenReturn(List.of(
+                new LibraryService.TagCount("acoustic", 3),
+                new LibraryService.TagCount("live", 5)));
+
+        ResponseEntity<?> response = controller.listTags(testUser);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        @SuppressWarnings("unchecked")
+        List<LibraryService.TagCount> tags = (List<LibraryService.TagCount>) body.get("tags");
+        assertEquals(2, tags.size());
+        assertEquals("acoustic", tags.get(0).tag());
+        assertEquals(3, tags.get(0).count());
+    }
 }

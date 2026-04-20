@@ -560,6 +560,76 @@
 }
 .genre-badge { background: rgba(255, 209, 102, 0.1) !important; color: var(--honey); }
 
+/* ── Tag chips (editor + row display) ───────────────────── */
+.tag-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 1.6rem;
+    align-items: center;
+}
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 209, 102, 0.1);
+    border: 1px solid rgba(255, 209, 102, 0.25);
+    color: var(--honey);
+    font-size: 0.78rem;
+    line-height: 1;
+}
+.tag-chip--remove {
+    background: rgba(232, 52, 26, 0.1);
+    border-color: rgba(232, 52, 26, 0.3);
+    color: var(--ruby-hot, #ff7a6f);
+}
+.tag-chip-label { font-weight: 500; }
+.tag-chip-x {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0 0.1rem;
+    cursor: pointer;
+    opacity: 0.75;
+}
+.tag-chip-x:hover { opacity: 1; }
+.tag-chip-empty { color: var(--text-muted); font-style: italic; }
+
+.tag-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    margin-top: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--bg-elev, #1d1a16);
+    border: 1px solid rgba(255, 209, 102, 0.2);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.tag-suggestion {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0.4rem 0.7rem;
+    color: var(--text, #ece7df);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.tag-suggestion:hover,
+.tag-suggestion:focus {
+    background: rgba(255, 209, 102, 0.08);
+    color: var(--honey);
+}
+
 /* ── Alerts ──────────────────────────────────────────── */
 .alert {
     border-radius: 10px;
@@ -1051,6 +1121,16 @@ tr:hover .btn-action-sm { opacity: 1; }
     color: var(--danger);
     border-color: var(--danger);
     box-shadow: 0 0 6px rgba(255, 107, 107, 0.35);
+}
+.btn-action-tagged {
+    opacity: 1;
+    color: var(--honey);
+    border-color: rgba(255, 209, 102, 0.35);
+    font-size: 0.68rem;
+    width: auto;
+    min-width: 24px;
+    padding: 0 6px;
+    gap: 2px;
 }
 @media (hover: none) { .btn-action-sm { opacity: 1; } }
 

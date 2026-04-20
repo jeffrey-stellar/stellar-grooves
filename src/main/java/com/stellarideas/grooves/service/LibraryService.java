@@ -8,9 +8,13 @@ import com.stellarideas.grooves.repository.MusicFileRepository;
 import com.stellarideas.grooves.repository.PlaybackQueueRepository;
 import com.stellarideas.grooves.repository.PlayEventRepository;
 import com.stellarideas.grooves.repository.PlaylistRepository;
+import org.bson.Document;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -168,6 +172,97 @@ public class LibraryService {
         Collections.sort(values);
         return values;
     }
+
+    /** Return all tags the user has in use with per-tag usage counts, sorted alphabetically. */
+    public List<TagCount> listTagsWithCounts(String userId) {
+        Aggregation agg = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("userId").is(userId)
+                        .and("deleted").ne(true)
+                        .and("customTags").exists(true)),
+                Aggregation.unwind("customTags"),
+                Aggregation.group("customTags").count().as("count"),
+                Aggregation.project("count").and("_id").as("tag").andExclude("_id"),
+                Aggregation.sort(Sort.Direction.ASC, "tag"));
+
+        AggregationResults<Document> results =
+                mongoTemplate.aggregate(agg, MusicFile.class, Document.class);
+
+        List<TagCount> out = new ArrayList<>();
+        for (Document d : results.getMappedResults()) {
+            String tag = d.getString("tag");
+            if (tag == null || tag.isBlank()) continue;
+            out.add(new TagCount(tag, d.getInteger("count", 0)));
+        }
+        return out;
+    }
+
+    /**
+     * Add and/or remove tags across many files owned by the user. {@code add} tags are normalized
+     * the same way as {@link #normalizeTags}; {@code remove} tags are compared case-insensitively
+     * after trim. Returns a summary of how many files changed and how many were not found.
+     *
+     * <p>This walks the matching files and rewrites {@code customTags} per file so the per-track
+     * tag cap ({@link #MAX_TAGS_PER_TRACK}) is still honored — a bulk add that would push a file
+     * over the cap is rejected for the whole batch (no partial writes).
+     */
+    @Transactional
+    public BulkTagResult bulkUpdateTags(String userId, List<String> fileIds,
+                                        List<String> addRaw, List<String> removeRaw) {
+        if (fileIds == null || fileIds.isEmpty()) return new BulkTagResult(0, 0);
+
+        List<String> addTags = normalizeTagList(addRaw);
+        Set<String> removeTags = removeRaw == null ? Set.of()
+                : removeRaw.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(s -> s.toLowerCase(Locale.ROOT))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (addTags.isEmpty() && removeTags.isEmpty()) return new BulkTagResult(0, 0);
+
+        Query scope = new Query(Criteria.where("_id").in(fileIds)
+                .and("userId").is(userId)
+                .and("deleted").ne(true));
+        List<MusicFile> files = mongoTemplate.find(scope, MusicFile.class);
+
+        int modified = 0;
+        for (MusicFile file : files) {
+            LinkedHashSet<String> current = file.getCustomTags() == null
+                    ? new LinkedHashSet<>()
+                    : new LinkedHashSet<>(file.getCustomTags());
+            int before = current.size();
+
+            current.removeAll(removeTags);
+            current.addAll(addTags);
+
+            if (current.size() > MAX_TAGS_PER_TRACK) {
+                throw new IllegalArgumentException(
+                        "A track would exceed " + MAX_TAGS_PER_TRACK + " tags after this update");
+            }
+
+            if (current.size() == before
+                    && (file.getCustomTags() == null ? List.of() : file.getCustomTags())
+                            .equals(new ArrayList<>(current))) {
+                continue;
+            }
+            file.setCustomTags(current.isEmpty() ? null : new ArrayList<>(current));
+            musicFileRepository.save(file);
+            modified++;
+        }
+
+        int notFound = fileIds.size() - files.size();
+        return new BulkTagResult(modified, notFound);
+    }
+
+    /** Variant of {@link #normalizeTags(List)} that returns an empty list for null input without throwing. */
+    private static List<String> normalizeTagList(List<String> raw) {
+        return raw == null ? List.of() : normalizeTags(raw);
+    }
+
+    public record TagCount(String tag, int count) {}
+
+    public record BulkTagResult(int modified, int notFound) {}
 
     @Transactional
     public long bulkDelete(List<String> ids, String userId) {

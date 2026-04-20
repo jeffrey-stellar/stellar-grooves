@@ -195,7 +195,14 @@ function updateAlbumFilter() {
 }
 
 // ── Navigation ───────────────────────────────────────────
-function navigate(newNav) { nav = newNav; window.nav = nav; selectedIds.clear(); updateBulkBar(); renderBreadcrumb(); renderCurrentView(); renderPlaylistSidebar(); if (typeof SG.renderSmartPlaylistSidebar === 'function') SG.renderSmartPlaylistSidebar(); }
+function navigate(newNav) {
+    nav = newNav; window.nav = nav;
+    selectedIds.clear(); updateBulkBar();
+    renderBreadcrumb(); renderCurrentView();
+    renderPlaylistSidebar();
+    if (typeof SG.renderSmartPlaylistSidebar === 'function') SG.renderSmartPlaylistSidebar();
+    if (typeof SG.renderTagsSidebar === 'function') SG.renderTagsSidebar();
+}
 
 function renderBreadcrumb() {
     const ol = document.getElementById('breadcrumbList'); ol.innerHTML = '';
@@ -205,9 +212,10 @@ function renderBreadcrumb() {
         else { li.textContent = label; li.setAttribute('aria-current', 'page'); }
         ol.appendChild(li);
     }
-    const home = nav.view === 'library';
-    const hc = home ? null : () => navigate({ view: 'library', artist: null, album: null });
+    const home = nav.view === 'library' && !nav.tag;
+    const hc = () => navigate({ view: 'library', artist: null, album: null, tag: null });
     if (home) crumb('My Music Library', null);
+    else if (nav.view === 'library' && nav.tag) { crumb('My Music Library', hc); crumb('Tag: ' + nav.tag, null); }
     else if (nav.view === 'artists') { crumb('My Music Library', hc); crumb('Artists', null); }
     else if (nav.view === 'albums' && !nav.artist) { crumb('My Music Library', hc); crumb('Albums', null); }
     else if (nav.view === 'albums' && nav.artist) { crumb('My Music Library', hc); crumb('Artists', () => navigate({ view: 'artists' })); crumb(nav.artist, null); }
@@ -353,6 +361,7 @@ function getVisibleTracks() {
     let f = allFiles;
     if (nav.artist) f = f.filter(x => (x.artist || '(Unknown)') === nav.artist);
     if (nav.album) f = f.filter(x => (x.album || '(Unknown)') === nav.album);
+    if (nav.tag) f = f.filter(x => Array.isArray(x.customTags) && x.customTags.includes(nav.tag));
     if (!nav.artist && !nav.album) {
         const g = document.getElementById('genreFilter').value;
         if (g) f = f.filter(x => x.genre === g);
@@ -433,6 +442,14 @@ function buildTrackRow(file) {
     const tdA = document.createElement('td'); tdA.className = 'col-actions';
     const bq = document.createElement('button'); bq.className = 'btn-action-sm'; bq.setAttribute('aria-label', 'Add to queue'); bq.textContent = '\u23ED'; bq.dataset.action = 'queue'; tdA.appendChild(bq);
     const ba = document.createElement('button'); ba.className = 'btn-action-sm'; ba.setAttribute('aria-label', 'Add to playlist'); ba.textContent = '+'; ba.dataset.action = 'add-to-playlist'; tdA.appendChild(ba);
+    const tagCount = Array.isArray(file.customTags) ? file.customTags.length : 0;
+    const bt = document.createElement('button');
+    bt.className = 'btn-action-sm' + (tagCount > 0 ? ' btn-action-tagged' : '');
+    bt.setAttribute('aria-label', 'Edit tags' + (tagCount ? ' (' + tagCount + ')' : ''));
+    bt.title = tagCount > 0 ? 'Tags: ' + file.customTags.join(', ') : 'Edit tags';
+    bt.textContent = tagCount > 0 ? '\u2691' + tagCount : '\u2691';
+    bt.dataset.action = 'edit-tags';
+    tdA.appendChild(bt);
     const bd = document.createElement('button'); bd.className = 'btn-action-sm btn-action-remove'; bd.setAttribute('aria-label', 'Delete'); bd.textContent = '\u2715'; bd.dataset.action = 'delete'; tdA.appendChild(bd);
     tr.appendChild(tdA);
     return tr;
@@ -506,6 +523,12 @@ document.getElementById('bulkPlaylistBtn').addEventListener('click', () => {
     openAddToPlaylistModal(selectedFileForPlaylist);
 });
 
+const bulkTagBtn = document.getElementById('bulkTagBtn');
+if (bulkTagBtn) bulkTagBtn.addEventListener('click', () => {
+    if (selectedIds.size === 0) return;
+    if (typeof SG.openBulkTagEditor === 'function') SG.openBulkTagEditor([...selectedIds]);
+});
+
 // ── Event delegation: tracks tbody ───────────────────────
 document.getElementById('musicTableBody').addEventListener('click', function(e) {
     const el = e.target.closest('[data-action]'); if (!el) return;
@@ -514,6 +537,7 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
         case 'play': clearPlaylistContext(); playTrack(file); break;
         case 'queue': addToQueue(file); break;
         case 'add-to-playlist': openAddToPlaylistModal(file); break;
+        case 'edit-tags': if (typeof SG.openSingleTrackEditor === 'function') SG.openSingleTrackEditor(file); break;
         case 'delete': guardClick(el, async () => {
             if (!confirm(`Delete "${file.title || file.fileName}"?`)) return;
             const r = await fetch(`/api/v1/library/files/${file.id}`, { method: 'DELETE', headers: csrfHeaders() });
@@ -875,6 +899,7 @@ async function loadLibrary() {
         while (p < tp) { const r = await fetch(`/api/v1/library/files?page=${p}&size=200`); const d = await r.json(); allFiles = allFiles.concat(d.content); tp = d.totalPages; p++; }
         updateStats(); renderCurrentView(); await loadPlaylists();
         if (typeof SG.loadSmartPlaylists === 'function') await SG.loadSmartPlaylists();
+        if (typeof SG.loadTags === 'function') await SG.loadTags();
     } catch (e) { console.error(e); }
 }
 SG.loadPlaylists = loadPlaylists;

@@ -463,7 +463,31 @@ public class LibraryController {
 
     @GetMapping("/tags")
     public ResponseEntity<?> listTags(@CurrentUser User user) {
-        return ResponseEntity.ok(Map.of("tags", libraryService.listDistinctTags(user.getId())));
+        List<LibraryService.TagCount> tags = libraryService.listTagsWithCounts(user.getId());
+        return ResponseEntity.ok(Map.of("tags", tags));
+    }
+
+    @PostMapping("/files/tags/bulk")
+    public ResponseEntity<?> bulkUpdateTags(@CurrentUser User user,
+                                            @Valid @RequestBody BulkTagsRequest request) {
+        if ((request.getAdd() == null || request.getAdd().isEmpty())
+                && (request.getRemove() == null || request.getRemove().isEmpty())) {
+            return ResponseEntity.badRequest().body(GlobalExceptionHandler.problem(
+                    HttpStatus.BAD_REQUEST, "At least one of 'add' or 'remove' must be non-empty"));
+        }
+        try {
+            LibraryService.BulkTagResult result = libraryService.bulkUpdateTags(
+                    user.getId(), request.getFileIds(), request.getAdd(), request.getRemove());
+            auditService.log(user.getUsername(), AuditService.Action.TAGS_UPDATE,
+                    "bulk:" + request.getFileIds().size(),
+                    "modified=" + result.modified() + ",notFound=" + result.notFound());
+            return ResponseEntity.ok(Map.of(
+                    "modified", result.modified(),
+                    "notFound", result.notFound()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, e.getMessage()));
+        }
     }
 
     @PostMapping("/files/{id}/plays")

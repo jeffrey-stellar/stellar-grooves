@@ -13,7 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -198,6 +201,140 @@ class LibraryServiceTest {
         MusicFile saved = service.updateTags(file, List.of());
 
         assertNull(saved.getCustomTags());
+    }
+
+    @Test
+    void listTagsWithCountsProjectsAggregateResults() {
+        @SuppressWarnings("unchecked")
+        AggregationResults<Document> results = mock(AggregationResults.class);
+        when(results.getMappedResults()).thenReturn(List.of(
+                new Document("tag", "acoustic").append("count", 3),
+                new Document("tag", "live").append("count", 7)));
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(Document.class)))
+                .thenReturn(results);
+
+        List<LibraryService.TagCount> out = service.listTagsWithCounts("user1");
+
+        assertEquals(2, out.size());
+        assertEquals("acoustic", out.get(0).tag());
+        assertEquals(3, out.get(0).count());
+        assertEquals("live", out.get(1).tag());
+        assertEquals(7, out.get(1).count());
+    }
+
+    @Test
+    void listTagsWithCountsSkipsBlankTagKeys() {
+        @SuppressWarnings("unchecked")
+        AggregationResults<Document> results = mock(AggregationResults.class);
+        when(results.getMappedResults()).thenReturn(List.of(
+                new Document("tag", "").append("count", 1),
+                new Document("tag", "live").append("count", 2)));
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(Document.class)))
+                .thenReturn(results);
+
+        List<LibraryService.TagCount> out = service.listTagsWithCounts("user1");
+
+        assertEquals(1, out.size());
+        assertEquals("live", out.get(0).tag());
+    }
+
+    @Test
+    void bulkUpdateTagsAddsNormalizedTags() {
+        MusicFile f1 = MusicFile.builder().id("f1").customTags(new ArrayList<>(List.of("rock"))).build();
+        MusicFile f2 = MusicFile.builder().id("f2").customTags(null).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1, f2));
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of("f1", "f2"), List.of("LIVE", "acoustic"), List.of());
+
+        assertEquals(2, result.modified());
+        assertEquals(0, result.notFound());
+        assertEquals(List.of("rock", "live", "acoustic"), f1.getCustomTags());
+        assertEquals(List.of("live", "acoustic"), f2.getCustomTags());
+    }
+
+    @Test
+    void bulkUpdateTagsRemovesTagsCaseInsensitively() {
+        MusicFile f1 = MusicFile.builder().id("f1")
+                .customTags(new ArrayList<>(List.of("rock", "live", "demo"))).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1));
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of("f1"), List.of(), List.of("Live"));
+
+        assertEquals(1, result.modified());
+        assertEquals(List.of("rock", "demo"), f1.getCustomTags());
+    }
+
+    @Test
+    void bulkUpdateTagsClearsTagsWhenAllRemoved() {
+        MusicFile f1 = MusicFile.builder().id("f1")
+                .customTags(new ArrayList<>(List.of("only"))).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1));
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.bulkUpdateTags("user1", List.of("f1"), List.of(), List.of("only"));
+
+        assertNull(f1.getCustomTags(), "empty tag list should be stored as null");
+    }
+
+    @Test
+    void bulkUpdateTagsSkipsUnchangedFiles() {
+        MusicFile f1 = MusicFile.builder().id("f1")
+                .customTags(new ArrayList<>(List.of("live"))).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1));
+
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of("f1"), List.of("live"), List.of());
+
+        assertEquals(0, result.modified(), "adding an already-present tag should not trigger a save");
+        verify(musicFileRepository, never()).save(any());
+    }
+
+    @Test
+    void bulkUpdateTagsReportsNotFoundCount() {
+        MusicFile f1 = MusicFile.builder().id("f1").customTags(null).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1));
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of("f1", "missing-a", "missing-b"), List.of("live"), List.of());
+
+        assertEquals(1, result.modified());
+        assertEquals(2, result.notFound());
+    }
+
+    @Test
+    void bulkUpdateTagsRejectsWhenResultWouldExceedCap() {
+        List<String> existing = new ArrayList<>();
+        for (int i = 0; i < 19; i++) existing.add("tag" + i);
+        MusicFile f1 = MusicFile.builder().id("f1")
+                .customTags(new ArrayList<>(existing)).build();
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of(f1));
+
+        assertThrows(IllegalArgumentException.class, () -> service.bulkUpdateTags(
+                "user1", List.of("f1"), List.of("twenty", "twenty-one"), List.of()));
+        verify(musicFileRepository, never()).save(any());
+    }
+
+    @Test
+    void bulkUpdateTagsNoopWhenNothingToDo() {
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of("f1"), List.of(), List.of());
+
+        assertEquals(0, result.modified());
+        verify(mongoTemplate, never()).find(any(Query.class), eq(MusicFile.class));
+    }
+
+    @Test
+    void bulkUpdateTagsNoopWhenFileIdsEmpty() {
+        LibraryService.BulkTagResult result = service.bulkUpdateTags(
+                "user1", List.of(), List.of("live"), List.of());
+
+        assertEquals(0, result.modified());
+        verify(mongoTemplate, never()).find(any(Query.class), eq(MusicFile.class));
     }
 
     @Test
