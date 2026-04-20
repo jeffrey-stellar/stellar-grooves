@@ -4,12 +4,20 @@
 const SG = window.SG;
 
 // ── Scan progress (WebSocket + SSE fallback) ─────────────
-function connectScanProgress(statusSpan) {
+// Stream lifecycle: progress events update the status line; snapshot lets a reconnecting
+// client see current counts instead of starting at 0; complete carries the final totals
+// and triggers library reload. Resolves the returned promise on complete or error so the
+// submit handler can unblock its button.
+function connectScanProgress(statusSpan, onComplete, onError) {
     const userId = document.querySelector('meta[name="_userId"]')?.content;
     if (!userId) return { cleanup: () => {} };
 
     let stompClient = null;
     let eventSource = null;
+
+    function renderProgress(p) {
+        statusSpan.textContent = `\u23F3 Scanning\u2026 ${p.saved} imported, ${p.skipped} skipped, ${p.errors} error(s)`;
+    }
 
     try {
         stompClient = new StompJs.Client({
@@ -19,9 +27,12 @@ function connectScanProgress(statusSpan) {
                 stompClient.subscribe('/topic/scan/' + userId, (message) => {
                     try {
                         const payload = JSON.parse(message.body);
-                        if (payload.type === 'progress') {
-                            const p = payload.data;
-                            statusSpan.textContent = `\u23F3 Scanning\u2026 ${p.saved} imported, ${p.skipped} skipped, ${p.errors} error(s)`;
+                        if (payload.type === 'progress' || payload.type === 'snapshot') {
+                            renderProgress(payload.data);
+                        } else if (payload.type === 'complete') {
+                            onComplete && onComplete(payload.data);
+                        } else if (payload.type === 'error') {
+                            onError && onError(payload.data && payload.data.message);
                         }
                     } catch (_) {}
                 });
@@ -36,14 +47,16 @@ function connectScanProgress(statusSpan) {
     function connectSSEFallback() {
         try {
             eventSource = new EventSource('/api/v1/library/scan/progress');
-            eventSource.addEventListener('progress', (ev) => {
-                try {
-                    const p = JSON.parse(ev.data);
-                    statusSpan.textContent = `\u23F3 Scanning\u2026 ${p.saved} imported, ${p.skipped} skipped, ${p.errors} error(s)`;
-                } catch (_) {}
+            const handleProgress = (ev) => { try { renderProgress(JSON.parse(ev.data)); } catch (_) {} };
+            eventSource.addEventListener('progress', handleProgress);
+            eventSource.addEventListener('snapshot', handleProgress);
+            eventSource.addEventListener('complete', (ev) => {
+                try { onComplete && onComplete(JSON.parse(ev.data)); } catch (_) { onComplete && onComplete(null); }
+                try { eventSource.close(); } catch (_) {}
             });
-            eventSource.addEventListener('complete', () => { try { eventSource.close(); } catch (_) {} });
-            eventSource.addEventListener('error', () => { try { eventSource.close(); } catch (_) {} });
+            eventSource.addEventListener('error', (ev) => {
+                try { const d = JSON.parse(ev.data); onError && onError(d && d.message); } catch (_) {}
+            });
         } catch (_) {}
     }
 
@@ -64,15 +77,37 @@ document.getElementById('scanForm').addEventListener('submit', async (e) => {
     btn.disabled = true; btn.classList.add('btn-loading');
     const ss = document.createElement('span'); ss.className = 'status-scanning'; ss.textContent = '\u23F3 Scanning\u2026'; sd.replaceChildren(ss);
 
-    const progress = connectScanProgress(ss);
+    let progress;
+    const finished = new Promise((resolve) => {
+        progress = connectScanProgress(ss,
+            (data) => { // complete
+                let m = (data && data.saved > 0) ? `\u2713 ${data.saved} imported.` : '\u2713 No new files.';
+                if (data && data.skipped > 0) m += ` ${data.skipped} skipped.`;
+                if (data && data.errors > 0) m += ` ${data.errors} error(s).`;
+                const s = document.createElement('span'); s.className = 'status-success'; s.textContent = m;
+                sd.replaceChildren(s);
+                resolve({ ok: true });
+            },
+            (errMsg) => { // error
+                const s = document.createElement('span'); s.className = 'status-error';
+                s.textContent = '\u2717 ' + (errMsg || 'Scan failed');
+                sd.replaceChildren(s);
+                resolve({ ok: false });
+            });
+    });
 
     try {
         const r = await fetch('/api/v1/library/scan', { method: 'POST', headers: SG.csrfHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: pv }) });
-        const d = await r.json();
-        if (r.ok) { let m = d.filesFound > 0 ? `\u2713 ${d.filesFound} imported.` : '\u2713 No new files.'; if (d.skipped > 0) m += ` ${d.skipped} skipped.`; if (d.errors > 0) m += ` ${d.errors} error(s).`; const s = document.createElement('span'); s.className = 'status-success'; s.textContent = m; sd.replaceChildren(s); await SG.loadLibrary(); }
-        else { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 ' + (d.error || d.detail || 'Scan failed'); sd.replaceChildren(s); }
+        if (r.status === 202) {
+            // Wait for progress stream to deliver the terminal event
+            const outcome = await finished;
+            if (outcome.ok) await SG.loadLibrary();
+        } else {
+            const d = await r.json().catch(() => ({}));
+            const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 ' + (d.error || d.detail || 'Scan failed'); sd.replaceChildren(s);
+        }
     } catch (er) { const s = document.createElement('span'); s.className = 'status-error'; s.textContent = '\u2717 Network error'; sd.replaceChildren(s); }
-    finally { btn.disabled = false; btn.classList.remove('btn-loading'); progress.cleanup(); }
+    finally { btn.disabled = false; btn.classList.remove('btn-loading'); if (progress) progress.cleanup(); }
 });
 
 // ── Clear library ────────────────────────────────────────

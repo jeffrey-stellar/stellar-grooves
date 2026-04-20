@@ -63,6 +63,22 @@ public class ScanProgressEmitter {
     }
 
     /**
+     * Send a one-shot snapshot event to the emitter for this user. Lets reconnecting
+     * clients see the current scan state rather than starting from zero. Safe no-op
+     * if no emitter is registered.
+     */
+    public void sendSnapshot(String userId, int saved, int skipped, int errors,
+                             String currentFile, String status) {
+        sendEvent(userId, "snapshot", Map.of(
+                "saved", saved,
+                "skipped", skipped,
+                "errors", errors,
+                "currentFile", currentFile != null ? currentFile : "",
+                "status", status
+        ));
+    }
+
+    /**
      * Periodically clean up emitters that have exceeded the timeout.
      * This catches cases where the SseEmitter's built-in timeout callback
      * doesn't fire (e.g. abrupt client disconnect without TCP reset).

@@ -909,22 +909,25 @@ class LibraryControllerTest {
     @Test
     void scanSuccessful() throws Exception {
         String realPath = tempDir.toRealPath().toString();
-        ScanResult result = new ScanResult();
-        result.addSaved(10);
-        when(scannerService.scanDirectory(eq(testUser), eq(realPath))).thenReturn(result);
+        com.stellarideas.grooves.model.ScanJob job = new com.stellarideas.grooves.model.ScanJob();
+        job.setId("job-1");
+        job.setStatus(com.stellarideas.grooves.model.ScanJob.Status.QUEUED);
+        job.setQueuedAt(java.time.Instant.now());
+        when(scannerService.startAsyncScan(eq(testUser), eq(realPath))).thenReturn(job);
 
         ScanRequest request = new ScanRequest();
         request.setPath(realPath);
 
         ResponseEntity<?> response = controller.scanDirectory(testUser, request);
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(202, response.getStatusCode().value());
         verify(userRepository).save(testUser);
         assertEquals(realPath, testUser.getMusicDirectory());
 
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
-        assertEquals(10, body.get("filesFound"));
+        assertEquals("job-1", body.get("jobId"));
+        assertEquals("QUEUED", body.get("status"));
     }
 
     @Test
@@ -935,7 +938,7 @@ class LibraryControllerTest {
         ResponseEntity<?> response = controller.scanDirectory(testUser, request);
 
         assertEquals(400, response.getStatusCode().value());
-        verify(scannerService, never()).scanDirectory(any(), any());
+        verify(scannerService, never()).startAsyncScan(any(), any());
     }
 
     @Test
@@ -951,7 +954,7 @@ class LibraryControllerTest {
     @Test
     void scanHandlesUnexpectedError() throws Exception {
         String realPath = tempDir.toRealPath().toString();
-        when(scannerService.scanDirectory(eq(testUser), eq(realPath)))
+        when(scannerService.startAsyncScan(eq(testUser), eq(realPath)))
                 .thenThrow(new RuntimeException("disk failure"));
 
         ScanRequest request = new ScanRequest();
@@ -960,6 +963,77 @@ class LibraryControllerTest {
         ResponseEntity<?> response = controller.scanDirectory(testUser, request);
 
         assertEquals(500, response.getStatusCode().value());
+    }
+
+    @Test
+    void scanReturns409WhenAnotherScanActive() throws Exception {
+        String realPath = tempDir.toRealPath().toString();
+        when(scannerService.startAsyncScan(eq(testUser), eq(realPath)))
+                .thenThrow(new IllegalStateException("A scan is already in progress for this user"));
+
+        ScanRequest request = new ScanRequest();
+        request.setPath(realPath);
+
+        ResponseEntity<?> response = controller.scanDirectory(testUser, request);
+
+        assertEquals(409, response.getStatusCode().value());
+    }
+
+    @Test
+    void scanStatusReturnsNoneWhenNoHistory() {
+        when(scannerService.findActiveJob("user1")).thenReturn(java.util.Optional.empty());
+        when(scannerService.findLatestJob("user1")).thenReturn(java.util.Optional.empty());
+
+        ResponseEntity<?> response = controller.scanStatus(testUser);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals("NONE", body.get("status"));
+    }
+
+    @Test
+    void scanStatusReturnsActiveJobWhenRunning() {
+        com.stellarideas.grooves.model.ScanJob job = new com.stellarideas.grooves.model.ScanJob();
+        job.setId("job-42");
+        job.setStatus(com.stellarideas.grooves.model.ScanJob.Status.RUNNING);
+        job.setType(com.stellarideas.grooves.model.ScanJob.Type.MANUAL);
+        job.setPath("/music");
+        job.setFilesSaved(12);
+        job.setFilesSkipped(3);
+        job.setFilesErrored(1);
+        job.setCurrentFile("song.mp3");
+        when(scannerService.findActiveJob("user1")).thenReturn(java.util.Optional.of(job));
+
+        ResponseEntity<?> response = controller.scanStatus(testUser);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals("job-42", body.get("jobId"));
+        assertEquals("RUNNING", body.get("status"));
+        assertEquals(12, body.get("filesSaved"));
+        assertEquals("song.mp3", body.get("currentFile"));
+        verify(scannerService, never()).findLatestJob(anyString()); // active takes precedence
+    }
+
+    @Test
+    void scanStatusFallsBackToLatestJobWhenNoActive() {
+        com.stellarideas.grooves.model.ScanJob job = new com.stellarideas.grooves.model.ScanJob();
+        job.setId("job-7");
+        job.setStatus(com.stellarideas.grooves.model.ScanJob.Status.COMPLETED);
+        job.setType(com.stellarideas.grooves.model.ScanJob.Type.SCHEDULED);
+        job.setPath("/music");
+        when(scannerService.findActiveJob("user1")).thenReturn(java.util.Optional.empty());
+        when(scannerService.findLatestJob("user1")).thenReturn(java.util.Optional.of(job));
+
+        ResponseEntity<?> response = controller.scanStatus(testUser);
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals("COMPLETED", body.get("status"));
+        assertEquals("SCHEDULED", body.get("type"));
     }
 
     // --- sanitizeFilename tests ---
