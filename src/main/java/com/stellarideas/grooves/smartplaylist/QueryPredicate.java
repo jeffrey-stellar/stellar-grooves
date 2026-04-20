@@ -5,10 +5,9 @@ import com.stellarideas.grooves.model.Genre;
 import java.time.Duration;
 
 /**
- * Parsed predicate tree for the smart-playlist DSL. Each clause in a query (e.g.
- * {@code genre:thrash_metal}, {@code rating:>=4}, {@code lastPlayed:>6mo}) produces
- * one of these records. The translator converts a list of predicates into a
- * MongoDB {@code Criteria}.
+ * Leaf predicate for the smart-playlist DSL. Each {@code field:value} clause
+ * produces one of these records. Composition (AND/OR/NOT) lives on
+ * {@link QueryExpr} — leaves are pure single-field predicates.
  */
 public sealed interface QueryPredicate {
 
@@ -31,9 +30,6 @@ public sealed interface QueryPredicate {
     /** lastPlayed:&lt;Xd — played within the window (lastPlayedAt &gt;= now - window). */
     record LastPlayedSince(Duration window) implements QueryPredicate {}
 
-    /** lastPlayed:&gt;Xmo — not played within the window (lastPlayedAt &lt; now - window, or null). */
+    /** lastPlayed:&gt;Xmo — not played within the window (lastPlayedAt &lt; now - window). */
     record LastPlayedBefore(Duration window) implements QueryPredicate {}
-
-    /** Wraps a clause prefixed with {@code -} (logical NOT). The inner predicate is any non-Not predicate. */
-    record Not(QueryPredicate inner) implements QueryPredicate {}
 }

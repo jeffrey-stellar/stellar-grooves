@@ -12,9 +12,30 @@ class SmartPlaylistQueryParserTest {
 
     private final SmartPlaylistQueryParser parser = new SmartPlaylistQueryParser();
 
-    private List<QueryPredicate> predicates(String query) {
-        return parser.parse(query).predicates();
+    // ---------- helpers ----------
+
+    private QueryExpr expr(String query) {
+        ParsedQuery q = parser.parse(query);
+        assertTrue(q.expression().isPresent(), "expected a parsed expression");
+        return q.expression().get();
     }
+
+    private QueryPredicate leaf(String query) {
+        QueryExpr e = expr(query);
+        assertInstanceOf(QueryExpr.Leaf.class, e, () -> "expected single Leaf, got " + e);
+        return ((QueryExpr.Leaf) e).predicate();
+    }
+
+    private QueryExpr child(QueryExpr.And and, int i) {
+        return and.children().get(i);
+    }
+
+    private QueryPredicate leafOf(QueryExpr e) {
+        assertInstanceOf(QueryExpr.Leaf.class, e, () -> "expected Leaf, got " + e);
+        return ((QueryExpr.Leaf) e).predicate();
+    }
+
+    // ---------- empty ----------
 
     @Test
     void emptyQueryReturnsEmpty() {
@@ -23,17 +44,16 @@ class SmartPlaylistQueryParserTest {
         assertTrue(parser.parse("   ").isEmpty());
     }
 
+    // ---------- single predicates ----------
+
     @Test
     void genreEqualsCaseInsensitive() {
-        List<QueryPredicate> p = predicates("genre:thrash_metal");
-        assertEquals(1, p.size());
-        assertEquals(new QueryPredicate.GenreEq(Genre.THRASH_METAL), p.get(0));
+        assertEquals(new QueryPredicate.GenreEq(Genre.THRASH_METAL), leaf("genre:thrash_metal"));
     }
 
     @Test
     void genreAcceptsSpaceVariantInQuotes() {
-        assertEquals(new QueryPredicate.GenreEq(Genre.THRASH_METAL),
-                predicates("genre:\"Thrash Metal\"").get(0));
+        assertEquals(new QueryPredicate.GenreEq(Genre.THRASH_METAL), leaf("genre:\"Thrash Metal\""));
     }
 
     @Test
@@ -44,13 +64,13 @@ class SmartPlaylistQueryParserTest {
     @Test
     void artistQuotedHandlesSpaces() {
         assertEquals(new QueryPredicate.TextContains(QueryPredicate.TextField.ARTIST, "The Who"),
-                predicates("artist:\"The Who\"").get(0));
+                leaf("artist:\"The Who\""));
     }
 
     @Test
     void yearRangeParses() {
         assertEquals(new QueryPredicate.IntRange(QueryPredicate.NumField.YEAR, 1984, 1990),
-                predicates("year:1984..1990").get(0));
+                leaf("year:1984..1990"));
     }
 
     @Test
@@ -62,34 +82,31 @@ class SmartPlaylistQueryParserTest {
     void ratingComparatorsParse() {
         assertEquals(new QueryPredicate.IntCompare(QueryPredicate.NumField.RATING,
                         QueryPredicate.CompareOp.GTE, 4),
-                predicates("rating:>=4").get(0));
+                leaf("rating:>=4"));
         assertEquals(new QueryPredicate.IntCompare(QueryPredicate.NumField.RATING,
                         QueryPredicate.CompareOp.LT, 3),
-                predicates("rating:<3").get(0));
+                leaf("rating:<3"));
     }
 
     @Test
     void ratingBareIntIsEquality() {
         assertEquals(new QueryPredicate.IntEq(QueryPredicate.NumField.RATING, 5),
-                predicates("rating:5").get(0));
+                leaf("rating:5"));
     }
 
     @Test
     void tagLowercased() {
-        assertEquals(new QueryPredicate.TagEq("acoustic"),
-                predicates("tag:Acoustic").get(0));
+        assertEquals(new QueryPredicate.TagEq("acoustic"), leaf("tag:Acoustic"));
     }
 
     @Test
     void lastPlayedBeforeWithMonths() {
-        assertEquals(new QueryPredicate.LastPlayedBefore(Duration.ofDays(180)),
-                predicates("lastPlayed:>6mo").get(0));
+        assertEquals(new QueryPredicate.LastPlayedBefore(Duration.ofDays(180)), leaf("lastPlayed:>6mo"));
     }
 
     @Test
     void lastPlayedSinceWithDays() {
-        assertEquals(new QueryPredicate.LastPlayedSince(Duration.ofDays(30)),
-                predicates("lastPlayed:<30d").get(0));
+        assertEquals(new QueryPredicate.LastPlayedSince(Duration.ofDays(30)), leaf("lastPlayed:<30d"));
     }
 
     @Test
@@ -98,15 +115,209 @@ class SmartPlaylistQueryParserTest {
     }
 
     @Test
-    void compoundQueryAndsAllClauses() {
-        List<QueryPredicate> p = predicates(
-                "genre:thrash_metal year:1984..1990 rating:>=4 lastPlayed:>6mo");
-        assertEquals(4, p.size());
-        assertTrue(p.get(0) instanceof QueryPredicate.GenreEq);
-        assertTrue(p.get(1) instanceof QueryPredicate.IntRange);
-        assertTrue(p.get(2) instanceof QueryPredicate.IntCompare);
-        assertTrue(p.get(3) instanceof QueryPredicate.LastPlayedBefore);
+    void weeksAndYearsDurations() {
+        assertEquals(new QueryPredicate.LastPlayedBefore(Duration.ofDays(14)), leaf("lastPlayed:>2w"));
+        assertEquals(new QueryPredicate.LastPlayedSince(Duration.ofDays(365)), leaf("lastPlayed:<1y"));
     }
+
+    // ---------- implicit AND ----------
+
+    @Test
+    void compoundQueryAndsAllClauses() {
+        QueryExpr e = expr("genre:thrash_metal year:1984..1990 rating:>=4 lastPlayed:>6mo");
+        assertInstanceOf(QueryExpr.And.class, e);
+        QueryExpr.And and = (QueryExpr.And) e;
+        assertEquals(4, and.children().size());
+        assertInstanceOf(QueryPredicate.GenreEq.class, leafOf(child(and, 0)));
+        assertInstanceOf(QueryPredicate.IntRange.class, leafOf(child(and, 1)));
+        assertInstanceOf(QueryPredicate.IntCompare.class, leafOf(child(and, 2)));
+        assertInstanceOf(QueryPredicate.LastPlayedBefore.class, leafOf(child(and, 3)));
+    }
+
+    @Test
+    void explicitAndKeywordIsEquivalentToWhitespace() {
+        QueryExpr a = expr("genre:hard_rock AND rating:>=4");
+        QueryExpr b = expr("genre:hard_rock rating:>=4");
+        assertEquals(a, b);
+    }
+
+    @Test
+    void ampAmpTreatedAsAnd() {
+        QueryExpr e = expr("genre:hard_rock && rating:>=4");
+        assertInstanceOf(QueryExpr.And.class, e);
+        assertEquals(2, ((QueryExpr.And) e).children().size());
+    }
+
+    // ---------- OR ----------
+
+    @Test
+    void orKeywordCaseInsensitive() {
+        QueryExpr upper = expr("genre:thrash_metal OR genre:hard_rock");
+        QueryExpr lower = expr("genre:thrash_metal or genre:hard_rock");
+        assertEquals(upper, lower);
+        assertInstanceOf(QueryExpr.Or.class, upper);
+    }
+
+    @Test
+    void orPipePipeIsEquivalent() {
+        QueryExpr e = expr("genre:thrash_metal || genre:hard_rock");
+        assertInstanceOf(QueryExpr.Or.class, e);
+        assertEquals(2, ((QueryExpr.Or) e).children().size());
+    }
+
+    @Test
+    void orCombinesTwoLeaves() {
+        QueryExpr e = expr("genre:thrash_metal OR genre:hard_rock");
+        assertInstanceOf(QueryExpr.Or.class, e);
+        QueryExpr.Or or = (QueryExpr.Or) e;
+        assertEquals(List.of(
+                new QueryPredicate.GenreEq(Genre.THRASH_METAL),
+                new QueryPredicate.GenreEq(Genre.HARD_ROCK)),
+                or.children().stream().map(this::leafOf).toList());
+    }
+
+    @Test
+    void andBindsTighterThanOr() {
+        // "a b OR c" should parse as (a AND b) OR c
+        QueryExpr e = expr("genre:thrash_metal rating:>=4 OR genre:hard_rock");
+        assertInstanceOf(QueryExpr.Or.class, e);
+        QueryExpr.Or or = (QueryExpr.Or) e;
+        assertEquals(2, or.children().size());
+        assertInstanceOf(QueryExpr.And.class, or.children().get(0));
+        assertInstanceOf(QueryExpr.Leaf.class, or.children().get(1));
+    }
+
+    @Test
+    void orWithAndOnBothSides() {
+        // "a b OR c d" → (a AND b) OR (c AND d)
+        QueryExpr e = expr("genre:thrash_metal rating:>=4 OR genre:hard_rock rating:>=3");
+        QueryExpr.Or or = (QueryExpr.Or) e;
+        assertEquals(2, or.children().size());
+        assertInstanceOf(QueryExpr.And.class, or.children().get(0));
+        assertInstanceOf(QueryExpr.And.class, or.children().get(1));
+    }
+
+    @Test
+    void multipleOrsFlattenIntoSingleOrNode() {
+        QueryExpr e = expr("genre:thrash_metal OR genre:hard_rock OR genre:heavy_metal");
+        assertInstanceOf(QueryExpr.Or.class, e);
+        assertEquals(3, ((QueryExpr.Or) e).children().size());
+    }
+
+    // ---------- parentheses ----------
+
+    @Test
+    void parensGroupExpression() {
+        QueryExpr e = expr("(genre:thrash_metal OR genre:hard_rock) rating:>=4");
+        assertInstanceOf(QueryExpr.And.class, e);
+        QueryExpr.And and = (QueryExpr.And) e;
+        assertEquals(2, and.children().size());
+        assertInstanceOf(QueryExpr.Or.class, and.children().get(0));
+        assertInstanceOf(QueryExpr.Leaf.class, and.children().get(1));
+    }
+
+    @Test
+    void parensOverridePrecedence() {
+        // Without parens: "a OR b c" = a OR (b AND c)
+        // With parens: "(a OR b) c" = (a OR b) AND c
+        QueryExpr without = expr("genre:thrash_metal OR genre:hard_rock rating:>=4");
+        QueryExpr with = expr("(genre:thrash_metal OR genre:hard_rock) rating:>=4");
+        assertNotEquals(without, with);
+        assertInstanceOf(QueryExpr.Or.class, without);
+        assertInstanceOf(QueryExpr.And.class, with);
+    }
+
+    @Test
+    void parensTightWithoutSpaces() {
+        QueryExpr spaced = expr("( genre:thrash_metal OR genre:hard_rock )");
+        QueryExpr tight  = expr("(genre:thrash_metal OR genre:hard_rock)");
+        assertEquals(spaced, tight);
+    }
+
+    @Test
+    void unmatchedOpenParenThrows() {
+        assertThrows(QueryParseException.class, () -> parser.parse("(genre:thrash_metal"));
+    }
+
+    @Test
+    void unmatchedCloseParenThrows() {
+        assertThrows(QueryParseException.class, () -> parser.parse("genre:thrash_metal)"));
+    }
+
+    @Test
+    void emptyParensThrow() {
+        assertThrows(QueryParseException.class, () -> parser.parse("()"));
+    }
+
+    @Test
+    void orWithNothingAfterThrows() {
+        assertThrows(QueryParseException.class, () -> parser.parse("genre:thrash_metal OR"));
+    }
+
+    @Test
+    void andWithNothingAfterThrows() {
+        assertThrows(QueryParseException.class, () -> parser.parse("genre:thrash_metal AND"));
+    }
+
+    // ---------- negation ----------
+
+    @Test
+    void negatedLeafWrapsInNot() {
+        QueryExpr e = expr("-tag:skip");
+        assertInstanceOf(QueryExpr.Not.class, e);
+        QueryExpr.Not not = (QueryExpr.Not) e;
+        assertEquals(new QueryPredicate.TagEq("skip"), leafOf(not.child()));
+    }
+
+    @Test
+    void negatedGenreAndPositiveClauseCoexist() {
+        QueryExpr e = expr("genre:hard_rock -tag:skip");
+        assertInstanceOf(QueryExpr.And.class, e);
+        QueryExpr.And and = (QueryExpr.And) e;
+        assertEquals(2, and.children().size());
+        assertInstanceOf(QueryExpr.Leaf.class, and.children().get(0));
+        assertInstanceOf(QueryExpr.Not.class, and.children().get(1));
+    }
+
+    @Test
+    void negatedArtistWithQuotedValue() {
+        QueryExpr e = expr("-artist:\"Justin Bieber\"");
+        QueryExpr.Not not = (QueryExpr.Not) e;
+        assertEquals(new QueryPredicate.TextContains(QueryPredicate.TextField.ARTIST, "Justin Bieber"),
+                leafOf(not.child()));
+    }
+
+    @Test
+    void leadingDashBeforeLetterNegates() {
+        QueryExpr e = expr("-rating:5");
+        assertInstanceOf(QueryExpr.Not.class, e);
+    }
+
+    @Test
+    void negativeIntValueNotConfusedWithNegation() {
+        // rating:-1 — the '-' is inside the value, not a negation
+        assertEquals(new QueryPredicate.IntEq(QueryPredicate.NumField.RATING, -1),
+                leaf("rating:-1"));
+    }
+
+    @Test
+    void negatedGroup() {
+        QueryExpr e = expr("-(genre:thrash_metal OR tag:skip)");
+        assertInstanceOf(QueryExpr.Not.class, e);
+        QueryExpr.Not not = (QueryExpr.Not) e;
+        assertInstanceOf(QueryExpr.Or.class, not.child());
+    }
+
+    @Test
+    void negatedGroupWithLeadingSpaceDash() {
+        // "- (genre:thrash)" is equivalent to "-(genre:thrash)"
+        QueryExpr e = expr("- (genre:thrash_metal)");
+        assertInstanceOf(QueryExpr.Not.class, e);
+        QueryExpr.Not not = (QueryExpr.Not) e;
+        assertEquals(new QueryPredicate.GenreEq(Genre.THRASH_METAL), leafOf(not.child()));
+    }
+
+    // ---------- errors ----------
 
     @Test
     void unknownFieldThrows() {
@@ -139,56 +350,7 @@ class SmartPlaylistQueryParserTest {
         assertThrows(QueryParseException.class, () -> parser.parse("rating:five"));
     }
 
-    @Test
-    void yearWeeksAndYearsDurations() {
-        assertEquals(new QueryPredicate.LastPlayedBefore(Duration.ofDays(14)),
-                predicates("lastPlayed:>2w").get(0));
-        assertEquals(new QueryPredicate.LastPlayedSince(Duration.ofDays(365)),
-                predicates("lastPlayed:<1y").get(0));
-    }
-
-    // ---- negation ----
-
-    @Test
-    void negatedTagWrapsInNot() {
-        QueryPredicate p = predicates("-tag:skip").get(0);
-        assertTrue(p instanceof QueryPredicate.Not);
-        assertEquals(new QueryPredicate.TagEq("skip"), ((QueryPredicate.Not) p).inner());
-    }
-
-    @Test
-    void negatedGenreAndPositiveClauseCoexist() {
-        List<QueryPredicate> p = predicates("genre:hard_rock -tag:skip");
-        assertEquals(2, p.size());
-        assertTrue(p.get(0) instanceof QueryPredicate.GenreEq);
-        assertTrue(p.get(1) instanceof QueryPredicate.Not);
-    }
-
-    @Test
-    void negatedArtistWithQuotedValue() {
-        QueryPredicate p = predicates("-artist:\"Justin Bieber\"").get(0);
-        assertTrue(p instanceof QueryPredicate.Not);
-        assertEquals(new QueryPredicate.TextContains(QueryPredicate.TextField.ARTIST, "Justin Bieber"),
-                ((QueryPredicate.Not) p).inner());
-    }
-
-    @Test
-    void leadingDashBeforeNonLetterIsNotNegation() {
-        // e.g. a clause that starts with ':' or a comparator is invalid for other reasons,
-        // but -rating:5 should still be read as negation (next char is letter)
-        QueryPredicate p = predicates("-rating:5").get(0);
-        assertTrue(p instanceof QueryPredicate.Not);
-    }
-
-    @Test
-    void negationDoesNotBreakNumericValues() {
-        // Year has no meaningful negative, but the parser still allows negative ints via INT_EQ;
-        // a rating of -1 as a value is distinct from a negated clause.
-        assertEquals(new QueryPredicate.IntEq(QueryPredicate.NumField.RATING, -1),
-                predicates("rating:-1").get(0));
-    }
-
-    // ---- sort ----
+    // ---------- sort ----------
 
     @Test
     void sortWithDefaultDirection() {
@@ -196,6 +358,7 @@ class SmartPlaylistQueryParserTest {
         assertTrue(q.sort().isPresent());
         assertEquals(SortSpec.Field.RATING, q.sort().get().field());
         assertEquals(SortSpec.Direction.DESC, q.sort().get().direction());
+        assertTrue(q.expression().isEmpty());
     }
 
     @Test
@@ -231,8 +394,7 @@ class SmartPlaylistQueryParserTest {
 
     @Test
     void multipleSortClausesReject() {
-        assertThrows(QueryParseException.class,
-                () -> parser.parse("sort:rating sort:year"));
+        assertThrows(QueryParseException.class, () -> parser.parse("sort:rating sort:year"));
     }
 
     @Test
@@ -245,7 +407,22 @@ class SmartPlaylistQueryParserTest {
         assertThrows(QueryParseException.class, () -> parser.parse("-sort:rating"));
     }
 
-    // ---- limit ----
+    @Test
+    void sortInsideParensRejected() {
+        assertThrows(QueryParseException.class,
+                () -> parser.parse("(genre:thrash_metal sort:rating)"));
+    }
+
+    @Test
+    void sortOnOneSideOfOrRejected() {
+        // sort: is still top-level only; placing it inside a paren-group or nested
+        // should fail. Top-level placement after an OR is allowed since there are
+        // no parens — but mixing sort/limit into an OR branch via parens is not.
+        assertThrows(QueryParseException.class,
+                () -> parser.parse("(genre:thrash_metal OR genre:hard_rock limit:10)"));
+    }
+
+    // ---------- limit ----------
 
     @Test
     void limitParses() {
@@ -281,7 +458,9 @@ class SmartPlaylistQueryParserTest {
     @Test
     void sortLimitAndPredicatesParseTogether() {
         ParsedQuery q = parser.parse("genre:heavy_metal rating:>=4 sort:rating limit:50");
-        assertEquals(2, q.predicates().size());
+        assertTrue(q.expression().isPresent());
+        assertInstanceOf(QueryExpr.And.class, q.expression().get());
+        assertEquals(2, ((QueryExpr.And) q.expression().get()).children().size());
         assertEquals(SortSpec.Field.RATING, q.sort().get().field());
         assertEquals(50, q.limit().orElseThrow());
     }
