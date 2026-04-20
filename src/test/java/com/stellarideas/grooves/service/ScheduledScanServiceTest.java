@@ -39,7 +39,7 @@ class ScheduledScanServiceTest {
 
         service.checkScheduledScans();
 
-        verify(musicScannerService, never()).scanDirectory(any(), anyString());
+        verify(musicScannerService, never()).scanDirectorySync(any(), anyString(), any());
     }
 
     @Test
@@ -50,7 +50,7 @@ class ScheduledScanServiceTest {
 
         service.checkScheduledScans();
 
-        verify(musicScannerService, never()).scanDirectory(any(), anyString());
+        verify(musicScannerService, never()).scanDirectorySync(any(), anyString(), any());
     }
 
     @Test
@@ -61,12 +61,12 @@ class ScheduledScanServiceTest {
                 .lastScheduledScan(Instant.now().minus(1, ChronoUnit.HOURS))
                 .build();
         when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
-        when(musicScannerService.scanDirectory(any(), eq("/music")))
+        when(musicScannerService.scanDirectorySync(any(), eq("/music"), any()))
                 .thenReturn(new ScanResult());
 
         service.checkScheduledScans();
 
-        verify(musicScannerService).scanDirectory(user, "/music");
+        verify(musicScannerService).scanDirectorySync(user, "/music", com.stellarideas.grooves.model.ScanJob.Type.SCHEDULED);
         verify(userRepository).save(user);
         assertNotNull(user.getLastScheduledScan());
     }
@@ -82,7 +82,7 @@ class ScheduledScanServiceTest {
 
         service.checkScheduledScans();
 
-        verify(musicScannerService, never()).scanDirectory(any(), anyString());
+        verify(musicScannerService, never()).scanDirectorySync(any(), anyString(), any());
     }
 
     @Test
@@ -95,7 +95,7 @@ class ScheduledScanServiceTest {
 
         // Should not throw — error is caught and logged
         assertDoesNotThrow(() -> service.checkScheduledScans());
-        verify(musicScannerService, never()).scanDirectory(any(), anyString());
+        verify(musicScannerService, never()).scanDirectorySync(any(), anyString(), any());
     }
 
     @Test
@@ -105,12 +105,12 @@ class ScheduledScanServiceTest {
                 .scanPath("/music")
                 .build(); // no lastScheduledScan set
         when(userRepository.findByScanScheduleNotNull()).thenReturn(List.of(user));
-        when(musicScannerService.scanDirectory(any(), eq("/music")))
+        when(musicScannerService.scanDirectorySync(any(), eq("/music"), any()))
                 .thenReturn(new ScanResult());
 
         service.checkScheduledScans();
 
-        verify(musicScannerService).scanDirectory(user, "/music");
+        verify(musicScannerService).scanDirectorySync(user, "/music", com.stellarideas.grooves.model.ScanJob.Type.SCHEDULED);
     }
 
     @Test
@@ -125,7 +125,7 @@ class ScheduledScanServiceTest {
         AtomicInteger concurrentCount = new AtomicInteger(0);
         AtomicInteger maxConcurrent = new AtomicInteger(0);
 
-        when(musicScannerService.scanDirectory(any(), eq("/music"))).thenAnswer(inv -> {
+        when(musicScannerService.scanDirectorySync(any(), eq("/music"), any())).thenAnswer(inv -> {
             int current = concurrentCount.incrementAndGet();
             maxConcurrent.updateAndGet(max -> Math.max(max, current));
             Thread.sleep(100); // simulate work

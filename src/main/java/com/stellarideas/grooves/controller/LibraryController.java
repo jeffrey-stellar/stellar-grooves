@@ -112,29 +112,62 @@ public class LibraryController {
             auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
             user.setMusicDirectory(path);
             userRepository.save(user);
-            ScanResult result = scannerService.scanDirectory(user, path);
+            com.stellarideas.grooves.model.ScanJob job = scannerService.startAsyncScan(user, path);
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", msg.msg("scan.success"));
-            body.put("filesFound", result.getSaved());
-            body.put("skipped", result.getSkipped());
-            body.put("errors", result.getErrors());
-            if (!result.getErrorDetails().isEmpty()) {
-                body.put("errorDetails", result.getErrorDetails());
-            }
-            return ResponseEntity.ok(body);
+            body.put("message", "Scan started");
+            body.put("jobId", job.getId());
+            body.put("status", job.getStatus().name());
+            body.put("queuedAt", job.getQueuedAt());
+            return ResponseEntity.accepted().body(body);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                     .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(GlobalExceptionHandler.problem(HttpStatus.CONFLICT, e.getMessage()));
         } catch (Exception e) {
-            logger.error("Scan failed for user '{}' on path '{}': {}", user.getUsername(), path, e.getMessage(), e);
+            logger.error("Scan failed to start for user '{}' on path '{}': {}", user.getUsername(), path, e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(GlobalExceptionHandler.problem(HttpStatus.INTERNAL_SERVER_ERROR, msg.msg("scan.failed", "An unexpected error occurred. Please try again.")));
         }
     }
 
+    @GetMapping("/scan/status")
+    public ResponseEntity<?> scanStatus(@CurrentUser User user) {
+        java.util.Optional<com.stellarideas.grooves.model.ScanJob> active =
+                scannerService.findActiveJob(user.getId());
+        java.util.Optional<com.stellarideas.grooves.model.ScanJob> latest = active.isPresent()
+                ? active
+                : scannerService.findLatestJob(user.getId());
+        if (latest.isEmpty()) {
+            return ResponseEntity.ok(Map.of("status", "NONE"));
+        }
+        com.stellarideas.grooves.model.ScanJob job = latest.get();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("jobId", job.getId());
+        body.put("status", job.getStatus().name());
+        body.put("type", job.getType() != null ? job.getType().name() : null);
+        body.put("path", job.getPath());
+        body.put("filesSaved", job.getFilesSaved());
+        body.put("filesSkipped", job.getFilesSkipped());
+        body.put("filesErrored", job.getFilesErrored());
+        body.put("currentFile", job.getCurrentFile());
+        body.put("queuedAt", job.getQueuedAt());
+        body.put("startedAt", job.getStartedAt());
+        body.put("updatedAt", job.getUpdatedAt());
+        body.put("finishedAt", job.getFinishedAt());
+        if (job.getErrorMessage() != null) body.put("errorMessage", job.getErrorMessage());
+        return ResponseEntity.ok(body);
+    }
+
     @GetMapping(value = "/scan/progress", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter scanProgress(@CurrentUser User user) {
-        return scanProgressEmitter.createEmitter(user.getId());
+        SseEmitter emitter = scanProgressEmitter.createEmitter(user.getId());
+        scannerService.findActiveJob(user.getId()).ifPresent(job ->
+                scanProgressEmitter.sendSnapshot(user.getId(),
+                        job.getFilesSaved(), job.getFilesSkipped(), job.getFilesErrored(),
+                        job.getCurrentFile(), job.getStatus().name()));
+        return emitter;
     }
 
     @GetMapping("/files")

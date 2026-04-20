@@ -39,7 +39,10 @@ class ScanPathValidationTest {
     void setUp() {
         MusicScannerService scannerService = mock(MusicScannerService.class);
         try {
-            when(scannerService.scanDirectory(any(User.class), anyString())).thenReturn(new ScanResult());
+            com.stellarideas.grooves.model.ScanJob stubJob = new com.stellarideas.grooves.model.ScanJob();
+            stubJob.setId("job-stub");
+            stubJob.setStatus(com.stellarideas.grooves.model.ScanJob.Status.QUEUED);
+            when(scannerService.startAsyncScan(any(User.class), anyString())).thenReturn(stubJob);
         } catch (Exception ignored) {}
         LibraryService libraryService = mock(LibraryService.class);
         AuditService auditService = mock(AuditService.class);
@@ -132,6 +135,7 @@ class ScanPathValidationTest {
         Files.createDirectory(validDir);
 
         ResponseEntity<?> response = controller.scanDirectory(testUser, scanRequest(validDir.toString()));
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(202, response.getStatusCode().value(),
+                "Async scan should return 202 Accepted for a valid path");
     }
 }

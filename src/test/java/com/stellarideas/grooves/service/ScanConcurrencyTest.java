@@ -3,18 +3,22 @@ package com.stellarideas.grooves.service;
 import com.stellarideas.grooves.dto.ScanResult;
 import com.stellarideas.grooves.model.Genre;
 import com.stellarideas.grooves.model.MusicFile;
+import com.stellarideas.grooves.model.ScanJob;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import com.stellarideas.grooves.repository.ScanJobRepository;
+import com.stellarideas.grooves.repository.UserRepository;
+import com.stellarideas.grooves.service.scan.AudioMetadataReader;
+import com.stellarideas.grooves.service.scan.CoverArtHandler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -25,14 +29,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
- * Tests that concurrent scans for the same user are properly serialized.
- * The per-user lock ensures only one scan runs at a time, preventing
- * race conditions on cover art quota checks and duplicate detection.
+ * Tests that concurrent synchronous scans for the same user are properly serialized.
+ * The per-user lock (and the ScanJob active-count guard) ensure only one scan runs
+ * at a time, preventing race conditions on cover art quota checks and duplicate detection.
  */
 class ScanConcurrencyTest {
 
     private MusicScannerService scannerService;
     private MusicFileRepository repository;
+    private AudioMetadataReader metadataReader;
     private User testUser;
 
     @TempDir
@@ -55,14 +60,24 @@ class ScanConcurrencyTest {
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, passThroughValidator(), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
-        ReflectionTestUtils.setField(scannerService, "maxDepth", 20);
-        ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
-        ReflectionTestUtils.setField(scannerService, "batchSize", 200);
-        ReflectionTestUtils.setField(scannerService, "maxCoverArtBytes", 10485760);
-        ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
-        ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
-        scannerService.initExecutor();
+        ScanJobRepository scanJobRepository = mock(ScanJobRepository.class);
+        UserRepository userRepository = mock(UserRepository.class);
+
+        metadataReader = ScannerTestFactory.newMetadataReader();
+        CoverArtHandler coverArtHandler = ScannerTestFactory.newCoverArtHandler(
+                coverArtRepository, 10_485_760, 524_288_000L);
+
+        scannerService = ScannerTestFactory.newScanner(
+                catalogService, repository, scanJobRepository, userRepository,
+                progressEmitter, passThroughValidator(), metadataReader, coverArtHandler);
+
+        // No existing active jobs; save returns the job with an id
+        when(scanJobRepository.countByUserIdAndStatusIn(anyString(), any())).thenReturn(0L);
+        when(scanJobRepository.save(any(ScanJob.class))).thenAnswer(inv -> {
+            ScanJob j = inv.getArgument(0);
+            if (j.getId() == null) j.setId("job-" + System.nanoTime());
+            return j;
+        });
 
         testUser = new User();
         testUser.setId("user1");
@@ -72,9 +87,15 @@ class ScanConcurrencyTest {
         when(catalogService.identifyGenres(any())).thenReturn(Set.of(Genre.OTHER));
     }
 
+    @AfterEach
+    void tearDown() { if (metadataReader != null) metadataReader.destroy(); }
+
+    private ScanResult sync(User user) throws java.io.IOException {
+        return scannerService.scanDirectorySync(user, tempDir.toString(), ScanJob.Type.MANUAL);
+    }
+
     @Test
     void concurrentScansRejectAllButOne() throws Exception {
-        // Create some dummy files
         for (int i = 0; i < 10; i++) {
             Files.write(tempDir.resolve("track" + i + ".mp3"), new byte[]{0, 1, 2, 3});
         }
@@ -87,7 +108,7 @@ class ScanConcurrencyTest {
         for (int i = 0; i < threadCount; i++) {
             futures.add(executor.submit(() -> {
                 latch.await();
-                return scannerService.scanDirectory(testUser, tempDir.toString());
+                return sync(testUser);
             }));
         }
 
@@ -111,7 +132,6 @@ class ScanConcurrencyTest {
         }
         executor.shutdown();
 
-        // At least one scan should succeed; the rest may be rejected
         assertTrue(succeeded >= 1, "At least one scan should succeed");
         assertEquals(threadCount, succeeded + rejected, "All scans should either succeed or be rejected");
     }
@@ -135,13 +155,12 @@ class ScanConcurrencyTest {
 
             futures.add(executor.submit(() -> {
                 latch.await();
-                return scannerService.scanDirectory(user, tempDir.toString());
+                return sync(user);
             }));
         }
 
         latch.countDown();
 
-        // All scans for different users should succeed (no lock contention)
         for (Future<ScanResult> f : futures) {
             ScanResult r = f.get(10, TimeUnit.SECONDS);
             assertEquals(5, r.getErrors(), "Each scan should process all files");
@@ -154,11 +173,9 @@ class ScanConcurrencyTest {
         Path mp3 = tempDir.resolve("existing.mp3");
         Files.write(mp3, new byte[]{0, 1, 2});
 
-        // First scan
-        ScanResult r1 = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult r1 = sync(testUser);
         assertEquals(1, r1.getErrors());
 
-        // Second scan (lock should be released)
         MusicFile existing = MusicFile.builder()
                 .filePath(mp3.toString())
                 .title("Existing")
@@ -166,7 +183,7 @@ class ScanConcurrencyTest {
                 .build();
         when(repository.findByUserId("user1")).thenReturn(List.of(existing));
 
-        ScanResult r2 = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult r2 = sync(testUser);
         assertEquals(1, r2.getSkipped(), "Second scan should skip the existing file");
         assertEquals(0, r2.getSaved());
     }

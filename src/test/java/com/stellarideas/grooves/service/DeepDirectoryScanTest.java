@@ -2,9 +2,15 @@ package com.stellarideas.grooves.service;
 
 import com.stellarideas.grooves.dto.ScanResult;
 import com.stellarideas.grooves.model.Genre;
+import com.stellarideas.grooves.model.ScanJob;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.CoverArtRepository;
 import com.stellarideas.grooves.repository.MusicFileRepository;
+import com.stellarideas.grooves.repository.ScanJobRepository;
+import com.stellarideas.grooves.repository.UserRepository;
+import com.stellarideas.grooves.service.scan.AudioMetadataReader;
+import com.stellarideas.grooves.service.scan.CoverArtHandler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,6 +35,7 @@ class DeepDirectoryScanTest {
 
     private MusicScannerService scannerService;
     private MusicFileRepository repository;
+    private AudioMetadataReader metadataReader;
     private User testUser;
 
     @TempDir
@@ -51,13 +58,23 @@ class DeepDirectoryScanTest {
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, passThroughValidator(), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
-        ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
-        ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
-        ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
-        ReflectionTestUtils.setField(scannerService, "batchSize", 200);
-        ReflectionTestUtils.setField(scannerService, "maxCoverArtBytes", 10485760);
-        scannerService.initExecutor();
+        ScanJobRepository scanJobRepository = mock(ScanJobRepository.class);
+        UserRepository userRepository = mock(UserRepository.class);
+
+        metadataReader = ScannerTestFactory.newMetadataReader();
+        CoverArtHandler coverArtHandler = ScannerTestFactory.newCoverArtHandler(
+                coverArtRepository, 10_485_760, 524_288_000L);
+
+        scannerService = ScannerTestFactory.newScanner(
+                catalogService, repository, scanJobRepository, userRepository,
+                progressEmitter, passThroughValidator(), metadataReader, coverArtHandler);
+
+        when(scanJobRepository.countByUserIdAndStatusIn(anyString(), any())).thenReturn(0L);
+        when(scanJobRepository.save(any(ScanJob.class))).thenAnswer(inv -> {
+            ScanJob j = inv.getArgument(0);
+            if (j.getId() == null) j.setId("job-" + System.nanoTime());
+            return j;
+        });
 
         testUser = new User();
         testUser.setId("user1");
@@ -65,6 +82,13 @@ class DeepDirectoryScanTest {
 
         when(repository.findByUserId("user1")).thenReturn(List.of());
         when(catalogService.identifyGenres(any())).thenReturn(Set.of(Genre.OTHER));
+    }
+
+    @AfterEach
+    void tearDown() { if (metadataReader != null) metadataReader.destroy(); }
+
+    private ScanResult scan() throws java.io.IOException {
+        return scannerService.scanDirectorySync(testUser, tempDir.toString(), ScanJob.Type.MANUAL);
     }
 
     @Test
@@ -81,7 +105,7 @@ class DeepDirectoryScanTest {
         Files.createDirectories(sub);
         Files.write(sub.resolve("deep.mp3"), new byte[]{0, 1, 2});
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         // shallow.mp3 at depth 1 should be found
         // deep.mp3 at depth 2 should be excluded by the depth limit
@@ -100,7 +124,7 @@ class DeepDirectoryScanTest {
             Files.write(current.resolve("track" + i + ".mp3"), new byte[]{0, 1, 2});
         }
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         assertEquals(5, result.getErrors(), "All 5 files across the nested structure should be found");
     }
@@ -119,7 +143,7 @@ class DeepDirectoryScanTest {
         Files.writeString(sub.resolve("playlist.m3u"), "#EXTM3U");
         Files.write(sub.resolve("bonus.flac"), new byte[]{0, 1, 2});
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         // Only .mp3 and .flac should be processed (both malformed, so errors)
         assertEquals(2, result.getErrors());
@@ -136,7 +160,7 @@ class DeepDirectoryScanTest {
         Files.createDirectories(musicDir);
         Files.write(musicDir.resolve("song.mp3"), new byte[]{0, 1, 2});
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         assertEquals(1, result.getErrors(), "Only the actual audio file should be processed");
         assertEquals(0, result.getSaved());
@@ -151,7 +175,7 @@ class DeepDirectoryScanTest {
         Files.createDirectories(sub);
         Files.write(sub.resolve("nested.mp3"), new byte[]{0, 1, 2});
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         // With depth 0, only the root directory's files should be processed
         // Files.walk with maxDepth=0 returns only the root itself, not its files
@@ -170,7 +194,7 @@ class DeepDirectoryScanTest {
         Files.createDirectories(sub);
         Files.write(sub.resolve("track.mp3"), new byte[]{0, 1, 2});
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         // File should still be found since 3 < HARD_MAX_DEPTH (50)
         assertEquals(1, result.getErrors());
@@ -189,7 +213,7 @@ class DeepDirectoryScanTest {
         Files.write(sub.resolve("song.wav"), new byte[]{0, 1}); // unsupported
         Files.write(sub.resolve("song.ogg"), new byte[]{0, 1}); // unsupported
 
-        ScanResult result = scannerService.scanDirectory(testUser, tempDir.toString());
+        ScanResult result = scan();
 
         // Only .mp3, .m4a, .flac should be processed
         assertEquals(3, result.getErrors());

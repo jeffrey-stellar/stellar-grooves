@@ -1,6 +1,7 @@
 package com.stellarideas.grooves.service;
 
 import com.stellarideas.grooves.dto.ScanResult;
+import com.stellarideas.grooves.model.ScanJob;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.repository.UserRepository;
 import org.slf4j.Logger;
@@ -79,7 +80,7 @@ public class ScheduledScanService {
                         MDC.put("scanType", "scheduled");
                         logger.info("Running scheduled scan for user '{}' on path '{}'",
                                 user.getUsername(), user.getScanPath());
-                        ScanResult result = musicScannerService.scanDirectory(user, user.getScanPath());
+                        ScanResult result = musicScannerService.scanDirectorySync(user, user.getScanPath(), ScanJob.Type.SCHEDULED);
                         user.setLastScheduledScan(Instant.now());
                         userRepository.save(user);
                         // Clear failure state on success
