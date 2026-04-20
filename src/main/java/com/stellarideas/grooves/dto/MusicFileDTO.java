@@ -19,6 +19,7 @@ public class MusicFileDTO {
     private List<String> additionalGenres;
     private int rating;
     private boolean hasCoverArt;
+    private List<String> customTags;
     private Instant createdAt;
 
     public MusicFileDTO() {}
@@ -37,6 +38,7 @@ public class MusicFileDTO {
                 : null;
         dto.rating = file.getRating();
         dto.hasCoverArt = file.isHasCoverArt();
+        dto.customTags = file.getCustomTags();
         dto.createdAt = file.getCreatedAt();
         return dto;
     }
@@ -70,6 +72,9 @@ public class MusicFileDTO {
 
     public List<String> getAdditionalGenres() { return additionalGenres; }
     public void setAdditionalGenres(List<String> additionalGenres) { this.additionalGenres = additionalGenres; }
+
+    public List<String> getCustomTags() { return customTags; }
+    public void setCustomTags(List<String> customTags) { this.customTags = customTags; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

@@ -25,7 +25,8 @@ import java.time.Instant;
     @CompoundIndex(name = "user_search_album", def = "{'userId': 1, 'album': 1}"),
     @CompoundIndex(name = "user_deleted", def = "{'userId': 1, 'deleted': 1}"),
     @CompoundIndex(name = "user_last_played", def = "{'userId': 1, 'lastPlayedAt': -1}"),
-    @CompoundIndex(name = "user_play_count", def = "{'userId': 1, 'playCount': -1}")
+    @CompoundIndex(name = "user_play_count", def = "{'userId': 1, 'playCount': -1}"),
+    @CompoundIndex(name = "user_custom_tags", def = "{'userId': 1, 'customTags': 1}")
 })
 public class MusicFile {
     @Id
@@ -67,6 +68,8 @@ public class MusicFile {
     private int playCount;
     private Instant lastPlayedAt;
 
+    private java.util.List<String> customTags;
+
     @CreatedDate
     private Instant createdAt;
     @LastModifiedDate
@@ -78,6 +81,7 @@ public class MusicFile {
                      String title, String year, Genre genre, java.util.List<Genre> additionalGenres,
                      String userId, String fileHash, int rating, boolean hasCoverArt,
                      boolean deleted, Instant deletedAt, int playCount, Instant lastPlayedAt,
+                     java.util.List<String> customTags,
                      Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.filePath = filePath;
@@ -96,6 +100,7 @@ public class MusicFile {
         this.deletedAt = deletedAt;
         this.playCount = playCount;
         this.lastPlayedAt = lastPlayedAt;
+        this.customTags = customTags;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -153,6 +158,9 @@ public class MusicFile {
     public Instant getLastPlayedAt() { return lastPlayedAt; }
     public void setLastPlayedAt(Instant lastPlayedAt) { this.lastPlayedAt = lastPlayedAt; }
 
+    public java.util.List<String> getCustomTags() { return customTags; }
+    public void setCustomTags(java.util.List<String> customTags) { this.customTags = customTags; }
+
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
@@ -194,6 +202,7 @@ public class MusicFile {
         private Instant deletedAt;
         private int playCount;
         private Instant lastPlayedAt;
+        private java.util.List<String> customTags;
         private Instant createdAt;
         private Instant updatedAt;
 
@@ -216,13 +225,14 @@ public class MusicFile {
         public MusicFileBuilder deletedAt(Instant deletedAt) { this.deletedAt = deletedAt; return this; }
         public MusicFileBuilder playCount(int playCount) { this.playCount = playCount; return this; }
         public MusicFileBuilder lastPlayedAt(Instant lastPlayedAt) { this.lastPlayedAt = lastPlayedAt; return this; }
+        public MusicFileBuilder customTags(java.util.List<String> customTags) { this.customTags = customTags; return this; }
         public MusicFileBuilder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
         public MusicFileBuilder updatedAt(Instant updatedAt) { this.updatedAt = updatedAt; return this; }
 
         public MusicFile build() {
             return new MusicFile(id, filePath, fileName, artist, album, title, year, genre, additionalGenres,
                     userId, fileHash, rating, hasCoverArt, deleted, deletedAt, playCount, lastPlayedAt,
-                    createdAt, updatedAt);
+                    customTags, createdAt, updatedAt);
         }
     }
 }

@@ -136,6 +136,71 @@ class LibraryServiceTest {
     }
 
     @Test
+    void normalizeTagsTrimsLowercasesAndDedupes() {
+        List<String> normalized = LibraryService.normalizeTags(
+                List.of("  Acoustic  ", "acoustic", "Live", "LIVE", "Demo"));
+
+        assertEquals(List.of("acoustic", "live", "demo"), normalized);
+    }
+
+    @Test
+    void normalizeTagsCollapsesInternalWhitespace() {
+        List<String> normalized = LibraryService.normalizeTags(List.of("early\tdemo   take"));
+
+        assertEquals(List.of("early demo take"), normalized);
+    }
+
+    @Test
+    void normalizeTagsHandlesNullAndBlanks() {
+        List<String> normalized = LibraryService.normalizeTags(
+                java.util.Arrays.asList(null, "", "   ", "keeper"));
+
+        assertEquals(List.of("keeper"), normalized);
+    }
+
+    @Test
+    void normalizeTagsReturnsEmptyForNullInput() {
+        assertEquals(List.of(), LibraryService.normalizeTags(null));
+    }
+
+    @Test
+    void normalizeTagsRejectsOverLongTag() {
+        String tooLong = "x".repeat(LibraryService.MAX_TAG_LENGTH + 1);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> LibraryService.normalizeTags(List.of(tooLong)));
+    }
+
+    @Test
+    void normalizeTagsRejectsTooManyTags() {
+        List<String> many = new ArrayList<>();
+        for (int i = 0; i <= LibraryService.MAX_TAGS_PER_TRACK; i++) many.add("tag-" + i);
+
+        assertThrows(IllegalArgumentException.class, () -> LibraryService.normalizeTags(many));
+    }
+
+    @Test
+    void updateTagsPersistsNormalized() {
+        MusicFile file = MusicFile.builder().id("f1").build();
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MusicFile saved = service.updateTags(file, List.of("Acoustic", "acoustic", "Live"));
+
+        assertEquals(List.of("acoustic", "live"), saved.getCustomTags());
+        verify(musicFileRepository).save(file);
+    }
+
+    @Test
+    void updateTagsWithEmptyListClearsTags() {
+        MusicFile file = MusicFile.builder().id("f1").customTags(List.of("old")).build();
+        when(musicFileRepository.save(any(MusicFile.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MusicFile saved = service.updateTags(file, List.of());
+
+        assertNull(saved.getCustomTags());
+    }
+
+    @Test
     void bulkDeleteUsesUpdateMulti() {
         UpdateResult updateResult = mock(UpdateResult.class);
         when(updateResult.getModifiedCount()).thenReturn(2L);

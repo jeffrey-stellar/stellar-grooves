@@ -195,7 +195,7 @@ function updateAlbumFilter() {
 }
 
 // ── Navigation ───────────────────────────────────────────
-function navigate(newNav) { nav = newNav; selectedIds.clear(); updateBulkBar(); renderBreadcrumb(); renderCurrentView(); renderPlaylistSidebar(); }
+function navigate(newNav) { nav = newNav; window.nav = nav; selectedIds.clear(); updateBulkBar(); renderBreadcrumb(); renderCurrentView(); renderPlaylistSidebar(); if (typeof SG.renderSmartPlaylistSidebar === 'function') SG.renderSmartPlaylistSidebar(); }
 
 function renderBreadcrumb() {
     const ol = document.getElementById('breadcrumbList'); ol.innerHTML = '';
@@ -214,6 +214,7 @@ function renderBreadcrumb() {
     else if (nav.view === 'tracks' && nav.album && nav.artist) { crumb('My Music Library', hc); crumb('Artists', () => navigate({ view: 'artists' })); crumb(nav.artist, () => navigate({ view: 'albums', artist: nav.artist })); crumb(nav.album, null); }
     else if (nav.view === 'tracks' && nav.album) { crumb('My Music Library', hc); crumb('Albums', () => navigate({ view: 'albums' })); crumb(nav.album, null); }
     else if (nav.view === 'playlist') { crumb('My Music Library', hc); crumb(nav.playlistName || 'Playlist', null); }
+    else if (nav.view === 'smartPlaylist') { crumb('My Music Library', hc); crumb('Smart Playlists', null); }
     else if (nav.view === 'duplicates') { crumb('My Music Library', hc); crumb('Duplicates', null); }
     else crumb('My Music Library', null);
 
@@ -223,8 +224,13 @@ function renderBreadcrumb() {
 
 // ── View rendering ───────────────────────────────────────
 function renderCurrentView() {
-    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewDuplicates','emptyState'].forEach(id => document.getElementById(id).classList.add('d-none'));
+    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewSmartPlaylist','viewDuplicates','emptyState'].forEach(id => document.getElementById(id).classList.add('d-none'));
     document.getElementById('bulkBar').classList.add('d-none');
+    if (nav.view === 'smartPlaylist') {
+        document.getElementById('viewSmartPlaylist').classList.remove('d-none');
+        if (typeof SG.renderSmartPlaylistView === 'function') SG.renderSmartPlaylistView();
+        return;
+    }
     if (allFiles.length === 0) { document.getElementById('emptyState').classList.remove('d-none'); return; }
     if (nav.view === 'artists') { document.getElementById('viewArtists').classList.remove('d-none'); renderArtistsView(); }
     else if (nav.view === 'albums') { document.getElementById('viewAlbums').classList.remove('d-none'); renderAlbumsView(); }
@@ -868,8 +874,10 @@ async function loadLibrary() {
         allFiles = []; let p = 0, tp = 1;
         while (p < tp) { const r = await fetch(`/api/v1/library/files?page=${p}&size=200`); const d = await r.json(); allFiles = allFiles.concat(d.content); tp = d.totalPages; p++; }
         updateStats(); renderCurrentView(); await loadPlaylists();
+        if (typeof SG.loadSmartPlaylists === 'function') await SG.loadSmartPlaylists();
     } catch (e) { console.error(e); }
 }
+SG.loadPlaylists = loadPlaylists;
 
 // ── Player bridge (audio player logic now in player.js) ──
 function playTrack(file, useCrossfade) { SG.playTrack(file, useCrossfade); }

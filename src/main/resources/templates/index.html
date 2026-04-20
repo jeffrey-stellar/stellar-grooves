@@ -337,6 +337,17 @@
                             </div>
                             <ul id="playlistList" class="playlist-list"></ul>
                         </div>
+
+                        <hr class="my-3">
+
+                        <!-- Smart Playlists section -->
+                        <div id="smartPlaylistSection">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="section-label">Smart Playlists</span>
+                                <button class="btn-icon-sm" id="showNewSmartPlaylistBtn" title="New smart playlist" aria-label="Create new smart playlist">+</button>
+                            </div>
+                            <ul id="smartPlaylistList" class="playlist-list"></ul>
+                        </div>
                     </div>
                 </div>
 
@@ -535,6 +546,56 @@
                         </div>
                     </div>
 
+                    <!-- Smart Playlist view -->
+                    <div id="viewSmartPlaylist" class="d-none" role="region" aria-label="Smart playlist editor">
+                        <div class="sp-editor p-3">
+                            <div class="row g-2 align-items-end mb-2">
+                                <div class="col-12 col-md-5">
+                                    <label for="spName" class="form-label small mb-1">Name</label>
+                                    <input type="text" id="spName" class="form-control form-control-sm" maxlength="100" placeholder="Rediscover thrash classics">
+                                </div>
+                                <div class="col-12 col-md-7 d-flex gap-2 justify-content-md-end flex-wrap">
+                                    <button class="btn btn-sm btn-outline-secondary" id="spSyntaxHelpBtn" type="button">Syntax</button>
+                                    <button class="btn btn-sm btn-outline-primary" id="spPreviewBtn" type="button">Preview</button>
+                                    <button class="btn btn-sm btn-primary" id="spSaveBtn" type="button">Save</button>
+                                    <button class="btn btn-sm btn-outline-success" id="spMaterializeBtn" type="button" disabled title="Snapshot matches into a regular playlist">Materialize</button>
+                                    <button class="btn btn-sm btn-outline-danger d-none" id="spDeleteBtn" type="button">Delete</button>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label for="spQuery" class="form-label small mb-1">Query <span class="text-secondary-themed small">(Ctrl/⌘+Enter to preview)</span></label>
+                                <textarea id="spQuery" class="form-control form-control-sm sp-query" rows="3" spellcheck="false" placeholder="genre:thrash_metal year:1984..1990 rating:>=4 lastPlayed:>6mo"></textarea>
+                            </div>
+
+                            <div id="spSyntaxHelp" class="d-none sp-help small mb-3">
+                                <strong>Fields</strong> — <code>genre</code>, <code>artist</code>, <code>album</code>, <code>title</code>, <code>year</code>, <code>rating</code>, <code>tag</code>, <code>playCount</code>, <code>lastPlayed</code>.<br>
+                                <strong>Operators</strong> — equality (<code>rating:5</code>), comparators (<code>rating:&gt;=4</code>, <code>playCount:&lt;10</code>), ranges (<code>year:1984..1990</code>).<br>
+                                <strong>Relative dates</strong> — <code>lastPlayed:&gt;6mo</code> (not played in 6+ months), <code>lastPlayed:&lt;30d</code> (played in the last 30 days). Units: <code>d</code>, <code>w</code>, <code>mo</code>, <code>y</code>.<br>
+                                <strong>Quoting</strong> — use double quotes for values with spaces: <code>artist:"The Who"</code>.<br>
+                                <strong>Clauses</strong> are AND-combined. Example: <code>genre:thrash_metal year:1984..1990 rating:&gt;=4 lastPlayed:&gt;6mo tag:live</code>.
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span id="spMatchCount" class="small text-secondary-themed"></span>
+                                <span id="spStatus" class="sp-status small" aria-live="polite"></span>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-sm" aria-label="Smart playlist results">
+                                    <thead><tr>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Artist</th>
+                                        <th scope="col" class="hide-xs">Album</th>
+                                        <th scope="col">Genre</th>
+                                        <th scope="col" class="hide-xs">Rating</th>
+                                        <th scope="col" class="hide-xs">Year</th>
+                                    </tr></thead>
+                                    <tbody id="spResultsBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Empty state -->
                     <div id="emptyState" class="empty-state">
                         <div class="empty-state-icon">&#x1F3B5;</div>
@@ -583,5 +644,6 @@
     <script th:src="@{/js/scan.js(v=${appVersion})}"></script>
     <script th:src="@{/js/theme.js(v=${appVersion})}"></script>
     <script th:src="@{/js/player.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/smart-playlist.js(v=${appVersion})}"></script>
 </body>
 </html>

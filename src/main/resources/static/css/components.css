@@ -1603,3 +1603,29 @@ input.loading { opacity: 0.6; background-image: url("data:image/svg+xml,%3Csvg x
     #trackFilters select.form-select,
     #trackFilters input.form-control { max-width: 100%; }
 }
+
+/* ── Smart Playlists ─────────────────────────────── */
+.sp-query {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.sp-help {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--surface-2, rgba(0,0,0,0.04));
+    border: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
+    line-height: 1.7;
+}
+
+.sp-help code {
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.2rem;
+    background: var(--surface-3, rgba(0,0,0,0.06));
+    font-size: 0.85em;
+}
+
+.sp-status { min-height: 1.2em; }
+.sp-status.status-success { color: var(--accent-green, #2e7d32); }
+.sp-status.status-error   { color: var(--accent-red, #c62828); }

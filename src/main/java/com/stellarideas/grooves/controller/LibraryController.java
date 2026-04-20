@@ -443,6 +443,29 @@ public class LibraryController {
         return ResponseEntity.ok(Map.of("rating", file.getRating()));
     }
 
+    @PutMapping("/files/{id}/tags")
+    public ResponseEntity<?> updateFileTags(@CurrentUser User user, @PathVariable String id,
+                                            @Valid @RequestBody UpdateTagsRequest request) {
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
+        if (fileOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            MusicFile file = libraryService.updateTags(fileOpt.get(), request.getTags());
+            List<String> tags = file.getCustomTags() != null ? file.getCustomTags() : List.of();
+            auditService.log(user.getUsername(), AuditService.Action.TAGS_UPDATE, id, String.valueOf(tags.size()));
+            return ResponseEntity.ok(Map.of("tags", tags));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(GlobalExceptionHandler.problem(HttpStatus.BAD_REQUEST, e.getMessage()));
+        }
+    }
+
+    @GetMapping("/tags")
+    public ResponseEntity<?> listTags(@CurrentUser User user) {
+        return ResponseEntity.ok(Map.of("tags", libraryService.listDistinctTags(user.getId())));
+    }
+
     @PostMapping("/files/{id}/plays")
     public ResponseEntity<?> recordPlay(@CurrentUser User user, @PathVariable String id,
                                         @Valid @RequestBody RecordPlayRequest request) {

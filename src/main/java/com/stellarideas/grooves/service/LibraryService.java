@@ -129,6 +129,46 @@ public class LibraryService {
         return musicFileRepository.save(file);
     }
 
+    static final int MAX_TAG_LENGTH = 50;
+    static final int MAX_TAGS_PER_TRACK = 20;
+
+    /**
+     * Normalize tag input: trim, collapse internal whitespace, lowercase,
+     * drop blanks, dedupe (order-preserving). A null/empty result clears the track's tags.
+     * Individual over-length tags are rejected via IllegalArgumentException.
+     */
+    public static List<String> normalizeTags(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return List.of();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String t : raw) {
+            if (t == null) continue;
+            String cleaned = t.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+            if (cleaned.isEmpty()) continue;
+            if (cleaned.length() > MAX_TAG_LENGTH) {
+                throw new IllegalArgumentException("Tag exceeds " + MAX_TAG_LENGTH + " characters: " + cleaned);
+            }
+            seen.add(cleaned);
+            if (seen.size() > MAX_TAGS_PER_TRACK) {
+                throw new IllegalArgumentException("A track can have at most " + MAX_TAGS_PER_TRACK + " tags");
+            }
+        }
+        return new ArrayList<>(seen);
+    }
+
+    public MusicFile updateTags(MusicFile file, List<String> tags) {
+        List<String> normalized = normalizeTags(tags);
+        file.setCustomTags(normalized.isEmpty() ? null : normalized);
+        return musicFileRepository.save(file);
+    }
+
+    public List<String> listDistinctTags(String userId) {
+        List<String> values = mongoTemplate.findDistinct(
+                new Query(Criteria.where("userId").is(userId).and("customTags").exists(true)),
+                "customTags", MusicFile.class, String.class);
+        Collections.sort(values);
+        return values;
+    }
+
     @Transactional
     public long bulkDelete(List<String> ids, String userId) {
         Query query = new Query(Criteria.where("_id").in(ids)
