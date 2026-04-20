@@ -481,15 +481,15 @@ a:hover {
     }
     :root:not([data-theme="dark"]) body {
         background-image:
-            /* tungsten "stage light" pouring in top-left */
-            radial-gradient(ellipse 80% 55% at 20% 0%, rgba(255, 209, 102, 0.28), transparent 60%),
-            /* amber wash bottom-right */
-            radial-gradient(ellipse 90% 60% at 85% 95%, rgba(200, 116, 32, 0.14), transparent 60%),
-            /* soft cream halo center — gives the page a lit-stage feel */
-            radial-gradient(ellipse 60% 30% at 50% 50%, rgba(255, 245, 220, 0.5), transparent 70%),
+            /* cold gunmetal vignette top-left — zine-copy shadow */
+            radial-gradient(ellipse 70% 45% at 20% 0%, rgba(45, 42, 40, 0.18), transparent 65%),
+            /* oxblood bleed bottom-right */
+            radial-gradient(ellipse 85% 55% at 85% 95%, rgba(160, 24, 24, 0.14), transparent 65%),
+            /* dirty paper halo — less warm, more bleach */
+            radial-gradient(ellipse 55% 30% at 50% 50%, rgba(242, 233, 207, 0.55), transparent 72%),
             var(--grain),
             var(--wood-grain),
-            linear-gradient(180deg, #fbf4e3 0%, #f0e2c2 55%, #e5d2a9 100%);
+            linear-gradient(180deg, #e8ddbb 0%, #d7c99f 55%, #b8a87e 100%);
     }
     :root:not([data-theme="dark"]) body::before {
         background: var(--film-noise);
@@ -582,15 +582,15 @@ a:hover {
 }
 [data-theme="light"] body {
     background-image:
-        /* tungsten "stage light" pouring in top-left */
-        radial-gradient(ellipse 80% 55% at 20% 0%, rgba(255, 209, 102, 0.28), transparent 60%),
-        /* amber wash bottom-right */
-        radial-gradient(ellipse 90% 60% at 85% 95%, rgba(200, 116, 32, 0.14), transparent 60%),
-        /* soft cream halo center — gives the page a lit-stage feel */
-        radial-gradient(ellipse 60% 30% at 50% 50%, rgba(255, 245, 220, 0.5), transparent 70%),
+        /* cold gunmetal vignette top-left — zine-copy shadow */
+        radial-gradient(ellipse 70% 45% at 20% 0%, rgba(45, 42, 40, 0.18), transparent 65%),
+        /* oxblood bleed bottom-right */
+        radial-gradient(ellipse 85% 55% at 85% 95%, rgba(160, 24, 24, 0.14), transparent 65%),
+        /* dirty paper halo — less warm, more bleach */
+        radial-gradient(ellipse 55% 30% at 50% 50%, rgba(242, 233, 207, 0.55), transparent 72%),
         var(--grain),
         var(--wood-grain),
-        linear-gradient(180deg, #fbf4e3 0%, #f0e2c2 55%, #e5d2a9 100%);
+        linear-gradient(180deg, #e8ddbb 0%, #d7c99f 55%, #b8a87e 100%);
 }
 [data-theme="light"] body::before {
     background: var(--film-noise);

@@ -1748,3 +1748,578 @@ td.col-play { width: 32px; padding-right: 0; }
     z-index: -1;
     filter: blur(12px);
 }
+
+/* ============================================================
+   ZINE METAL — jukebox light-mode overlay
+   The cabinet itself stays dark (jukeboxes ARE dark wood). In
+   light mode we only shift the WARM accents (brass, gold, hot
+   amber, honey) to COLD grunge equivalents (gunmetal, oxblood,
+   tarnished silver), retint the dome + bubble tube glow, and
+   flip the marquee typography to Georgia/typewriter. Dark mode
+   keeps its full Wurlitzer-speakeasy warmth.
+
+   Palette (light only): ink #0a0705, bone #f2e9cf, oxblood
+   #a01818, blood-deep #5a0c0c, gunmetal #2d2a28, tarnish #b4ad9e.
+   ============================================================ */
+
+/* ── Crown arches ─ hot brass rainbow → cold gunmetal/oxblood */
+[data-theme="light"] .wurl-arch-amber {
+    background: linear-gradient(180deg, #3a3532 0%, #b4ad9e 35%, #d9d3c4 50%, #b4ad9e 70%, #5a544c 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), 0 0 8px rgba(20, 10, 5, 0.2);
+}
+[data-theme="light"] .wurl-arch-gold {
+    background: linear-gradient(180deg, #5a0c0c 0%, #a01818 30%, #c72422 45%, #a01818 55%, #5a0c0c 70%, #2a0404 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255, 160, 140, 0.35), 0 0 10px rgba(160, 24, 24, 0.35);
+}
+[data-theme="light"] .wurl-arch-pink {
+    background: linear-gradient(180deg, #4a453f 0%, #c4bdae 35%, #e0d9ca 50%, #8e8678 70%, #302a24 100%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25), 0 0 6px rgba(20, 10, 5, 0.25);
+}
+
+/* ── Dome glow — warm red+amber → oxblood ink ───────── */
+[data-theme="light"] .wurl-dome-glow {
+    background: radial-gradient(ellipse at 50% 100%,
+        rgba(160, 24, 24, 0.28) 0%,
+        rgba(20, 10, 5, 0.14) 40%,
+        transparent 75%);
+}
+
+/* ── Art-deco chrome divider gold stripe → oxblood ─── */
+[data-theme="light"] .wurl-chrome-deco {
+    background: linear-gradient(180deg,
+        #5a0c0c 0%, #a01818 20%, #c72422 45%, #d83030 50%,
+        #c72422 60%, #a01818 75%, #5a0c0c 100%);
+    box-shadow: 0 0 8px rgba(160, 24, 24, 0.35), inset 0 1px 0 rgba(255, 180, 170, 0.25);
+}
+
+/* ── Base trim hot gold → tarnished silver ──────────── */
+[data-theme="light"] .wurl-base-trim {
+    background: linear-gradient(180deg,
+        #3a3532 0%, #8e8678 10%, #c4bdae 25%, #e0d9ca 40%,
+        #d4cebc 50%,
+        #b4ad9e 60%, #8e8678 75%, #4a453f 90%, #9e978a 100%);
+    box-shadow:
+        0 4px 12px rgba(0,0,0,0.55),
+        0 0 16px rgba(20, 10, 5, 0.2),
+        inset 0 1px 0 rgba(255,255,255,0.3),
+        inset 0 -1px 0 rgba(0,0,0,0.25);
+}
+
+/* ── Selection panel amber backlight → oxblood ink ──── */
+[data-theme="light"] .wurl-selection {
+    box-shadow: inset 0 0 40px rgba(160, 24, 24, 0.16);
+}
+[data-theme="light"] .wurl-selection::before {
+    background: repeating-linear-gradient(
+        180deg,
+        transparent 0px,
+        transparent 14px,
+        rgba(160, 24, 24, 0.08) 14px,
+        rgba(160, 24, 24, 0.08) 15px
+    );
+}
+
+/* ── Track info — marquee title/artist, crisp (no halo) ──
+   Drop the 18px oxblood bloom (reads as blur on dark wood).
+   Keep a tight 1px oxblood + 2px ink stacked offset for weight. */
+[data-theme="light"] .wurl-title {
+    font-family: 'Georgia', serif;
+    font-style: italic;
+    font-weight: 700;
+    color: #fff5e8;
+    text-shadow:
+        1px 1px 0 #a01818,
+        2px 2px 0 #0a0705;
+}
+[data-theme="light"] .wurl-artist {
+    font-family: var(--font-stencil);
+    color: #f2e9cf;
+    text-shadow:
+        1px 1px 0 rgba(160, 24, 24, 0.65),
+        1px 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* ── SELECT A SONG header → bone stencil ────────────── */
+[data-theme="light"] .wurl-side-label {
+    font-family: var(--font-stencil);
+    color: #f2e9cf;
+    letter-spacing: 3px;
+    text-shadow:
+        1px 1px 0 #a01818,
+        0 0 10px rgba(242, 233, 207, 0.3),
+        0 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* ── Side-panel body — amber backlight → oxblood wash ── */
+[data-theme="light"] .wurl-side-body {
+    background-image:
+        repeating-linear-gradient(
+            180deg,
+            transparent 0px,
+            transparent 31px,
+            rgba(160, 24, 24, 0.06) 31px,
+            rgba(160, 24, 24, 0.06) 32px
+        ),
+        repeating-linear-gradient(
+            95deg,
+            transparent 0px,
+            transparent 8px,
+            rgba(120, 70, 30, 0.05) 8px,
+            rgba(120, 70, 30, 0.05) 9px
+        );
+    box-shadow: inset 0 0 30px rgba(160, 24, 24, 0.08), inset 0 4px 8px rgba(0,0,0,0.35);
+}
+
+/* ── Side list active track — amber wash → oxblood ── */
+[data-theme="light"] .wurl-side-item.wurl-side-active {
+    background:
+        linear-gradient(180deg,
+            rgba(160, 24, 24, 0.22) 0%,
+            rgba(120, 18, 18, 0.16) 30%,
+            rgba(90, 12, 12, 0.14) 50%,
+            rgba(120, 18, 18, 0.16) 70%,
+            rgba(160, 24, 24, 0.22) 100%);
+    border-color: rgba(160, 24, 24, 0.45);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+        0 0 16px rgba(160, 24, 24, 0.22),
+        0 0 32px rgba(160, 24, 24, 0.1);
+}
+[data-theme="light"] .wurl-side-item.wurl-side-active::before {
+    background: #a01818;
+    box-shadow:
+        0 0 6px rgba(160, 24, 24, 0.95),
+        0 0 14px rgba(160, 24, 24, 0.6),
+        0 0 22px rgba(90, 12, 12, 0.35);
+}
+
+/* ── Side item numbers + titles — solid fills, crisp drop.
+   Dark mode uses background-clip: text with a chrome→amber
+   gradient; that works at dark contrast but at 0.72rem on
+   dark wood the bone→tarnish ramp mushes. Cancel the gradient
+   (transparent fill) and set a solid color with a 1px offset. */
+[data-theme="light"] .wurl-side-num {
+    background: none;
+    -webkit-text-fill-color: #f2e9cf;
+    color: #f2e9cf;
+    filter: none;
+    text-shadow:
+        1px 1px 0 rgba(160, 24, 24, 0.7),
+        1px 1px 2px rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .wurl-side-item:hover .wurl-side-num {
+    background: none;
+    -webkit-text-fill-color: #ffffff;
+    color: #ffffff;
+    filter: none;
+    text-shadow:
+        1px 1px 0 rgba(160, 24, 24, 0.85),
+        1px 1px 2px rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .wurl-side-item.wurl-side-active .wurl-side-num {
+    background: none;
+    -webkit-text-fill-color: #ffa898;
+    color: #ffa898;
+    filter: none;
+    text-shadow:
+        1px 1px 0 #5a0c0c,
+        1px 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* Side-item titles — solid bone with ink offset. */
+[data-theme="light"] .wurl-side-title {
+    background: none;
+    -webkit-text-fill-color: #f2e9cf;
+    color: #f2e9cf;
+    filter: none;
+    text-shadow:
+        1px 1px 0 rgba(0, 0, 0, 0.75),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+}
+[data-theme="light"] .wurl-side-item:hover .wurl-side-title {
+    background: none;
+    -webkit-text-fill-color: #ffffff;
+    color: #ffffff;
+    filter: none;
+    text-shadow:
+        1px 1px 0 rgba(0, 0, 0, 0.75),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+}
+[data-theme="light"] .wurl-side-item.wurl-side-active .wurl-side-title {
+    background: none;
+    -webkit-text-fill-color: #ffa898;
+    color: #ffa898;
+    filter: none;
+    text-shadow:
+        1px 1px 0 #5a0c0c,
+        2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .wurl-side-artist,
+[data-theme="light"] .wurl-side-item:hover .wurl-side-artist {
+    color: rgba(242, 233, 207, 0.78);
+    text-shadow:
+        1px 1px 0 rgba(0, 0, 0, 0.7),
+        0 1px 2px rgba(0, 0, 0, 0.45);
+}
+[data-theme="light"] .wurl-side-item.wurl-side-active .wurl-side-artist {
+    color: rgba(255, 200, 180, 0.9);
+    text-shadow:
+        1px 1px 0 rgba(60, 10, 10, 0.85),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Vinyl placeholder label — bright red-orange → oxblood */
+[data-theme="light"] .wurl-vinyl-label {
+    background:
+        radial-gradient(circle at 40% 35%,
+            #d03030 0%,
+            #a01818 30%,
+            #6a0e0e 60%,
+            #3a0505 100%);
+    border: 2px solid rgba(20, 10, 5, 0.7);
+    box-shadow:
+        inset 0 -3px 6px rgba(0, 0, 0, 0.45),
+        inset 0 2px 3px rgba(255, 200, 190, 0.18),
+        0 0 12px rgba(160, 24, 24, 0.3);
+}
+
+/* ── Speaker grille internal glow — electric blue → oxblood */
+[data-theme="light"] .wurl-grille-glow {
+    background:
+        radial-gradient(ellipse at 30% 50%, rgba(160, 24, 24, 0.22) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 50%, rgba(160, 24, 24, 0.22) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(20, 10, 5, 0.2) 0%, transparent 60%);
+    box-shadow: inset 0 0 35px rgba(160, 24, 24, 0.2);
+}
+
+/* ── Starburst cabinet decorations — amber rays → oxblood */
+[data-theme="light"] .wurl-starburst::before {
+    background:
+        radial-gradient(circle at 50% 50%,
+            rgba(255, 180, 170, 1) 0%,
+            rgba(216, 48, 48, 0.7) 25%,
+            rgba(160, 24, 24, 0.4) 45%,
+            transparent 65%
+        );
+    box-shadow: 0 0 18px rgba(160, 24, 24, 0.6), 0 0 6px rgba(90, 12, 12, 0.8);
+}
+[data-theme="light"] .wurl-starburst::after {
+    background:
+        conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            rgba(242, 233, 207, 0.8) 8deg,
+            transparent 16deg,
+            transparent 45deg,
+            rgba(242, 233, 207, 0.8) 53deg,
+            transparent 61deg,
+            transparent 90deg,
+            rgba(242, 233, 207, 0.8) 98deg,
+            transparent 106deg,
+            transparent 135deg,
+            rgba(242, 233, 207, 0.8) 143deg,
+            transparent 151deg,
+            transparent 180deg,
+            rgba(242, 233, 207, 0.8) 188deg,
+            transparent 196deg,
+            transparent 225deg,
+            rgba(242, 233, 207, 0.8) 233deg,
+            transparent 241deg,
+            transparent 270deg,
+            rgba(242, 233, 207, 0.8) 278deg,
+            transparent 286deg,
+            transparent 315deg,
+            rgba(242, 233, 207, 0.8) 323deg,
+            transparent 331deg,
+            transparent 360deg
+        );
+}
+
+/* ── Play button — gold-rimmed chrome → gunmetal + oxblood */
+[data-theme="light"] .btn-wurl-play {
+    border-color: #2d2a28 #1a1816 #0a0805 #2d2a28;
+    color: #a01818;
+    box-shadow:
+        0 5px 18px rgba(0,0,0,0.7),
+        0 0 25px rgba(160, 24, 24, 0.2),
+        inset 0 2px 0 rgba(255, 255, 255, 0.4),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .btn-wurl-play:hover {
+    color: #d83030;
+    box-shadow:
+        0 5px 18px rgba(0,0,0,0.7),
+        0 0 32px rgba(160, 24, 24, 0.45),
+        inset 0 2px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* (Originally planned a "POSTED / SOLD OUT" decal via .wurl-dome::after,
+   but that pseudo already carries the glass-dome inner shadow; overriding
+   it would flatten the dome's depth. Decoration deferred.) */
+
+/* ============================================================
+   Mirror — system-preference light
+   ============================================================ */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .wurl-arch-amber {
+        background: linear-gradient(180deg, #3a3532 0%, #b4ad9e 35%, #d9d3c4 50%, #b4ad9e 70%, #5a544c 100%);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), 0 0 8px rgba(20, 10, 5, 0.2);
+    }
+    :root:not([data-theme="dark"]) .wurl-arch-gold {
+        background: linear-gradient(180deg, #5a0c0c 0%, #a01818 30%, #c72422 45%, #a01818 55%, #5a0c0c 70%, #2a0404 100%);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255, 160, 140, 0.35), 0 0 10px rgba(160, 24, 24, 0.35);
+    }
+    :root:not([data-theme="dark"]) .wurl-arch-pink {
+        background: linear-gradient(180deg, #4a453f 0%, #c4bdae 35%, #e0d9ca 50%, #8e8678 70%, #302a24 100%);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25), 0 0 6px rgba(20, 10, 5, 0.25);
+    }
+    :root:not([data-theme="dark"]) .wurl-dome-glow {
+        background: radial-gradient(ellipse at 50% 100%,
+            rgba(160, 24, 24, 0.28) 0%,
+            rgba(20, 10, 5, 0.14) 40%,
+            transparent 75%);
+    }
+    :root:not([data-theme="dark"]) .wurl-chrome-deco {
+        background: linear-gradient(180deg,
+            #5a0c0c 0%, #a01818 20%, #c72422 45%, #d83030 50%,
+            #c72422 60%, #a01818 75%, #5a0c0c 100%);
+        box-shadow: 0 0 8px rgba(160, 24, 24, 0.35), inset 0 1px 0 rgba(255, 180, 170, 0.25);
+    }
+    :root:not([data-theme="dark"]) .wurl-base-trim {
+        background: linear-gradient(180deg,
+            #3a3532 0%, #8e8678 10%, #c4bdae 25%, #e0d9ca 40%,
+            #d4cebc 50%,
+            #b4ad9e 60%, #8e8678 75%, #4a453f 90%, #9e978a 100%);
+        box-shadow:
+            0 4px 12px rgba(0,0,0,0.55),
+            0 0 16px rgba(20, 10, 5, 0.2),
+            inset 0 1px 0 rgba(255,255,255,0.3),
+            inset 0 -1px 0 rgba(0,0,0,0.25);
+    }
+    :root:not([data-theme="dark"]) .wurl-selection {
+        box-shadow: inset 0 0 40px rgba(160, 24, 24, 0.16);
+    }
+    :root:not([data-theme="dark"]) .wurl-selection::before {
+        background: repeating-linear-gradient(
+            180deg,
+            transparent 0px,
+            transparent 14px,
+            rgba(160, 24, 24, 0.08) 14px,
+            rgba(160, 24, 24, 0.08) 15px
+        );
+    }
+    :root:not([data-theme="dark"]) .wurl-title {
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        font-weight: 700;
+        color: #fff5e8;
+        text-shadow:
+            1px 1px 0 #a01818,
+            2px 2px 0 #0a0705;
+    }
+    :root:not([data-theme="dark"]) .wurl-artist {
+        font-family: var(--font-stencil);
+        color: #f2e9cf;
+        text-shadow:
+            1px 1px 0 rgba(160, 24, 24, 0.65),
+            1px 1px 0 rgba(0, 0, 0, 0.7);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-label {
+        font-family: var(--font-stencil);
+        color: #f2e9cf;
+        letter-spacing: 3px;
+        text-shadow:
+            1px 1px 0 #a01818,
+            0 0 10px rgba(242, 233, 207, 0.3),
+            0 1px 0 rgba(0, 0, 0, 0.55);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-body {
+        background-image:
+            repeating-linear-gradient(
+                180deg,
+                transparent 0px,
+                transparent 31px,
+                rgba(160, 24, 24, 0.06) 31px,
+                rgba(160, 24, 24, 0.06) 32px
+            ),
+            repeating-linear-gradient(
+                95deg,
+                transparent 0px,
+                transparent 8px,
+                rgba(120, 70, 30, 0.05) 8px,
+                rgba(120, 70, 30, 0.05) 9px
+            );
+        box-shadow: inset 0 0 30px rgba(160, 24, 24, 0.08), inset 0 4px 8px rgba(0,0,0,0.35);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item.wurl-side-active {
+        background:
+            linear-gradient(180deg,
+                rgba(160, 24, 24, 0.22) 0%,
+                rgba(120, 18, 18, 0.16) 30%,
+                rgba(90, 12, 12, 0.14) 50%,
+                rgba(120, 18, 18, 0.16) 70%,
+                rgba(160, 24, 24, 0.22) 100%);
+        border-color: rgba(160, 24, 24, 0.45);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+            0 0 16px rgba(160, 24, 24, 0.22),
+            0 0 32px rgba(160, 24, 24, 0.1);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item.wurl-side-active::before {
+        background: #a01818;
+        box-shadow:
+            0 0 6px rgba(160, 24, 24, 0.95),
+            0 0 14px rgba(160, 24, 24, 0.6),
+            0 0 22px rgba(90, 12, 12, 0.35);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-num {
+        background: none;
+        -webkit-text-fill-color: #f2e9cf;
+        color: #f2e9cf;
+        filter: none;
+        text-shadow:
+            1px 1px 0 rgba(160, 24, 24, 0.7),
+            1px 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item:hover .wurl-side-num {
+        background: none;
+        -webkit-text-fill-color: #ffffff;
+        color: #ffffff;
+        filter: none;
+        text-shadow:
+            1px 1px 0 rgba(160, 24, 24, 0.85),
+            1px 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item.wurl-side-active .wurl-side-num {
+        background: none;
+        -webkit-text-fill-color: #ffa898;
+        color: #ffa898;
+        filter: none;
+        text-shadow:
+            1px 1px 0 #5a0c0c,
+            1px 1px 2px rgba(0, 0, 0, 0.55);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-title {
+        background: none;
+        -webkit-text-fill-color: #f2e9cf;
+        color: #f2e9cf;
+        filter: none;
+        text-shadow:
+            1px 1px 0 rgba(0, 0, 0, 0.75),
+            0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item:hover .wurl-side-title {
+        background: none;
+        -webkit-text-fill-color: #ffffff;
+        color: #ffffff;
+        filter: none;
+        text-shadow:
+            1px 1px 0 rgba(0, 0, 0, 0.75),
+            0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item.wurl-side-active .wurl-side-title {
+        background: none;
+        -webkit-text-fill-color: #ffa898;
+        color: #ffa898;
+        filter: none;
+        text-shadow:
+            1px 1px 0 #5a0c0c,
+            2px 2px 0 rgba(0, 0, 0, 0.6);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-artist,
+    :root:not([data-theme="dark"]) .wurl-side-item:hover .wurl-side-artist {
+        color: rgba(242, 233, 207, 0.78);
+        text-shadow:
+            1px 1px 0 rgba(0, 0, 0, 0.7),
+            0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+    :root:not([data-theme="dark"]) .wurl-side-item.wurl-side-active .wurl-side-artist {
+        color: rgba(255, 200, 180, 0.9);
+        text-shadow:
+            1px 1px 0 rgba(60, 10, 10, 0.85),
+            0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    :root:not([data-theme="dark"]) .wurl-vinyl-label {
+        background:
+            radial-gradient(circle at 40% 35%,
+                #d03030 0%,
+                #a01818 30%,
+                #6a0e0e 60%,
+                #3a0505 100%);
+        border: 2px solid rgba(20, 10, 5, 0.7);
+        box-shadow:
+            inset 0 -3px 6px rgba(0, 0, 0, 0.45),
+            inset 0 2px 3px rgba(255, 200, 190, 0.18),
+            0 0 12px rgba(160, 24, 24, 0.3);
+    }
+    :root:not([data-theme="dark"]) .wurl-grille-glow {
+        background:
+            radial-gradient(ellipse at 30% 50%, rgba(160, 24, 24, 0.22) 0%, transparent 50%),
+            radial-gradient(ellipse at 70% 50%, rgba(160, 24, 24, 0.22) 0%, transparent 50%),
+            radial-gradient(ellipse at 50% 50%, rgba(20, 10, 5, 0.2) 0%, transparent 60%);
+        box-shadow: inset 0 0 35px rgba(160, 24, 24, 0.2);
+    }
+    :root:not([data-theme="dark"]) .wurl-starburst::before {
+        background:
+            radial-gradient(circle at 50% 50%,
+                rgba(255, 180, 170, 1) 0%,
+                rgba(216, 48, 48, 0.7) 25%,
+                rgba(160, 24, 24, 0.4) 45%,
+                transparent 65%
+            );
+        box-shadow: 0 0 18px rgba(160, 24, 24, 0.6), 0 0 6px rgba(90, 12, 12, 0.8);
+    }
+    :root:not([data-theme="dark"]) .wurl-starburst::after {
+        background:
+            conic-gradient(
+                from 0deg,
+                transparent 0deg,
+                rgba(242, 233, 207, 0.8) 8deg,
+                transparent 16deg,
+                transparent 45deg,
+                rgba(242, 233, 207, 0.8) 53deg,
+                transparent 61deg,
+                transparent 90deg,
+                rgba(242, 233, 207, 0.8) 98deg,
+                transparent 106deg,
+                transparent 135deg,
+                rgba(242, 233, 207, 0.8) 143deg,
+                transparent 151deg,
+                transparent 180deg,
+                rgba(242, 233, 207, 0.8) 188deg,
+                transparent 196deg,
+                transparent 225deg,
+                rgba(242, 233, 207, 0.8) 233deg,
+                transparent 241deg,
+                transparent 270deg,
+                rgba(242, 233, 207, 0.8) 278deg,
+                transparent 286deg,
+                transparent 315deg,
+                rgba(242, 233, 207, 0.8) 323deg,
+                transparent 331deg,
+                transparent 360deg
+            );
+    }
+    :root:not([data-theme="dark"]) .btn-wurl-play {
+        border-color: #2d2a28 #1a1816 #0a0805 #2d2a28;
+        color: #a01818;
+        box-shadow:
+            0 5px 18px rgba(0,0,0,0.7),
+            0 0 25px rgba(160, 24, 24, 0.2),
+            inset 0 2px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    }
+    :root:not([data-theme="dark"]) .btn-wurl-play:hover {
+        color: #d83030;
+        box-shadow:
+            0 5px 18px rgba(0,0,0,0.7),
+            0 0 32px rgba(160, 24, 24, 0.45),
+            inset 0 2px 0 rgba(255, 255, 255, 0.45),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+    }
+}

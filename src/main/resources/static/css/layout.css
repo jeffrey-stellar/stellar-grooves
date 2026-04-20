@@ -284,6 +284,75 @@
     letter-spacing: 0.04em;
 }
 
+/* Light-mode bulk bar — black gaffer-tape strip with bone typewriter text */
+[data-theme="light"] .sg-bulk-bar,
+[data-theme="light"] #bulkBar {
+    background:
+        repeating-linear-gradient(92deg,
+            transparent 0 40px,
+            rgba(160, 24, 24, 0.15) 40px 41px,
+            transparent 41px 100px),
+        linear-gradient(180deg, #0a0705 0%, #1a1410 100%) !important;
+    border-bottom: 2px solid #a01818 !important;
+    box-shadow:
+        inset 0 1px 0 rgba(160, 24, 24, 0.35),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+}
+[data-theme="light"] #bulkCount {
+    color: #f2e9cf !important;
+    font-family: var(--font-stencil);
+    letter-spacing: 0.12em;
+    text-shadow: 1px 1px 0 #a01818;
+}
+/* Bulk-bar buttons sit on black gaffer tape — invert the outline palette
+   so bone becomes the "rest" state and oxblood the hover. */
+[data-theme="light"] .sg-bulk-bar .btn-outline-secondary,
+[data-theme="light"] .sg-bulk-bar .btn-outline-primary,
+[data-theme="light"] #bulkBar .btn-outline-secondary,
+[data-theme="light"] #bulkBar .btn-outline-primary,
+[data-theme="light"] .sg-bulk-bar .btn-outline-danger,
+[data-theme="light"] #bulkBar .btn-outline-danger {
+    box-shadow: 2px 2px 0 rgba(160, 24, 24, 0.55);
+}
+[data-theme="light"] .sg-bulk-bar input[type="checkbox"],
+[data-theme="light"] #bulkBar input[type="checkbox"] {
+    accent-color: #a01818;
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .sg-bulk-bar,
+    :root:not([data-theme="dark"]) #bulkBar {
+        background:
+            repeating-linear-gradient(92deg,
+                transparent 0 40px,
+                rgba(160, 24, 24, 0.15) 40px 41px,
+                transparent 41px 100px),
+            linear-gradient(180deg, #0a0705 0%, #1a1410 100%) !important;
+        border-bottom: 2px solid #a01818 !important;
+        box-shadow:
+            inset 0 1px 0 rgba(160, 24, 24, 0.35),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+    }
+    :root:not([data-theme="dark"]) #bulkCount {
+        color: #f2e9cf !important;
+        font-family: var(--font-stencil);
+        letter-spacing: 0.12em;
+        text-shadow: 1px 1px 0 #a01818;
+    }
+    :root:not([data-theme="dark"]) .sg-bulk-bar .btn-outline-secondary,
+    :root:not([data-theme="dark"]) .sg-bulk-bar .btn-outline-primary,
+    :root:not([data-theme="dark"]) #bulkBar .btn-outline-secondary,
+    :root:not([data-theme="dark"]) #bulkBar .btn-outline-primary,
+    :root:not([data-theme="dark"]) .sg-bulk-bar .btn-outline-danger,
+    :root:not([data-theme="dark"]) #bulkBar .btn-outline-danger {
+        box-shadow: 2px 2px 0 rgba(160, 24, 24, 0.55);
+    }
+    :root:not([data-theme="dark"]) .sg-bulk-bar input[type="checkbox"],
+    :root:not([data-theme="dark"]) #bulkBar input[type="checkbox"] {
+        accent-color: #a01818;
+    }
+}
+
 /* ── Auth stage — cinematic dark room ─────────────────── */
 .sg-auth {
     min-height: 100vh;
@@ -721,6 +790,356 @@
 /* ── Admin console ─────────────────────────────── */
 .sg-admin-console .sg-hero-title { color: var(--honey); }
 
+/* ============================================================
+   Light-mode hero — "Zine Metal"
+   Harder than the previous concert-poster treatment. Draws from
+   early-90s grunge zines (xerox paper, typewriter captions,
+   masking tape, reversed-ink headlines) crossed with heavy-metal
+   bill posters (ink-black double frame, oxblood bleed, gunmetal
+   outlines, gothic italic title mass). The dark "MTV neon" stays
+   untouched — this is its cold, dirty counterpart.
+
+   Palette (literal, not token-driven so it doesn't bleed to dark):
+     ink       #0a0705   zine-ink black
+     bone      #f2e9cf   xerox paper highlight
+     paper     #ece3c8 → #c8bb94   dirty bone gradient
+     oxblood   #a01818   cold crimson bleed
+     blood-dp  #5a0c0c   dried blood
+     gunmetal  #2d2a28   charcoal ink
+   ============================================================ */
+[data-theme="light"] .sg-hero {
+    border: 0;
+    border-radius: 0;
+    padding: 2.1rem 2rem 2.3rem;
+    background:
+        /* coffee ring top-right */
+        radial-gradient(circle 140px at 88% 18%,
+            transparent 62px,
+            rgba(90, 40, 15, 0.18) 64px,
+            rgba(90, 40, 15, 0.10) 78px,
+            transparent 92px),
+        /* ink smudge bottom-left */
+        radial-gradient(ellipse 55% 40% at 15% 95%, rgba(20, 10, 8, 0.22), transparent 60%),
+        /* oxblood bleach blotch mid-right */
+        radial-gradient(ellipse 35% 35% at 92% 78%, rgba(160, 24, 24, 0.22), transparent 60%),
+        /* dirty bone paper */
+        linear-gradient(175deg, #ece3c8 0%, #dacead 55%, #c8bb94 100%);
+    box-shadow:
+        inset 0 0 0 3px #0a0705,
+        inset 0 0 0 6px #f2e9cf,
+        inset 0 0 0 7px #2d2a28,
+        0 6px 0 #0a0705,
+        0 14px 28px rgba(0, 0, 0, 0.32);
+}
+[data-theme="light"] .sg-hero::before {
+    /* Heavy xerox halftone + smear streaks, multiply-blended for
+       that "copied one too many times" zine look. */
+    background:
+        repeating-linear-gradient(92deg,
+            transparent 0 120px,
+            rgba(0, 0, 0, 0.06) 120px 121px,
+            transparent 121px 240px,
+            rgba(0, 0, 0, 0.09) 240px 242px),
+        radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.38) 1.3px, transparent 1.7px) 0 0 / 5px 5px;
+    mix-blend-mode: multiply;
+    opacity: 0.55;
+    animation: none;
+}
+[data-theme="light"] .sg-hero::after {
+    /* Bottom: heavy black ink tape with oxblood bleed patches. */
+    height: 14px;
+    background:
+        linear-gradient(90deg,
+            transparent 0 4%,
+            rgba(160, 24, 24, 0.65) 4% 8%,
+            transparent 8% 18%,
+            rgba(160, 24, 24, 0.45) 18% 21%,
+            transparent 21% 42%,
+            rgba(160, 24, 24, 0.6) 42% 46%,
+            transparent 46% 72%,
+            rgba(160, 24, 24, 0.5) 72% 75%,
+            transparent 75%),
+        linear-gradient(180deg, #0a0705 0%, #1a1410 100%);
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Rubber-stamped black-ink TAPE bug (rotated, inset-lined) */
+[data-theme="light"] .sg-hero-stamp {
+    transform: rotate(-5deg);
+    top: 16px;
+    right: 18px;
+    background: #0a0705;
+    color: #f2e9cf;
+    border: 2px solid #0a0705;
+    border-radius: 0;
+    font-family: var(--font-stencil);
+    letter-spacing: 0.22em;
+    padding: 0.3rem 0.7rem 0.26rem;
+    box-shadow:
+        inset 0 0 0 2px #f2e9cf,
+        inset 0 0 0 3px #0a0705,
+        3px 3px 0 rgba(160, 24, 24, 0.6),
+        6px 6px 10px rgba(0, 0, 0, 0.3);
+    text-shadow: none;
+}
+[data-theme="light"] .sg-hero-stamp::before {
+    background: #a01818;
+    box-shadow: 0 0 0 1px #f2e9cf;
+    animation-duration: 0.9s;
+}
+
+/* Reversed-type kicker — black box, bone typewriter text */
+[data-theme="light"] .sg-hero-kicker {
+    font-family: var(--font-stencil);
+    color: #f2e9cf;
+    background: #0a0705;
+    padding: 0.32rem 0.7rem 0.28rem;
+    letter-spacing: 0.2em;
+    font-size: 0.78rem;
+    font-weight: 400;
+    text-shadow: none;
+    transform: rotate(-1.5deg);
+    transform-origin: left center;
+    box-shadow:
+        3px 3px 0 rgba(160, 24, 24, 0.55),
+        4px 4px 0 #0a0705;
+    margin-bottom: 0.9rem;
+}
+[data-theme="light"] .sg-hero-kicker::before {
+    background: #a01818;
+    width: 8px; height: 8px;
+    border: 1px solid #f2e9cf;
+}
+
+/* Metal-logo title — heavy serif italic, stacked shadows in oxblood /
+   gunmetal / bone for a "band-logo" mass. scaleY adds print weight. */
+[data-theme="light"] .sg-hero-title {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-weight: 700;
+    font-style: italic;
+    color: #0a0705;
+    -webkit-text-stroke: 0.6px #0a0705;
+    transform: skew(-4deg) scaleY(1.14);
+    transform-origin: left bottom;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    text-shadow:
+        2px 2px 0 #a01818,
+        4px 4px 0 #2d2a28,
+        6px 6px 0 rgba(242, 233, 207, 0.85),
+        6px 10px 14px rgba(0, 0, 0, 0.22);
+}
+[data-theme="light"] .sg-hero-title em {
+    color: #a01818;
+    -webkit-text-stroke: 0.6px #0a0705;
+    text-shadow:
+        2px 2px 0 #0a0705,
+        4px 4px 0 #2d2a28,
+        6px 6px 0 rgba(242, 233, 207, 0.85),
+        6px 10px 14px rgba(0, 0, 0, 0.22);
+}
+
+/* Tagline — serif-italic with a dashed paper rule above */
+[data-theme="light"] .sg-hero-tagline {
+    color: #1c140e;
+    font-family: 'Georgia', serif;
+    font-style: italic;
+    font-size: 1rem;
+    text-shadow: none;
+    border-top: 1px dashed rgba(20, 10, 5, 0.4);
+    padding-top: 0.65rem;
+    margin-top: 0.7rem;
+    max-width: 50ch;
+}
+
+/* Meta block — each row becomes a rotated masking-tape strip */
+[data-theme="light"] .sg-hero-meta {
+    color: #1c140e;
+    font-family: var(--font-stencil);
+    font-weight: 400;
+    font-size: 0.78rem;
+    text-shadow: none;
+    margin-top: 2.4rem;
+    gap: 0.5rem;
+}
+[data-theme="light"] .sg-hero-meta > div {
+    background: rgba(242, 233, 207, 0.78);
+    border: 1px solid rgba(20, 10, 5, 0.32);
+    padding: 0.26rem 0.6rem;
+    transform: rotate(1.8deg);
+    box-shadow: 2px 2px 0 rgba(20, 10, 5, 0.35);
+    transition: transform 0.2s var(--ease-out-soft);
+}
+[data-theme="light"] .sg-hero-meta > div:nth-child(2) { transform: rotate(-1.2deg); }
+[data-theme="light"] .sg-hero-meta > div:nth-child(3) { transform: rotate(2.2deg); }
+[data-theme="light"] .sg-hero-meta > div:hover { transform: rotate(0deg) scale(1.03); }
+[data-theme="light"] .sg-hero-meta b {
+    color: #a01818;
+    font-family: var(--font-led);
+    font-weight: 400;
+    font-size: 1.05rem;
+    text-shadow: none;
+}
+
+/* System-preference light — mirrored rules. */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .sg-hero {
+        border: 0;
+        border-radius: 0;
+        padding: 2.1rem 2rem 2.3rem;
+        background:
+            radial-gradient(circle 140px at 88% 18%,
+                transparent 62px,
+                rgba(90, 40, 15, 0.18) 64px,
+                rgba(90, 40, 15, 0.10) 78px,
+                transparent 92px),
+            radial-gradient(ellipse 55% 40% at 15% 95%, rgba(20, 10, 8, 0.22), transparent 60%),
+            radial-gradient(ellipse 35% 35% at 92% 78%, rgba(160, 24, 24, 0.22), transparent 60%),
+            linear-gradient(175deg, #ece3c8 0%, #dacead 55%, #c8bb94 100%);
+        box-shadow:
+            inset 0 0 0 3px #0a0705,
+            inset 0 0 0 6px #f2e9cf,
+            inset 0 0 0 7px #2d2a28,
+            0 6px 0 #0a0705,
+            0 14px 28px rgba(0, 0, 0, 0.32);
+    }
+    :root:not([data-theme="dark"]) .sg-hero::before {
+        background:
+            repeating-linear-gradient(92deg,
+                transparent 0 120px,
+                rgba(0, 0, 0, 0.06) 120px 121px,
+                transparent 121px 240px,
+                rgba(0, 0, 0, 0.09) 240px 242px),
+            radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.38) 1.3px, transparent 1.7px) 0 0 / 5px 5px;
+        mix-blend-mode: multiply;
+        opacity: 0.55;
+        animation: none;
+    }
+    :root:not([data-theme="dark"]) .sg-hero::after {
+        height: 14px;
+        background:
+            linear-gradient(90deg,
+                transparent 0 4%,
+                rgba(160, 24, 24, 0.65) 4% 8%,
+                transparent 8% 18%,
+                rgba(160, 24, 24, 0.45) 18% 21%,
+                transparent 21% 42%,
+                rgba(160, 24, 24, 0.6) 42% 46%,
+                transparent 46% 72%,
+                rgba(160, 24, 24, 0.5) 72% 75%,
+                transparent 75%),
+            linear-gradient(180deg, #0a0705 0%, #1a1410 100%);
+        box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.4);
+    }
+    :root:not([data-theme="dark"]) .sg-hero-stamp {
+        transform: rotate(-5deg);
+        top: 16px;
+        right: 18px;
+        background: #0a0705;
+        color: #f2e9cf;
+        border: 2px solid #0a0705;
+        border-radius: 0;
+        font-family: var(--font-stencil);
+        letter-spacing: 0.22em;
+        padding: 0.3rem 0.7rem 0.26rem;
+        box-shadow:
+            inset 0 0 0 2px #f2e9cf,
+            inset 0 0 0 3px #0a0705,
+            3px 3px 0 rgba(160, 24, 24, 0.6),
+            6px 6px 10px rgba(0, 0, 0, 0.3);
+        text-shadow: none;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-stamp::before {
+        background: #a01818;
+        box-shadow: 0 0 0 1px #f2e9cf;
+        animation-duration: 0.9s;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-kicker {
+        font-family: var(--font-stencil);
+        color: #f2e9cf;
+        background: #0a0705;
+        padding: 0.32rem 0.7rem 0.28rem;
+        letter-spacing: 0.2em;
+        font-size: 0.78rem;
+        font-weight: 400;
+        text-shadow: none;
+        transform: rotate(-1.5deg);
+        transform-origin: left center;
+        box-shadow:
+            3px 3px 0 rgba(160, 24, 24, 0.55),
+            4px 4px 0 #0a0705;
+        margin-bottom: 0.9rem;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-kicker::before {
+        background: #a01818;
+        width: 8px; height: 8px;
+        border: 1px solid #f2e9cf;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-title {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+        font-style: italic;
+        color: #0a0705;
+        -webkit-text-stroke: 0.6px #0a0705;
+        transform: skew(-4deg) scaleY(1.14);
+        transform-origin: left bottom;
+        line-height: 1;
+        letter-spacing: 0.01em;
+        text-shadow:
+            2px 2px 0 #a01818,
+            4px 4px 0 #2d2a28,
+            6px 6px 0 rgba(242, 233, 207, 0.85),
+            6px 10px 14px rgba(0, 0, 0, 0.22);
+    }
+    :root:not([data-theme="dark"]) .sg-hero-title em {
+        color: #a01818;
+        -webkit-text-stroke: 0.6px #0a0705;
+        text-shadow:
+            2px 2px 0 #0a0705,
+            4px 4px 0 #2d2a28,
+            6px 6px 0 rgba(242, 233, 207, 0.85),
+            6px 10px 14px rgba(0, 0, 0, 0.22);
+    }
+    :root:not([data-theme="dark"]) .sg-hero-tagline {
+        color: #1c140e;
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        font-size: 1rem;
+        text-shadow: none;
+        border-top: 1px dashed rgba(20, 10, 5, 0.4);
+        padding-top: 0.65rem;
+        margin-top: 0.7rem;
+        max-width: 50ch;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-meta {
+        color: #1c140e;
+        font-family: var(--font-stencil);
+        font-weight: 400;
+        font-size: 0.78rem;
+        text-shadow: none;
+        margin-top: 2.4rem;
+        gap: 0.5rem;
+    }
+    :root:not([data-theme="dark"]) .sg-hero-meta > div {
+        background: rgba(242, 233, 207, 0.78);
+        border: 1px solid rgba(20, 10, 5, 0.32);
+        padding: 0.26rem 0.6rem;
+        transform: rotate(1.8deg);
+        box-shadow: 2px 2px 0 rgba(20, 10, 5, 0.35);
+        transition: transform 0.2s var(--ease-out-soft);
+    }
+    :root:not([data-theme="dark"]) .sg-hero-meta > div:nth-child(2) { transform: rotate(-1.2deg); }
+    :root:not([data-theme="dark"]) .sg-hero-meta > div:nth-child(3) { transform: rotate(2.2deg); }
+    :root:not([data-theme="dark"]) .sg-hero-meta > div:hover { transform: rotate(0deg) scale(1.03); }
+    :root:not([data-theme="dark"]) .sg-hero-meta b {
+        color: #a01818;
+        font-family: var(--font-led);
+        font-weight: 400;
+        font-size: 1.05rem;
+        text-shadow: none;
+    }
+}
+
 /* ── Signup password strength bar ────────────── */
 .sg-password-meter {
     display: grid;
@@ -737,3 +1156,468 @@
 .sg-password-meter-bar.on-weak   { background: var(--danger); box-shadow: 0 0 6px rgba(255,107,107,0.4); }
 .sg-password-meter-bar.on-fair   { background: var(--amber); box-shadow: 0 0 6px rgba(255, 179, 71, 0.4); }
 .sg-password-meter-bar.on-strong { background: var(--success); box-shadow: 0 0 6px rgba(107,219,138,0.4); }
+
+/* ============================================================
+   ZINE METAL — auth pages (login / signup)
+   Left: zine cover with ink metal title + halftone paper bleach.
+   Right: bone card with ink double-frame, stamped CTA, staples
+   instead of warm bulbs.
+   ============================================================ */
+
+/* ── Stage (left side) — zine cover ─────────────────────── */
+[data-theme="light"] .sg-auth-stage {
+    background:
+        radial-gradient(circle 180px at 85% 20%,
+            transparent 80px,
+            rgba(90, 40, 15, 0.18) 82px,
+            rgba(90, 40, 15, 0.08) 100px,
+            transparent 120px),
+        radial-gradient(ellipse 55% 40% at 15% 95%, rgba(20, 10, 8, 0.22), transparent 60%),
+        radial-gradient(ellipse 45% 45% at 92% 78%, rgba(160, 24, 24, 0.22), transparent 60%),
+        linear-gradient(175deg, #ece3c8 0%, #dacead 55%, #c8bb94 100%);
+    border-bottom: 3px solid #0a0705;
+    box-shadow:
+        inset 0 -14px 40px rgba(20, 10, 5, 0.2),
+        inset 0 24px 60px rgba(160, 24, 24, 0.04);
+}
+@media (min-width: 992px) {
+    [data-theme="light"] .sg-auth-stage {
+        border-bottom: none;
+        border-right: 3px solid #0a0705;
+    }
+}
+[data-theme="light"] .sg-auth-stage::before {
+    /* Kill the warm spotlight beam; replace with a heavy halftone wash. */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(92deg,
+            transparent 0 160px,
+            rgba(0, 0, 0, 0.05) 160px 161px,
+            transparent 161px 320px,
+            rgba(0, 0, 0, 0.08) 320px 322px),
+        radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.32) 1.1px, transparent 1.5px) 0 0 / 6px 6px;
+    mix-blend-mode: multiply;
+    opacity: 0.45;
+    clip-path: none;
+    filter: none;
+}
+[data-theme="light"] .sg-auth-stage::after {
+    /* Floorboards become a heavy black ink bar with oxblood bleed. */
+    height: 14px;
+    background:
+        linear-gradient(90deg,
+            transparent 0 4%,
+            rgba(160, 24, 24, 0.65) 4% 8%,
+            transparent 8% 18%,
+            rgba(160, 24, 24, 0.45) 18% 21%,
+            transparent 21% 42%,
+            rgba(160, 24, 24, 0.6) 42% 46%,
+            transparent 46% 72%,
+            rgba(160, 24, 24, 0.5) 72% 75%,
+            transparent 75%),
+        linear-gradient(180deg, #0a0705 0%, #1a1410 100%);
+    mask-image: none;
+    -webkit-mask-image: none;
+    opacity: 1;
+}
+
+[data-theme="light"] .sg-auth-brand {
+    color: #0a0705;
+    font-family: var(--font-stencil);
+    text-shadow: 1px 1px 0 rgba(242, 233, 207, 0.7);
+    font-style: italic;
+}
+[data-theme="light"] .sg-auth-brand img {
+    filter:
+        drop-shadow(1px 1px 0 rgba(160, 24, 24, 0.55))
+        drop-shadow(0 2px 2px rgba(20, 10, 5, 0.3));
+}
+
+[data-theme="light"] .sg-auth-kicker {
+    font-family: var(--font-stencil);
+    color: #f2e9cf;
+    background: #0a0705;
+    padding: 0.32rem 0.7rem 0.28rem;
+    letter-spacing: 0.22em;
+    text-shadow: none;
+    transform: rotate(-1.5deg);
+    transform-origin: left center;
+    box-shadow:
+        3px 3px 0 rgba(160, 24, 24, 0.55),
+        4px 4px 0 #0a0705;
+}
+[data-theme="light"] .sg-auth-kicker::before {
+    background: #a01818;
+    width: 8px; height: 8px;
+    border: 1px solid #f2e9cf;
+}
+
+[data-theme="light"] .sg-auth-title {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-weight: 700;
+    font-style: italic;
+    color: #0a0705;
+    -webkit-text-stroke: 0.6px #0a0705;
+    transform: skew(-4deg) scaleY(1.14);
+    transform-origin: left bottom;
+    text-shadow:
+        2px 2px 0 #a01818,
+        4px 4px 0 #2d2a28,
+        6px 6px 0 rgba(242, 233, 207, 0.85),
+        6px 10px 14px rgba(0, 0, 0, 0.22);
+}
+[data-theme="light"] .sg-auth-title em {
+    color: #a01818;
+    -webkit-text-stroke: 0.6px #0a0705;
+    text-shadow:
+        2px 2px 0 #0a0705,
+        4px 4px 0 #2d2a28,
+        6px 6px 0 rgba(242, 233, 207, 0.85),
+        6px 10px 14px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="light"] .sg-auth-lede {
+    color: #1c140e;
+    font-family: 'Georgia', serif;
+    font-style: italic;
+    border-top: 1px dashed rgba(20, 10, 5, 0.4);
+    padding-top: 0.65rem;
+}
+
+[data-theme="light"] .sg-auth-footer {
+    color: #3c2a1c;
+    font-family: var(--font-stencil);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+}
+[data-theme="light"] .sg-auth-footer span::before {
+    background: #a01818;
+    border-radius: 0;
+    width: 7px; height: 7px;
+    box-shadow: 1px 1px 0 #0a0705;
+}
+
+/* ── Panel (right side) — zine sign-in card ────────────── */
+[data-theme="light"] .sg-auth-panel {
+    background:
+        radial-gradient(ellipse 90% 70% at 50% 50%, rgba(160, 24, 24, 0.06), transparent 70%),
+        linear-gradient(180deg, #e8ddbb 0%, #d7c99f 100%);
+}
+[data-theme="light"] .sg-auth-card {
+    background:
+        radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.07) 0.8px, transparent 1.2px) 0 0 / 5px 5px,
+        linear-gradient(180deg, #f2e9cf 0%, #e4d7b4 100%);
+    border: 0;
+    border-radius: 2px;
+    box-shadow:
+        inset 0 0 0 3px #0a0705,
+        inset 0 0 0 6px #f2e9cf,
+        inset 0 0 0 7px #2d2a28,
+        6px 6px 0 rgba(160, 24, 24, 0.55),
+        10px 10px 0 #0a0705,
+        0 24px 48px rgba(0, 0, 0, 0.2);
+    padding: 2.5rem 2.25rem 2rem;
+}
+[data-theme="light"] .sg-auth-card::before {
+    /* Replace the warm bulb ring with 5 oxblood staple heads. */
+    width: 90px;
+    height: 10px;
+    top: 14px;
+    background:
+        radial-gradient(circle 3px at 10% 50%, #a01818 0 3px, transparent 3.5px),
+        radial-gradient(circle 3px at 30% 50%, #a01818 0 3px, transparent 3.5px),
+        radial-gradient(circle 3px at 50% 50%, #0a0705 0 3px, transparent 3.5px),
+        radial-gradient(circle 3px at 70% 50%, #a01818 0 3px, transparent 3.5px),
+        radial-gradient(circle 3px at 90% 50%, #a01818 0 3px, transparent 3.5px);
+    filter:
+        drop-shadow(1px 1px 0 rgba(20, 10, 5, 0.55))
+        drop-shadow(0 2px 2px rgba(20, 10, 5, 0.25));
+}
+
+[data-theme="light"] .sg-auth-card-title {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 700;
+    color: #0a0705;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-size: 1.55rem;
+    text-shadow:
+        1px 1px 0 #a01818,
+        2px 2px 0 rgba(242, 233, 207, 0.75);
+}
+[data-theme="light"] .sg-auth-card-sub {
+    color: #5a0c0c;
+    font-family: var(--font-stencil);
+    text-shadow: 1px 1px 0 rgba(242, 233, 207, 0.65);
+}
+
+[data-theme="light"] .sg-auth-card-foot {
+    color: #1c140e;
+    font-family: var(--font-body);
+}
+[data-theme="light"] .sg-auth-card-foot a {
+    color: #a01818;
+    font-style: italic;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    text-decoration-color: #0a0705;
+}
+[data-theme="light"] .sg-auth-card-foot a:hover {
+    color: #0a0705;
+    text-decoration-color: #a01818;
+}
+[data-theme="light"] .sg-auth-card-foot-small {
+    color: #3c2a1c;
+}
+
+/* ── Password strength meter — Zine palette ─────────── */
+[data-theme="light"] .sg-password-meter-bar {
+    background: rgba(20, 10, 5, 0.12);
+    border: 1px solid rgba(20, 10, 5, 0.25);
+}
+[data-theme="light"] .sg-password-meter-bar.on-weak {
+    background: #a01818;
+    border-color: #5a0c0c;
+    box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+}
+[data-theme="light"] .sg-password-meter-bar.on-fair {
+    background: #c87420;
+    border-color: #5a0c0c;
+    box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+}
+[data-theme="light"] .sg-password-meter-bar.on-strong {
+    background: #2d6a3a;
+    border-color: #0a0705;
+    box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+}
+
+/* ============================================================
+   Mirror — system-preference light
+   ============================================================ */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .sg-auth-stage {
+        background:
+            radial-gradient(circle 180px at 85% 20%,
+                transparent 80px,
+                rgba(90, 40, 15, 0.18) 82px,
+                rgba(90, 40, 15, 0.08) 100px,
+                transparent 120px),
+            radial-gradient(ellipse 55% 40% at 15% 95%, rgba(20, 10, 8, 0.22), transparent 60%),
+            radial-gradient(ellipse 45% 45% at 92% 78%, rgba(160, 24, 24, 0.22), transparent 60%),
+            linear-gradient(175deg, #ece3c8 0%, #dacead 55%, #c8bb94 100%);
+        border-bottom: 3px solid #0a0705;
+        box-shadow:
+            inset 0 -14px 40px rgba(20, 10, 5, 0.2),
+            inset 0 24px 60px rgba(160, 24, 24, 0.04);
+    }
+}
+@media (min-width: 992px) and (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .sg-auth-stage {
+        border-bottom: none;
+        border-right: 3px solid #0a0705;
+    }
+}
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .sg-auth-stage::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            repeating-linear-gradient(92deg,
+                transparent 0 160px,
+                rgba(0, 0, 0, 0.05) 160px 161px,
+                transparent 161px 320px,
+                rgba(0, 0, 0, 0.08) 320px 322px),
+            radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.32) 1.1px, transparent 1.5px) 0 0 / 6px 6px;
+        mix-blend-mode: multiply;
+        opacity: 0.45;
+        clip-path: none;
+        filter: none;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-stage::after {
+        height: 14px;
+        background:
+            linear-gradient(90deg,
+                transparent 0 4%,
+                rgba(160, 24, 24, 0.65) 4% 8%,
+                transparent 8% 18%,
+                rgba(160, 24, 24, 0.45) 18% 21%,
+                transparent 21% 42%,
+                rgba(160, 24, 24, 0.6) 42% 46%,
+                transparent 46% 72%,
+                rgba(160, 24, 24, 0.5) 72% 75%,
+                transparent 75%),
+            linear-gradient(180deg, #0a0705 0%, #1a1410 100%);
+        mask-image: none;
+        -webkit-mask-image: none;
+        opacity: 1;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-brand {
+        color: #0a0705;
+        font-family: var(--font-stencil);
+        text-shadow: 1px 1px 0 rgba(242, 233, 207, 0.7);
+        font-style: italic;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-brand img {
+        filter:
+            drop-shadow(1px 1px 0 rgba(160, 24, 24, 0.55))
+            drop-shadow(0 2px 2px rgba(20, 10, 5, 0.3));
+    }
+    :root:not([data-theme="dark"]) .sg-auth-kicker {
+        font-family: var(--font-stencil);
+        color: #f2e9cf;
+        background: #0a0705;
+        padding: 0.32rem 0.7rem 0.28rem;
+        letter-spacing: 0.22em;
+        text-shadow: none;
+        transform: rotate(-1.5deg);
+        transform-origin: left center;
+        box-shadow:
+            3px 3px 0 rgba(160, 24, 24, 0.55),
+            4px 4px 0 #0a0705;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-kicker::before {
+        background: #a01818;
+        width: 8px; height: 8px;
+        border: 1px solid #f2e9cf;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-title {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+        font-style: italic;
+        color: #0a0705;
+        -webkit-text-stroke: 0.6px #0a0705;
+        transform: skew(-4deg) scaleY(1.14);
+        transform-origin: left bottom;
+        text-shadow:
+            2px 2px 0 #a01818,
+            4px 4px 0 #2d2a28,
+            6px 6px 0 rgba(242, 233, 207, 0.85),
+            6px 10px 14px rgba(0, 0, 0, 0.22);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-title em {
+        color: #a01818;
+        -webkit-text-stroke: 0.6px #0a0705;
+        text-shadow:
+            2px 2px 0 #0a0705,
+            4px 4px 0 #2d2a28,
+            6px 6px 0 rgba(242, 233, 207, 0.85),
+            6px 10px 14px rgba(0, 0, 0, 0.22);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-lede {
+        color: #1c140e;
+        font-family: 'Georgia', serif;
+        font-style: italic;
+        border-top: 1px dashed rgba(20, 10, 5, 0.4);
+        padding-top: 0.65rem;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-footer {
+        color: #3c2a1c;
+        font-family: var(--font-stencil);
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-footer span::before {
+        background: #a01818;
+        border-radius: 0;
+        width: 7px; height: 7px;
+        box-shadow: 1px 1px 0 #0a0705;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-panel {
+        background:
+            radial-gradient(ellipse 90% 70% at 50% 50%, rgba(160, 24, 24, 0.06), transparent 70%),
+            linear-gradient(180deg, #e8ddbb 0%, #d7c99f 100%);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card {
+        background:
+            radial-gradient(circle at 2px 2px, rgba(20, 10, 5, 0.07) 0.8px, transparent 1.2px) 0 0 / 5px 5px,
+            linear-gradient(180deg, #f2e9cf 0%, #e4d7b4 100%);
+        border: 0;
+        border-radius: 2px;
+        box-shadow:
+            inset 0 0 0 3px #0a0705,
+            inset 0 0 0 6px #f2e9cf,
+            inset 0 0 0 7px #2d2a28,
+            6px 6px 0 rgba(160, 24, 24, 0.55),
+            10px 10px 0 #0a0705,
+            0 24px 48px rgba(0, 0, 0, 0.2);
+        padding: 2.5rem 2.25rem 2rem;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card::before {
+        width: 90px;
+        height: 10px;
+        top: 14px;
+        background:
+            radial-gradient(circle 3px at 10% 50%, #a01818 0 3px, transparent 3.5px),
+            radial-gradient(circle 3px at 30% 50%, #a01818 0 3px, transparent 3.5px),
+            radial-gradient(circle 3px at 50% 50%, #0a0705 0 3px, transparent 3.5px),
+            radial-gradient(circle 3px at 70% 50%, #a01818 0 3px, transparent 3.5px),
+            radial-gradient(circle 3px at 90% 50%, #a01818 0 3px, transparent 3.5px);
+        filter:
+            drop-shadow(1px 1px 0 rgba(20, 10, 5, 0.55))
+            drop-shadow(0 2px 2px rgba(20, 10, 5, 0.25));
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-title {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-style: italic;
+        font-weight: 700;
+        color: #0a0705;
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 1.55rem;
+        text-shadow:
+            1px 1px 0 #a01818,
+            2px 2px 0 rgba(242, 233, 207, 0.75);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-sub {
+        color: #5a0c0c;
+        font-family: var(--font-stencil);
+        text-shadow: 1px 1px 0 rgba(242, 233, 207, 0.65);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-foot {
+        color: #1c140e;
+        font-family: var(--font-body);
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-foot a {
+        color: #a01818;
+        font-style: italic;
+        font-weight: 700;
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 3px;
+        text-decoration-color: #0a0705;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-foot a:hover {
+        color: #0a0705;
+        text-decoration-color: #a01818;
+    }
+    :root:not([data-theme="dark"]) .sg-auth-card-foot-small {
+        color: #3c2a1c;
+    }
+    :root:not([data-theme="dark"]) .sg-password-meter-bar {
+        background: rgba(20, 10, 5, 0.12);
+        border: 1px solid rgba(20, 10, 5, 0.25);
+    }
+    :root:not([data-theme="dark"]) .sg-password-meter-bar.on-weak {
+        background: #a01818;
+        border-color: #5a0c0c;
+        box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+    }
+    :root:not([data-theme="dark"]) .sg-password-meter-bar.on-fair {
+        background: #c87420;
+        border-color: #5a0c0c;
+        box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+    }
+    :root:not([data-theme="dark"]) .sg-password-meter-bar.on-strong {
+        background: #2d6a3a;
+        border-color: #0a0705;
+        box-shadow: 1px 1px 0 rgba(20, 10, 5, 0.45);
+    }
+}
