@@ -10,6 +10,7 @@ import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
+import com.stellarideas.grooves.service.ScanPathValidator;
 import com.stellarideas.grooves.service.ScanProgressEmitter;
 import com.stellarideas.grooves.service.ScanRateLimiter;
 import com.stellarideas.grooves.service.UserRateLimiter;
@@ -66,6 +67,7 @@ public class LibraryController {
     private final PlaybackQueueRepository playbackQueueRepository;
     private final ScanProgressEmitter scanProgressEmitter;
     private final UserRateLimiter userRateLimiter;
+    private final ScanPathValidator scanPathValidator;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -75,7 +77,8 @@ public class LibraryController {
                              ScanRateLimiter scanRateLimiter,
                              PlaybackQueueRepository playbackQueueRepository,
                              ScanProgressEmitter scanProgressEmitter,
-                             UserRateLimiter userRateLimiter) {
+                             UserRateLimiter userRateLimiter,
+                             ScanPathValidator scanPathValidator) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -85,6 +88,7 @@ public class LibraryController {
         this.playbackQueueRepository = playbackQueueRepository;
         this.scanProgressEmitter = scanProgressEmitter;
         this.userRateLimiter = userRateLimiter;
+        this.scanPathValidator = scanPathValidator;
     }
 
     @PostMapping("/scan")
@@ -751,33 +755,7 @@ public class LibraryController {
         return null;
     }
 
-    private static final Set<String> BLOCKED_PATHS = Set.of(
-            "/etc", "/root", "/var", "/usr", "/bin", "/sbin",
-            "/boot", "/dev", "/proc", "/sys", "/run", "/lib",
-            "/opt", "/srv", "/tmp"
-    );
-
     private void validateScanPath(String path) throws IOException {
-        if (path == null || path.isBlank()) {
-            throw new IllegalArgumentException(msg.msg("scan.path.empty"));
-        }
-        Path requested = Paths.get(path).normalize().toAbsolutePath();
-        if (requested.toString().contains("..")) {
-            throw new IllegalArgumentException(msg.msg("scan.path.traversal"));
-        }
-        if (!Files.exists(requested) || !Files.isDirectory(requested)) {
-            throw new IllegalArgumentException(msg.msg("scan.path.notfound"));
-        }
-        Path canonical = requested.toRealPath();
-        if (!canonical.equals(requested)) {
-            throw new IllegalArgumentException(msg.msg("scan.path.symlink"));
-        }
-        // Block access to sensitive system directories
-        String canonicalStr = canonical.toString();
-        for (String blocked : BLOCKED_PATHS) {
-            if (canonicalStr.equals(blocked) || canonicalStr.startsWith(blocked + "/")) {
-                throw new IllegalArgumentException("Scan path is not allowed: access to system directories is restricted");
-            }
-        }
+        scanPathValidator.validate(path);
     }
 }

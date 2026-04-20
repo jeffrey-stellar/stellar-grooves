@@ -80,17 +80,19 @@ public class MusicScannerService implements DisposableBean {
     private final MusicFileRepository repository;
     private final CoverArtRepository coverArtRepository;
     private final ScanProgressEmitter progressEmitter;
+    private final ScanPathValidator pathValidator;
     private final Timer scanTimer;
     private final Counter filesScannedCounter;
     private final Counter scanErrorsCounter;
 
     public MusicScannerService(MusicCatalogService catalogService, MusicFileRepository repository,
                                CoverArtRepository coverArtRepository, ScanProgressEmitter progressEmitter,
-                               MeterRegistry meterRegistry) {
+                               ScanPathValidator pathValidator, MeterRegistry meterRegistry) {
         this.catalogService = catalogService;
         this.repository = repository;
         this.coverArtRepository = coverArtRepository;
         this.progressEmitter = progressEmitter;
+        this.pathValidator = pathValidator;
         this.scanTimer = Timer.builder("grooves.scan.duration")
                 .description("Time spent scanning directories")
                 .register(meterRegistry);
@@ -134,6 +136,7 @@ public class MusicScannerService implements DisposableBean {
     }
 
     public ScanResult scanDirectory(User user, String directoryPath) throws IOException {
+        Path validatedRoot = pathValidator.validate(directoryPath);
         ReentrantLock lock = userScanLocks.computeIfAbsent(user.getId(), k -> new ReentrantLock());
         if (!lock.tryLock()) {
             throw new IllegalStateException("A scan is already in progress for this user");
@@ -141,7 +144,7 @@ public class MusicScannerService implements DisposableBean {
         try {
             return scanTimer.record(() -> {
                 try {
-                    ScanResult result = doScanDirectory(user, directoryPath);
+                    ScanResult result = doScanDirectory(user, validatedRoot);
                     filesScannedCounter.increment(result.getSaved());
                     scanErrorsCounter.increment(result.getErrors());
                     return result;
@@ -184,8 +187,7 @@ public class MusicScannerService implements DisposableBean {
         }
     }
 
-    private ScanResult doScanDirectory(User user, String directoryPath) throws IOException {
-        Path root = Paths.get(directoryPath).normalize();
+    private ScanResult doScanDirectory(User user, Path root) throws IOException {
         int effectiveDepth = Math.min(maxDepth, hardMaxDepth);
 
         List<MusicFile> allUserFiles = repository.findByUserId(user.getId());
@@ -219,7 +221,7 @@ public class MusicScannerService implements DisposableBean {
             while (it.hasNext()) {
                 if (Instant.now().isAfter(deadline)) {
                     logger.warn("Scan timed out after {} minutes for user '{}' on path '{}'",
-                            scanTimeoutMinutes, user.getUsername(), directoryPath);
+                            scanTimeoutMinutes, user.getUsername(), root);
                     break;
                 }
                 Path path = it.next();

@@ -52,7 +52,8 @@ class QueueEdgeCaseTest {
 
         controller = new LibraryController(scannerService, libraryService, msgHelper,
                 auditService, userRepository, scanRateLimiter,
-                playbackQueueRepository, scanProgressEmitter, userRateLimiter);
+                playbackQueueRepository, scanProgressEmitter, userRateLimiter,
+                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""));
 
         testUser = new User();
         testUser.setId("user1");

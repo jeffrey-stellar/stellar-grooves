@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class MusicScannerServiceTest {
@@ -45,7 +46,8 @@ class MusicScannerServiceTest {
         catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        ScanPathValidator pathValidator = passThroughValidator();
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, pathValidator, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(scannerService, "maxDepth", 20);
         ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
         ReflectionTestUtils.setField(scannerService, "batchSize", 200);
@@ -66,6 +68,17 @@ class MusicScannerServiceTest {
     void tearDown() {
         // Shut down the executor so file handles are released before @TempDir cleanup (Windows)
         scannerService.destroy();
+    }
+
+    private static ScanPathValidator passThroughValidator() {
+        ScanPathValidator v = mock(ScanPathValidator.class);
+        try {
+            when(v.validate(anyString())).thenAnswer(inv ->
+                    java.nio.file.Paths.get((String) inv.getArgument(0)).normalize().toAbsolutePath());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return v;
     }
 
     @Test
@@ -204,7 +217,7 @@ class MusicScannerServiceTest {
 
         CoverArtRepository coverArtRepo = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        MusicScannerService lockTestService = new MusicScannerService(catalogService, slowRepo, coverArtRepo, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        MusicScannerService lockTestService = new MusicScannerService(catalogService, slowRepo, coverArtRepo, progressEmitter, passThroughValidator(), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(lockTestService, "maxDepth", 20);
         ReflectionTestUtils.setField(lockTestService, "hardMaxDepth", 50);
         ReflectionTestUtils.setField(lockTestService, "batchSize", 200);

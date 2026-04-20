@@ -17,6 +17,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -33,13 +34,24 @@ class DeepDirectoryScanTest {
     @TempDir
     Path tempDir;
 
+    private static ScanPathValidator passThroughValidator() {
+        ScanPathValidator v = mock(ScanPathValidator.class);
+        try {
+            when(v.validate(anyString())).thenAnswer(inv ->
+                    java.nio.file.Paths.get((String) inv.getArgument(0)).normalize().toAbsolutePath());
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
+        return v;
+    }
+
     @BeforeEach
     void setUp() {
         repository = mock(MusicFileRepository.class);
         MusicCatalogService catalogService = mock(MusicCatalogService.class);
         CoverArtRepository coverArtRepository = mock(CoverArtRepository.class);
         ScanProgressEmitter progressEmitter = mock(ScanProgressEmitter.class);
-        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        scannerService = new MusicScannerService(catalogService, repository, coverArtRepository, progressEmitter, passThroughValidator(), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(scannerService, "fileReaderThreads", 1);
         ReflectionTestUtils.setField(scannerService, "supportedExtensionsConfig", ".mp3,.m4a,.flac");
         ReflectionTestUtils.setField(scannerService, "hardMaxDepth", 50);
