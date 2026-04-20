@@ -5,12 +5,15 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
 /**
  * Converts a parsed predicate list into a MongoDB {@link Criteria} scoped to a user.
- * All predicates are AND'd; ownership and soft-delete filters are always appended.
+ * Positive predicates are AND'd at the root; negated predicates ({@link QueryPredicate.Not})
+ * are collected into a single {@code $nor} clause. Ownership and soft-delete filters
+ * are always appended.
  */
 @Component
 public class SmartPlaylistQueryTranslator {
@@ -29,8 +32,17 @@ public class SmartPlaylistQueryTranslator {
         Criteria base = Criteria.where("userId").is(userId).and("deleted").ne(true);
         if (predicates == null || predicates.isEmpty()) return base;
 
+        List<Criteria> negated = new ArrayList<>();
         for (QueryPredicate p : predicates) {
-            applyTo(base, p);
+            if (p instanceof QueryPredicate.Not not) {
+                negated.add(standaloneCriteriaFor(not.inner()));
+            } else {
+                applyTo(base, p);
+            }
+        }
+
+        if (!negated.isEmpty()) {
+            base.norOperator(negated.toArray(new Criteria[0]));
         }
         return base;
     }
@@ -63,9 +75,21 @@ public class SmartPlaylistQueryTranslator {
         } else if (p instanceof QueryPredicate.LastPlayedBefore lpb) {
             Instant threshold = Instant.now(clock).minus(lpb.window());
             root.and("lastPlayedAt").lt(threshold);
+        } else if (p instanceof QueryPredicate.Not) {
+            throw new IllegalStateException("Not predicate must be applied via $nor, not AND'd inline");
         } else {
             throw new IllegalStateException("Unhandled predicate: " + p);
         }
+    }
+
+    /** Build a standalone {@link Criteria} for a single predicate, suitable for use inside {@code $nor}. */
+    private Criteria standaloneCriteriaFor(QueryPredicate p) {
+        if (p instanceof QueryPredicate.Not) {
+            throw new IllegalStateException("Nested negation is not supported");
+        }
+        Criteria holder = new Criteria();
+        applyTo(holder, p);
+        return holder;
     }
 
     private static String fieldName(QueryPredicate.TextField f) {

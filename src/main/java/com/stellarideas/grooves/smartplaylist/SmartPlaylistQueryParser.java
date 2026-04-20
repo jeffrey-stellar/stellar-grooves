@@ -7,23 +7,32 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Parses the smart-playlist DSL.
  *
- * <p>Grammar (space-separated AND clauses):
+ * <p>Grammar (space-separated clauses, AND-combined):
  * <pre>
  *   query     := clause (WS+ clause)*
- *   clause    := field ':' value
+ *   clause    := predicate | sortClause | limitClause
+ *   predicate := ['-'] field ':' value
  *   field     := genre | artist | album | title | year | rating | tag | lastPlayed | playCount
  *   value     := range | comparator | quotedString | bareWord | relativeDuration
  *   range     := int '..' int                 (year, rating, playCount)
  *   comparator:= ('>=' | '>' | '<=' | '<') (int | duration)
  *   duration  := digits ('d' | 'w' | 'mo' | 'y')
+ *   sortClause  := 'sort:' sortField (':' direction)?
+ *   sortField   := rating | year | playcount | lastplayed | artist | album | title | random
+ *   direction   := 'asc' | 'desc'
+ *   limitClause := 'limit:' positiveInt
  * </pre>
  * Quoted strings (double quotes) allow spaces and colons inside values.
+ * A leading {@code -} on a predicate negates it ({@code -tag:skip}).
+ * {@code sort:random} requires an accompanying {@code limit:} clause.
  */
 @Component
 public class SmartPlaylistQueryParser {
@@ -32,26 +41,58 @@ public class SmartPlaylistQueryParser {
     private static final Pattern INT_CMP = Pattern.compile("^(>=|<=|>|<)(-?\\d+)$");
     private static final Pattern DUR_CMP = Pattern.compile("^(>=|<=|>|<)(\\d+)(d|w|mo|y)$");
     private static final Pattern INT_EQ = Pattern.compile("^-?\\d+$");
+    private static final Pattern POS_INT = Pattern.compile("^\\d+$");
 
     public static final int MAX_QUERY_LENGTH = 1000;
+    public static final int MAX_LIMIT = 100_000;
 
-    public List<QueryPredicate> parse(String query) {
-        if (query == null || query.isBlank()) return List.of();
+    public ParsedQuery parse(String query) {
+        if (query == null || query.isBlank()) return ParsedQuery.empty();
         if (query.length() > MAX_QUERY_LENGTH) {
             throw new QueryParseException("Query exceeds " + MAX_QUERY_LENGTH + " characters");
         }
         List<String> tokens = tokenize(query);
         List<QueryPredicate> predicates = new ArrayList<>(tokens.size());
+        Optional<SortSpec> sort = Optional.empty();
+        OptionalInt limit = OptionalInt.empty();
+
         for (String token : tokens) {
-            int colon = indexOfUnquotedColon(token);
-            if (colon <= 0 || colon == token.length() - 1) {
+            boolean negated = false;
+            String working = token;
+            if (working.startsWith("-") && working.length() > 1 && Character.isLetter(working.charAt(1))) {
+                negated = true;
+                working = working.substring(1);
+            }
+
+            int colon = indexOfUnquotedColon(working);
+            if (colon <= 0 || colon == working.length() - 1) {
                 throw new QueryParseException("Expected 'field:value' in clause: " + token);
             }
-            String field = token.substring(0, colon).toLowerCase(Locale.ROOT);
-            String value = token.substring(colon + 1);
-            predicates.add(parseClause(field, value));
+            String field = working.substring(0, colon).toLowerCase(Locale.ROOT);
+            String value = working.substring(colon + 1);
+
+            if ("sort".equals(field)) {
+                if (negated) throw new QueryParseException("sort clause cannot be negated");
+                if (sort.isPresent()) throw new QueryParseException("Only one sort clause is allowed");
+                sort = Optional.of(parseSort(value));
+                continue;
+            }
+            if ("limit".equals(field)) {
+                if (negated) throw new QueryParseException("limit clause cannot be negated");
+                if (limit.isPresent()) throw new QueryParseException("Only one limit clause is allowed");
+                limit = OptionalInt.of(parseLimit(value));
+                continue;
+            }
+
+            QueryPredicate predicate = parseClause(field, value);
+            predicates.add(negated ? new QueryPredicate.Not(predicate) : predicate);
         }
-        return predicates;
+
+        if (sort.isPresent() && sort.get().isRandom() && limit.isEmpty()) {
+            throw new QueryParseException("sort:random requires a limit: clause");
+        }
+
+        return new ParsedQuery(List.copyOf(predicates), sort, limit);
     }
 
     /** Split query on whitespace, respecting double-quoted runs. */
@@ -98,6 +139,67 @@ public class SmartPlaylistQueryParser {
             case "lastplayed" -> parseLastPlayed(value);
             default           -> throw new QueryParseException("Unknown field: " + field);
         };
+    }
+
+    private static SortSpec parseSort(String value) {
+        String v = unquote(value);
+        if (v.isBlank()) throw new QueryParseException("Empty sort value");
+        String[] parts = v.split(":", 2);
+        SortSpec.Field field = parseSortField(parts[0]);
+        SortSpec.Direction dir = parts.length == 2
+                ? parseDirection(parts[1], field)
+                : defaultDirection(field);
+        return new SortSpec(field, dir);
+    }
+
+    private static SortSpec.Field parseSortField(String raw) {
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "rating"     -> SortSpec.Field.RATING;
+            case "year"       -> SortSpec.Field.YEAR;
+            case "playcount"  -> SortSpec.Field.PLAY_COUNT;
+            case "lastplayed" -> SortSpec.Field.LAST_PLAYED;
+            case "artist"     -> SortSpec.Field.ARTIST;
+            case "album"      -> SortSpec.Field.ALBUM;
+            case "title"      -> SortSpec.Field.TITLE;
+            case "random"     -> SortSpec.Field.RANDOM;
+            default -> throw new QueryParseException("Unknown sort field: " + raw);
+        };
+    }
+
+    private static SortSpec.Direction parseDirection(String raw, SortSpec.Field field) {
+        if (field == SortSpec.Field.RANDOM) {
+            throw new QueryParseException("sort:random does not accept a direction");
+        }
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "asc"  -> SortSpec.Direction.ASC;
+            case "desc" -> SortSpec.Direction.DESC;
+            default -> throw new QueryParseException("Unknown sort direction: " + raw);
+        };
+    }
+
+    private static SortSpec.Direction defaultDirection(SortSpec.Field field) {
+        return switch (field) {
+            case RATING, PLAY_COUNT, LAST_PLAYED -> SortSpec.Direction.DESC;
+            case YEAR, ARTIST, ALBUM, TITLE -> SortSpec.Direction.ASC;
+            case RANDOM -> SortSpec.Direction.ASC; // unused
+        };
+    }
+
+    private static int parseLimit(String value) {
+        String v = unquote(value);
+        if (!POS_INT.matcher(v).matches()) {
+            throw new QueryParseException("limit requires a positive integer: " + value);
+        }
+        long parsed;
+        try {
+            parsed = Long.parseLong(v);
+        } catch (NumberFormatException e) {
+            throw new QueryParseException("limit is out of range: " + value);
+        }
+        if (parsed <= 0 || parsed > MAX_LIMIT) {
+            throw new QueryParseException("limit must be between 1 and " + MAX_LIMIT);
+        }
+        return (int) parsed;
     }
 
     private static QueryPredicate.GenreEq parseGenre(String value) {

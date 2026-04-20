@@ -12,7 +12,10 @@ import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryTranslator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -136,5 +139,84 @@ class SmartPlaylistServiceTest {
         SmartPlaylist bad = playlist("user-1", "lastPlayed:6mo"); // missing comparator
         assertThrows(QueryParseException.class, () -> service.materialize(bad, "X"));
         verifyNoInteractions(playlistRepository);
+    }
+
+    @Test
+    void executeAppliesUserSortOverDefault() {
+        when(mongoTemplate.count(any(Query.class), eq(MusicFile.class))).thenReturn(3L);
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of());
+
+        service.execute("user-1", "rating:>=4 sort:rating", 0, 10);
+
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(captor.capture(), eq(MusicFile.class));
+        org.bson.Document sortDoc = captor.getValue().getSortObject();
+        assertEquals(-1, sortDoc.get("rating"));
+        assertNull(sortDoc.get("artist"), "default sort should not apply when user provided one");
+    }
+
+    @Test
+    void executeClampsTotalToUserLimit() {
+        when(mongoTemplate.count(any(Query.class), eq(MusicFile.class))).thenReturn(500L);
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of());
+
+        Page<MusicFile> page = service.execute("user-1", "rating:>=4 limit:50", 0, 25);
+
+        assertEquals(50L, page.getTotalElements());
+    }
+
+    @Test
+    void executeWithRandomSortInvokesAggregateAndReturnsSingleSample() {
+        MusicFile a = MusicFile.builder().id("a").build();
+        MusicFile b = MusicFile.builder().id("b").build();
+        @SuppressWarnings("unchecked")
+        AggregationResults<MusicFile> results = mock(AggregationResults.class);
+        when(results.getMappedResults()).thenReturn(List.of(a, b));
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(MusicFile.class)))
+                .thenReturn(results);
+
+        Page<MusicFile> page = service.execute("user-1", "genre:heavy_metal sort:random limit:2", 0, 10);
+
+        assertEquals(2, page.getContent().size());
+        assertEquals(2L, page.getTotalElements());
+        verify(mongoTemplate, never()).find(any(Query.class), eq(MusicFile.class));
+    }
+
+    @Test
+    void materializeWithRandomSortUsesAggregate() {
+        MusicFile a = MusicFile.builder().id("a").build();
+        MusicFile b = MusicFile.builder().id("b").build();
+        @SuppressWarnings("unchecked")
+        AggregationResults<MusicFile> results = mock(AggregationResults.class);
+        when(results.getMappedResults()).thenReturn(List.of(a, b));
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(MusicFile.class)))
+                .thenReturn(results);
+        when(playlistRepository.save(any(Playlist.class))).thenAnswer(inv -> {
+            Playlist p = inv.getArgument(0); p.setId("pl-r"); return p;
+        });
+
+        SmartPlaylistService.MaterializeResult result = service.materialize(
+                playlist("user-1", "genre:heavy_metal sort:random limit:2"), "Shuffled");
+
+        assertEquals(List.of("a", "b"), result.playlist().getTrackIds());
+        assertFalse(result.truncated());
+        verify(mongoTemplate, never()).find(any(Query.class), eq(MusicFile.class));
+    }
+
+    @Test
+    void materializeRespectsUserLimitBelowCap() {
+        List<MusicFile> files = new java.util.ArrayList<>();
+        for (int i = 0; i < 10; i++) files.add(MusicFile.builder().id("t" + i).build());
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(files);
+        when(playlistRepository.save(any(Playlist.class))).thenAnswer(inv -> {
+            Playlist p = inv.getArgument(0); p.setId("pl-x"); return p;
+        });
+
+        SmartPlaylistService.MaterializeResult result = service.materialize(
+                playlist("user-1", "rating:>=0 limit:10"), "Top10");
+
+        assertEquals(10, result.trackCount());
+        assertFalse(result.truncated(),
+                "a user-requested limit fully satisfied is not a truncation");
     }
 }

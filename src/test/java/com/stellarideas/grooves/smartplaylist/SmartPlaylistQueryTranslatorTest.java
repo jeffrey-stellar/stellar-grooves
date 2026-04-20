@@ -92,6 +92,44 @@ class SmartPlaylistQueryTranslatorTest {
     }
 
     @Test
+    void notPredicateProducesNorClause() {
+        Criteria c = translator.translate(
+                List.of(new QueryPredicate.Not(new QueryPredicate.TagEq("skip"))), "u");
+        Document doc = c.getCriteriaObject();
+        assertEquals("u", doc.get("userId"));
+        @SuppressWarnings("unchecked")
+        List<Document> nor = (List<Document>) doc.get("$nor");
+        assertNotNull(nor, "expected $nor clause, got: " + doc);
+        assertEquals(1, nor.size());
+        assertEquals("skip", nor.get(0).get("customTags"));
+    }
+
+    @Test
+    void multipleNegationsShareOneNor() {
+        Criteria c = translator.translate(
+                List.of(
+                        new QueryPredicate.Not(new QueryPredicate.TagEq("skip")),
+                        new QueryPredicate.Not(new QueryPredicate.GenreEq(Genre.OTHER))),
+                "u");
+        @SuppressWarnings("unchecked")
+        List<Document> nor = (List<Document>) c.getCriteriaObject().get("$nor");
+        assertNotNull(nor);
+        assertEquals(2, nor.size());
+    }
+
+    @Test
+    void positiveAndNegativeCoexist() {
+        Criteria c = translator.translate(
+                List.of(
+                        new QueryPredicate.GenreEq(Genre.HARD_ROCK),
+                        new QueryPredicate.Not(new QueryPredicate.TagEq("skip"))),
+                "u");
+        Document doc = c.getCriteriaObject();
+        assertEquals(Genre.HARD_ROCK, doc.get("genre"));
+        assertNotNull(doc.get("$nor"));
+    }
+
+    @Test
     void multiplePredicatesAreAllPresent() {
         Criteria c = translator.translate(
                 List.of(

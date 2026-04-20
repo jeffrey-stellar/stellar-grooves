@@ -33,4 +33,7 @@ public sealed interface QueryPredicate {
 
     /** lastPlayed:&gt;Xmo — not played within the window (lastPlayedAt &lt; now - window, or null). */
     record LastPlayedBefore(Duration window) implements QueryPredicate {}
+
+    /** Wraps a clause prefixed with {@code -} (logical NOT). The inner predicate is any non-Not predicate. */
+    record Not(QueryPredicate inner) implements QueryPredicate {}
 }
