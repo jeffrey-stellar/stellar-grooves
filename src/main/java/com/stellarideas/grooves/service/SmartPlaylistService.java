@@ -17,11 +17,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +39,9 @@ public class SmartPlaylistService {
 
     @Value("${stellar.grooves.smartPlaylist.materializeMax:5000}")
     private int materializeMax;
+
+    @Value("${stellar.grooves.smartPlaylist.queryTimeoutSeconds:10}")
+    private int queryTimeoutSeconds;
 
     public SmartPlaylistService(SmartPlaylistRepository repository,
                                 PlaylistRepository playlistRepository,
@@ -85,26 +90,38 @@ public class SmartPlaylistService {
     }
 
     /** Execute a saved smart playlist and return paginated tracks. */
-    public Page<MusicFile> preview(SmartPlaylist playlist, int page, int size) {
+    public PreviewResult preview(SmartPlaylist playlist, int page, int size) {
         return execute(playlist.getUserId(), playlist.getQueryString(), page, size);
     }
 
-    /** Dry-run: parse and execute a query without persisting. */
-    public Page<MusicFile> execute(String userId, String queryString, int page, int size) {
+    /**
+     * Dry-run: parse and execute a query without persisting.
+     *
+     * <p>Results are always capped at {@code stellar.grooves.smartPlaylist.materializeMax}
+     * (default 5000) even when the query specifies no {@code limit:} — this protects
+     * against pathological queries returning the entire library. The returned
+     * {@link PreviewResult#truncated()} flag is set when the cap clipped the result.
+     */
+    public PreviewResult execute(String userId, String queryString, int page, int size) {
         ParsedQuery parsed = parser.parse(queryString);
         Criteria criteria = translator.translate(parsed.expression(), userId);
+        Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
 
         if (parsed.sort().map(SortSpec::isRandom).orElse(false)) {
             int sampleSize = parsed.limit().orElseThrow();
             List<MusicFile> sampled = sampleRandom(criteria, sampleSize);
-            return new PageImpl<>(sampled, PageRequest.of(0, Math.max(size, 1)), sampled.size());
+            Page<MusicFile> p = new PageImpl<>(sampled, PageRequest.of(0, Math.max(size, 1)), sampled.size());
+            return new PreviewResult(p, false);
         }
 
-        Query query = new Query(criteria).with(sortFor(parsed.sort()));
-        long rawTotal = mongoTemplate.count(query, MusicFile.class);
-        long effectiveTotal = parsed.limit().isPresent()
-                ? Math.min(rawTotal, parsed.limit().getAsInt())
-                : rawTotal;
+        Query countQuery = new Query(criteria).maxTime(timeout);
+        Query pageQuery = new Query(criteria).with(sortFor(parsed.sort())).maxTime(timeout);
+        long rawTotal = mongoTemplate.count(countQuery, MusicFile.class);
+
+        int userLimit = parsed.limit().orElse(Integer.MAX_VALUE);
+        int effectiveCap = Math.min(userLimit, materializeMax);
+        long effectiveTotal = Math.min(rawTotal, effectiveCap);
+        boolean truncated = rawTotal > effectiveTotal;
 
         int pageStart = page * size;
         int pageEndExclusive = (int) Math.min((long) pageStart + size, effectiveTotal);
@@ -112,9 +129,10 @@ public class SmartPlaylistService {
 
         List<MusicFile> content = pageSize == 0
                 ? List.of()
-                : mongoTemplate.find(query.skip(pageStart).limit(pageSize), MusicFile.class);
+                : mongoTemplate.find(pageQuery.skip(pageStart).limit(pageSize), MusicFile.class);
 
-        return new PageImpl<>(content, PageRequest.of(page, size), effectiveTotal);
+        Page<MusicFile> p = new PageImpl<>(content, PageRequest.of(page, size), effectiveTotal);
+        return new PreviewResult(p, truncated);
     }
 
     /** Count matches for a saved smart playlist. */
@@ -126,7 +144,8 @@ public class SmartPlaylistService {
     public long count(String userId, String queryString) {
         ParsedQuery parsed = parser.parse(queryString);
         Criteria criteria = translator.translate(parsed.expression(), userId);
-        long raw = mongoTemplate.count(new Query(criteria), MusicFile.class);
+        Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
+        long raw = mongoTemplate.count(new Query(criteria).maxTime(timeout), MusicFile.class);
         return parsed.limit().isPresent() ? Math.min(raw, parsed.limit().getAsInt()) : raw;
     }
 
@@ -139,6 +158,7 @@ public class SmartPlaylistService {
     public MaterializeResult materialize(SmartPlaylist source, String name) {
         ParsedQuery parsed = parser.parse(source.getQueryString());
         Criteria criteria = translator.translate(parsed.expression(), source.getUserId());
+        Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
 
         int userLimit = parsed.limit().orElse(Integer.MAX_VALUE);
         int effectiveCap = Math.min(userLimit, materializeMax);
@@ -149,7 +169,7 @@ public class SmartPlaylistService {
                     .map(MusicFile::getId)
                     .toList();
         } else {
-            Query query = new Query(criteria).with(sortFor(parsed.sort())).limit(effectiveCap);
+            Query query = new Query(criteria).with(sortFor(parsed.sort())).limit(effectiveCap).maxTime(timeout);
             trackIds = mongoTemplate.find(query, MusicFile.class).stream()
                     .map(MusicFile::getId)
                     .toList();
@@ -171,8 +191,12 @@ public class SmartPlaylistService {
         List<AggregationOperation> stages = List.of(
                 Aggregation.match(criteria),
                 Aggregation.sample(size));
+        AggregationOptions options = AggregationOptions.builder()
+                .maxTime(Duration.ofSeconds(Math.max(1, queryTimeoutSeconds)))
+                .build();
+        Aggregation aggregation = Aggregation.newAggregation(stages).withOptions(options);
         AggregationResults<MusicFile> results =
-                mongoTemplate.aggregate(Aggregation.newAggregation(stages), MusicFile.class, MusicFile.class);
+                mongoTemplate.aggregate(aggregation, MusicFile.class, MusicFile.class);
         return results.getMappedResults();
     }
 
@@ -202,4 +226,6 @@ public class SmartPlaylistService {
     }
 
     public record MaterializeResult(Playlist playlist, int trackCount, boolean truncated) {}
+
+    public record PreviewResult(Page<MusicFile> page, boolean truncated) {}
 }

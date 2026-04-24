@@ -67,7 +67,8 @@ class LibraryControllerTest {
         controller = new LibraryController(scannerService, libraryService, msgHelper,
                 auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter,
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
-                playHistoryService);
+                playHistoryService,
+                mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);

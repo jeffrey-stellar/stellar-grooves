@@ -12,7 +12,6 @@ import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryTranslator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -160,9 +159,33 @@ class SmartPlaylistServiceTest {
         when(mongoTemplate.count(any(Query.class), eq(MusicFile.class))).thenReturn(500L);
         when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of());
 
-        Page<MusicFile> page = service.execute("user-1", "rating:>=4 limit:50", 0, 25);
+        SmartPlaylistService.PreviewResult result = service.execute("user-1", "rating:>=4 limit:50", 0, 25);
 
-        assertEquals(50L, page.getTotalElements());
+        assertEquals(50L, result.page().getTotalElements());
+        assertTrue(result.truncated(), "500 matches clipped to limit of 50 should be reported as truncated");
+    }
+
+    @Test
+    void executeCapsAtMaterializeMaxWhenNoUserLimit() {
+        when(mongoTemplate.count(any(Query.class), eq(MusicFile.class))).thenReturn(5_000L);
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of());
+
+        // materializeMax is set to 100 in setUp
+        SmartPlaylistService.PreviewResult result = service.execute("user-1", "rating:>=4", 0, 25);
+
+        assertEquals(100L, result.page().getTotalElements());
+        assertTrue(result.truncated(), "no user limit + 5000 matches should cap at materializeMax and be truncated");
+    }
+
+    @Test
+    void executeDoesNotReportTruncatedWhenUnderCap() {
+        when(mongoTemplate.count(any(Query.class), eq(MusicFile.class))).thenReturn(10L);
+        when(mongoTemplate.find(any(Query.class), eq(MusicFile.class))).thenReturn(List.of());
+
+        SmartPlaylistService.PreviewResult result = service.execute("user-1", "rating:>=4", 0, 25);
+
+        assertEquals(10L, result.page().getTotalElements());
+        assertFalse(result.truncated());
     }
 
     @Test
@@ -175,11 +198,34 @@ class SmartPlaylistServiceTest {
         when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(MusicFile.class)))
                 .thenReturn(results);
 
-        Page<MusicFile> page = service.execute("user-1", "genre:heavy_metal sort:random limit:2", 0, 10);
+        SmartPlaylistService.PreviewResult result = service.execute("user-1", "genre:heavy_metal sort:random limit:2", 0, 10);
 
-        assertEquals(2, page.getContent().size());
-        assertEquals(2L, page.getTotalElements());
+        assertEquals(2, result.page().getContent().size());
+        assertEquals(2L, result.page().getTotalElements());
         verify(mongoTemplate, never()).find(any(Query.class), eq(MusicFile.class));
+    }
+
+    @Test
+    void randomSortPipelineMatchesBeforeSampleWithLimitSize() {
+        @SuppressWarnings("unchecked")
+        AggregationResults<MusicFile> results = mock(AggregationResults.class);
+        when(results.getMappedResults()).thenReturn(List.of());
+        when(mongoTemplate.aggregate(any(Aggregation.class), eq(MusicFile.class), eq(MusicFile.class)))
+                .thenReturn(results);
+
+        service.execute("user-1", "genre:heavy_metal sort:random limit:20", 0, 100);
+
+        ArgumentCaptor<Aggregation> aggCaptor = ArgumentCaptor.forClass(Aggregation.class);
+        verify(mongoTemplate).aggregate(aggCaptor.capture(), eq(MusicFile.class), eq(MusicFile.class));
+        String pipeline = aggCaptor.getValue().toString();
+        // $match must come before $sample so the sample runs over the filtered set,
+        // and sample size must equal the user's limit (not a larger intermediate).
+        int matchIdx = pipeline.indexOf("$match");
+        int sampleIdx = pipeline.indexOf("$sample");
+        assertTrue(matchIdx >= 0 && sampleIdx > matchIdx,
+                "expected $match before $sample in pipeline: " + pipeline);
+        assertTrue(pipeline.contains("\"size\" : 20") || pipeline.contains("\"size\": 20"),
+                "expected $sample size to equal limit (20): " + pipeline);
     }
 
     @Test

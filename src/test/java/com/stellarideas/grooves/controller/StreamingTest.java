@@ -48,7 +48,7 @@ class StreamingTest {
         ScanRateLimiter scanRateLimiter = mock(ScanRateLimiter.class);
         com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
         com.stellarideas.grooves.service.ScanProgressEmitter scanProgressEmitter = mock(com.stellarideas.grooves.service.ScanProgressEmitter.class);
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""), mock(com.stellarideas.grooves.service.PlayHistoryService.class));
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""), mock(com.stellarideas.grooves.service.PlayHistoryService.class), mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
 
         testUser = new User();
         testUser.setId("user1");

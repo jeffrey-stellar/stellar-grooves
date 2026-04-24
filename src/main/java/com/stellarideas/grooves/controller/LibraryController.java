@@ -7,6 +7,7 @@ import com.stellarideas.grooves.repository.PlaybackQueueRepository;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.AuditService;
+import com.stellarideas.grooves.service.FfmpegAvailability;
 import com.stellarideas.grooves.service.LibraryService;
 import com.stellarideas.grooves.service.MessageHelper;
 import com.stellarideas.grooves.service.MusicScannerService;
@@ -70,6 +71,7 @@ public class LibraryController {
     private final UserRateLimiter userRateLimiter;
     private final ScanPathValidator scanPathValidator;
     private final PlayHistoryService playHistoryService;
+    private final FfmpegAvailability ffmpeg;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -81,7 +83,8 @@ public class LibraryController {
                              ScanProgressEmitter scanProgressEmitter,
                              UserRateLimiter userRateLimiter,
                              ScanPathValidator scanPathValidator,
-                             PlayHistoryService playHistoryService) {
+                             PlayHistoryService playHistoryService,
+                             FfmpegAvailability ffmpeg) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -93,6 +96,7 @@ public class LibraryController {
         this.userRateLimiter = userRateLimiter;
         this.scanPathValidator = scanPathValidator;
         this.playHistoryService = playHistoryService;
+        this.ffmpeg = ffmpeg;
     }
 
     @PostMapping("/scan")
@@ -347,10 +351,10 @@ public class LibraryController {
                             "File too large for transcoding (max " + (maxTranscodeFileSize / 1024 / 1024) + " MB)"));
         }
 
-        if (!isFFmpegAvailable()) {
+        if (!ffmpeg.isAvailable()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(GlobalExceptionHandler.problem(HttpStatus.SERVICE_UNAVAILABLE,
-                            "Transcoding is not available — ffmpeg is not installed"));
+                            "Transcoding is not available — ffmpeg is not installed on the server."));
         }
 
         Path sourcePath = path;
@@ -416,21 +420,6 @@ public class LibraryController {
     }
 
     record TranscodeFormat(String name, String mimeType, String extension, String[] ffmpegArgs) {}
-
-    private boolean isFFmpegAvailable() {
-        try {
-            Process check = new ProcessBuilder("ffmpeg", "-version")
-                    .redirectErrorStream(true).start();
-            boolean finished = check.waitFor(10, TimeUnit.SECONDS);
-            if (!finished) {
-                check.destroyForcibly();
-                return false;
-            }
-            return check.exitValue() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     /**
      * Sanitize a filename for use in Content-Disposition headers.

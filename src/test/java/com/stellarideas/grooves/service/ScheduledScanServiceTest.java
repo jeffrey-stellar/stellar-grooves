@@ -6,6 +6,8 @@ import com.stellarideas.grooves.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.core.task.SyncTaskExecutor;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -30,7 +32,7 @@ class ScheduledScanServiceTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         musicScannerService = mock(MusicScannerService.class);
-        service = new ScheduledScanService(userRepository, musicScannerService);
+        service = new ScheduledScanService(userRepository, musicScannerService, new SyncTaskExecutor());
     }
 
     @Test

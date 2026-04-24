@@ -4,7 +4,6 @@ import com.stellarideas.grooves.dto.MusicFileDTO;
 import com.stellarideas.grooves.dto.SmartPlaylistDTO;
 import com.stellarideas.grooves.dto.SmartPlaylistPreviewRequest;
 import com.stellarideas.grooves.dto.SmartPlaylistRequest;
-import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.SmartPlaylist;
 import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.security.CurrentUser;
@@ -13,7 +12,6 @@ import com.stellarideas.grooves.service.SmartPlaylistService;
 import com.stellarideas.grooves.smartplaylist.QueryParseException;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -92,7 +90,7 @@ public class SmartPlaylistController {
         Optional<SmartPlaylist> existing = service.findByIdAndUserId(id, user.getId());
         if (existing.isEmpty()) return ResponseEntity.notFound().build();
         try {
-            Page<MusicFile> result = service.preview(existing.get(), page, size);
+            SmartPlaylistService.PreviewResult result = service.preview(existing.get(), page, size);
             return ResponseEntity.ok(pageBody(result));
         } catch (QueryParseException e) {
             return ResponseEntity.badRequest()
@@ -106,7 +104,7 @@ public class SmartPlaylistController {
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "50") int size) {
         try {
-            Page<MusicFile> result = service.execute(user.getId(), body.getQueryString(), page, size);
+            SmartPlaylistService.PreviewResult result = service.execute(user.getId(), body.getQueryString(), page, size);
             return ResponseEntity.ok(pageBody(result));
         } catch (QueryParseException e) {
             return ResponseEntity.badRequest()
@@ -160,13 +158,14 @@ public class SmartPlaylistController {
         }
     }
 
-    private static Map<String, Object> pageBody(Page<MusicFile> result) {
+    private static Map<String, Object> pageBody(SmartPlaylistService.PreviewResult result) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("content", result.getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()));
-        body.put("page", result.getNumber());
-        body.put("size", result.getSize());
-        body.put("totalElements", result.getTotalElements());
-        body.put("totalPages", result.getTotalPages());
+        body.put("content", result.page().getContent().stream().map(MusicFileDTO::from).collect(Collectors.toList()));
+        body.put("page", result.page().getNumber());
+        body.put("size", result.page().getSize());
+        body.put("totalElements", result.page().getTotalElements());
+        body.put("totalPages", result.page().getTotalPages());
+        body.put("truncated", result.truncated());
         return body;
     }
 }

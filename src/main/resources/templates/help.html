@@ -35,6 +35,7 @@
             <a href="#playback">Playback</a>
             <a href="#library">Library</a>
             <a href="#playlists">Playlists</a>
+            <a href="#smart-playlists">Smart Playlists</a>
             <a href="#history">History</a>
             <a href="#scanning">Scanning</a>
             <a href="#backup">Backup</a>
@@ -180,6 +181,91 @@
                     <div class="help-topic">
                         <h3>Export</h3>
                         <p>Export playlists as <strong>M3U</strong> (for use in other players) or <strong>JSON</strong> (for backup).</p>
+                    </div>
+                </div>
+            </div>
+            <a href="#top" class="help-back-top">Back to top</a>
+        </div>
+
+        <!-- ── Smart Playlists ─────────────────────────── -->
+        <div class="help-section" id="smart-playlists">
+            <div class="card">
+                <div class="card-header">
+                    <span class="section-icon" aria-hidden="true">&#128269;</span> Smart Playlists
+                </div>
+                <div class="card-body">
+                    <div class="help-topic">
+                        <h3>What they are</h3>
+                        <p>A smart playlist is a saved query. You write a short expression describing the tracks you want &mdash; by genre, rating, year, tag, play history &mdash; and the results refresh every time you open it. <em>Materialize</em> a smart playlist to take a snapshot of the current results as a static playlist you can reorder or export.</p>
+                    </div>
+
+                    <div class="help-topic">
+                        <h3>Fields</h3>
+                        <p>Every predicate is <code>field:value</code>. Whitespace between predicates means AND; use <code>OR</code> between alternatives; prefix with <code>-</code> to negate; wrap in <code>(</code> <code>)</code> to group.</p>
+                        <ul>
+                            <li><code>genre:heavy_metal</code> &mdash; one of <code>classic_rock</code>, <code>hard_rock</code>, <code>hair_metal</code>, <code>heavy_metal</code>, <code>thrash_metal</code>, <code>other</code>.</li>
+                            <li><code>artist:"Black Sabbath"</code> &mdash; quotes are required when the value contains spaces.</li>
+                            <li><code>album:"Master of Puppets"</code>, <code>title:"War Pigs"</code> &mdash; exact, case-insensitive match.</li>
+                            <li><code>year:1986</code>, <code>year:1980..1989</code>, <code>year:&gt;=1990</code> &mdash; integer, range, or comparator.</li>
+                            <li><code>rating:4</code>, <code>rating:3..5</code>, <code>rating:&gt;=4</code>, <code>rating:0</code> (unrated).</li>
+                            <li><code>tag:favorites</code> &mdash; any user-assigned tag.</li>
+                            <li><code>playCount:0</code>, <code>playCount:&gt;=10</code>.</li>
+                            <li><code>lastPlayed:&gt;6mo</code>, <code>lastPlayed:&lt;30d</code> &mdash; durations: <code>d</code>, <code>w</code>, <code>mo</code>, <code>y</code>.</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-topic">
+                        <h3>Sorting &amp; limiting</h3>
+                        <p>Add <code>sort:</code> and <code>limit:</code> anywhere in the query.</p>
+                        <ul>
+                            <li><code>sort:rating:desc</code> &mdash; fields: <code>rating</code>, <code>year</code>, <code>playCount</code>, <code>lastPlayed</code>, <code>artist</code>, <code>album</code>, <code>title</code>. Directions: <code>asc</code>, <code>desc</code>.</li>
+                            <li><code>sort:random limit:20</code> &mdash; <code>random</code> <strong>requires</strong> a <code>limit:</code>.</li>
+                            <li><code>limit:100</code> &mdash; caps the result size. Without a limit, results are capped at the server's hard ceiling (default 5000); responses include a <code>truncated</code> flag when that cap clips them.</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-topic">
+                        <h3>Cookbook</h3>
+                        <p>Worked examples &mdash; paste any of these into the query box.</p>
+                        <ul>
+                            <li>
+                                <strong>Top-rated metal</strong><br>
+                                <code>(genre:heavy_metal OR genre:thrash_metal) rating:&gt;=4 sort:rating:desc limit:100</code>
+                            </li>
+                            <li>
+                                <strong>Rediscover forgotten gems</strong><br>
+                                <code>rating:&gt;=4 lastPlayed:&gt;6mo sort:lastPlayed:asc limit:50</code>
+                            </li>
+                            <li>
+                                <strong>Unheard new arrivals</strong><br>
+                                <code>playCount:0 year:&gt;=2020 sort:random limit:30</code>
+                            </li>
+                            <li>
+                                <strong>A decade shuffle</strong><br>
+                                <code>year:1980..1989 sort:random limit:40</code>
+                            </li>
+                            <li>
+                                <strong>Favorites I haven't played this month</strong><br>
+                                <code>tag:favorites lastPlayed:&gt;30d sort:rating:desc limit:50</code>
+                            </li>
+                            <li>
+                                <strong>Everything by two artists</strong><br>
+                                <code>artist:"Iron Maiden" OR artist:"Judas Priest" sort:year:asc</code>
+                            </li>
+                            <li>
+                                <strong>Unrated deep cuts</strong><br>
+                                <code>rating:0 playCount:&lt;5 sort:random limit:25</code>
+                            </li>
+                            <li>
+                                <strong>Heavy, but not the overplayed stuff</strong><br>
+                                <code>genre:heavy_metal -playCount:&gt;=20 sort:rating:desc limit:50</code>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="help-topic">
+                        <h3>Preview, save, materialize</h3>
+                        <p><strong>Preview</strong> executes your query live and shows the matching tracks &mdash; useful while you're iterating. <strong>Save</strong> stores the query under a name so it shows up in your sidebar. <strong>Materialize</strong> takes a snapshot of the current results and writes them to a static playlist &mdash; handy when you want a frozen ordering you can reorder and share.</p>
                     </div>
                 </div>
             </div>

@@ -74,7 +74,8 @@ public class WebSecurityConfig {
                 .collect(Collectors.toList());
         if (origins.isEmpty()) {
             throw new IllegalStateException(
-                    "CORS allowed origins not configured. Set CORS_ALLOWED_ORIGINS environment variable.");
+                    "CORS allowed origins not configured. Set CORS_ALLOWED_ORIGINS "
+                    + "(comma-separated list of origins, e.g. https://grooves.example.com).");
         }
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
