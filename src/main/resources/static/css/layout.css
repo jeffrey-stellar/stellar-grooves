@@ -570,17 +570,20 @@
     z-index: 10;
     padding: 0.75rem 0.5rem;
     margin-bottom: 2rem;
-    border: 1px solid rgba(212, 175, 55, 0.18);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     background:
         linear-gradient(180deg, rgba(255, 220, 160, 0.04) 0%, transparent 100%),
-        rgba(10, 6, 4, 0.85);
+        var(--bg-secondary);
     backdrop-filter: blur(10px);
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
     display: flex;
-    justify-content: center;
+    /* `safe center` falls back to flex-start when the content overflows, so
+       the first/last links stay visible instead of being clipped by the
+       scroll viewport. Plain `center` left them scissored on narrow screens. */
+    justify-content: safe center;
     box-shadow: var(--shadow-panel);
 }
 .help-nav a {
@@ -646,6 +649,13 @@
     padding: 0.08em 0.4em;
     border-radius: 4px;
     border: 1px solid rgba(212, 175, 55, 0.18);
+}
+/* Light mode: honey-on-dim-grey washes out on cream. Drop to a readable
+   text color on a card-toned pill so paths like /home/user/Music stay legible. */
+[data-theme="light"] .help-topic code {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-color: var(--border-color);
 }
 .help-topic ul { padding-left: 1.2rem; margin-bottom: 0.5rem; }
 .help-topic li { margin-bottom: 0.35rem; }

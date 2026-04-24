@@ -10,9 +10,17 @@ const SG = window.SG;
 // Ceiling on how many tracks we pull for "Play" — keeps the first fetch
 // cheap and the player queue sane. Materialize is the tool for huge sets.
 const PLAY_MAX = 500;
+// Debounce for the live-count-while-typing request.
+const COUNT_DEBOUNCE_MS = 350;
 
 let smartPlaylists = [];
 let currentMatches = [];
+let countAbort = null;
+let countTimer = null;
+// When Duplicate is clicked we navigate to a new (unsaved) smart playlist
+// and need to seed the form with the cloned values instead of the default
+// "rating:>=4" starter. One-shot: consumed by renderView() on next render.
+let pendingClone = null;
 
 // ── Data loading ────────────────────────────────────────
 async function loadSmartPlaylists() {
@@ -34,12 +42,20 @@ function renderSidebar() {
         return;
     }
     const nav = window.nav || {};
-    smartPlaylists.forEach(sp => {
+    // Alphabetical sort \u2014 the server returns in creation order, which gets
+    // unusable as soon as a user has more than a handful. Shallow copy so
+    // other code can keep relying on the original list order if needed.
+    const sorted = [...smartPlaylists].sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+    sorted.forEach(sp => {
         const li = document.createElement('li');
         const isActive = nav.view === 'smartPlaylist' && nav.smartPlaylistId === sp.id;
         li.className = 'playlist-item' + (isActive ? ' active' : '');
+        const tip = sp.updatedAt
+            ? `${sp.name}\nUpdated ${new Date(sp.updatedAt).toISOString().slice(0, 10)}`
+            : sp.name;
         li.innerHTML =
-            `<span class="playlist-item-name" title="${SG.escapeHtml(sp.name)}">${SG.escapeHtml(sp.name)}</span>` +
+            `<span class="playlist-item-name" title="${SG.escapeHtml(tip)}">${SG.escapeHtml(sp.name)}</span>` +
             `<button class="playlist-item-del" data-id="${sp.id}" title="Delete smart playlist" ` +
             `aria-label="Delete smart playlist ${SG.escapeHtml(sp.name)}">\u2715</button>`;
         li.querySelector('.playlist-item-name').addEventListener('click', () => {
@@ -63,12 +79,16 @@ function renderView() {
     const resultsEl = document.getElementById('spResultsBody');
     const statusEl = document.getElementById('spStatus');
     const deleteBtn = document.getElementById('spDeleteBtn');
+    const duplicateBtn = document.getElementById('spDuplicateBtn');
     const materializeBtn = document.getElementById('spMaterializeBtn');
 
     resultsEl.innerHTML = '';
     matchCountEl.textContent = '';
     statusEl.textContent = '';
     currentMatches = [];
+    setQueryInvalid(false);
+    if (countAbort) countAbort.abort();
+    if (countTimer) clearTimeout(countTimer);
 
     const playBtn = document.getElementById('spPlayBtn');
     if (playBtn) playBtn.disabled = true;
@@ -80,19 +100,32 @@ function renderView() {
             nameEl.value = '';
             queryEl.value = '';
             deleteBtn.classList.add('d-none');
+            if (duplicateBtn) duplicateBtn.classList.add('d-none');
             materializeBtn.disabled = true;
             return;
         }
         nameEl.value = existing.name;
         queryEl.value = existing.queryString;
         deleteBtn.classList.remove('d-none');
+        if (duplicateBtn) duplicateBtn.classList.remove('d-none');
         materializeBtn.disabled = false;
+    } else if (pendingClone) {
+        nameEl.value = pendingClone.name;
+        queryEl.value = pendingClone.query;
+        deleteBtn.classList.add('d-none');
+        if (duplicateBtn) duplicateBtn.classList.add('d-none');
+        materializeBtn.disabled = true;
+        pendingClone = null;
     } else {
         nameEl.value = '';
         queryEl.value = 'rating:>=4';
         deleteBtn.classList.add('d-none');
+        if (duplicateBtn) duplicateBtn.classList.add('d-none');
         materializeBtn.disabled = true;
     }
+    // Kick an initial count so users see the match total on load
+    // (programmatic value assignment doesn't fire the 'input' event).
+    scheduleLiveCount();
 }
 
 async function preview() {
@@ -117,8 +150,7 @@ async function preview() {
         });
         const data = await r.json();
         if (!r.ok) {
-            statusEl.textContent = data.detail || data.error || 'Query failed';
-            statusEl.className = 'sp-status status-error';
+            setQueryInvalid(true, data.detail || data.error || 'Query failed');
             matchCountEl.textContent = '';
             resultsEl.innerHTML = '';
             return;
@@ -131,6 +163,7 @@ async function preview() {
         const playBtn = document.getElementById('spPlayBtn');
         if (playBtn) playBtn.disabled = currentMatches.length === 0;
         statusEl.textContent = '';
+        setQueryInvalid(false);
     } catch (e) {
         statusEl.textContent = 'Network error';
         statusEl.className = 'sp-status status-error';
@@ -296,6 +329,91 @@ async function materialize() {
     }
 }
 
+// ── Live count (debounced while typing) ─────────────────
+// The /count endpoint is cheap (no full page, just a Mongo count).
+// We use it to give immediate feedback on query edits without committing
+// to a full preview render. Preview's "X matches (showing Y)" stays the
+// authoritative display after the user clicks Preview; this updates the
+// same slot while they're still editing.
+function scheduleLiveCount() {
+    if (countTimer) clearTimeout(countTimer);
+    countTimer = setTimeout(runLiveCount, COUNT_DEBOUNCE_MS);
+}
+
+async function runLiveCount() {
+    const queryEl = document.getElementById('spQuery');
+    const matchCountEl = document.getElementById('spMatchCount');
+    if (!queryEl || !matchCountEl) return;
+    const query = queryEl.value.trim();
+
+    if (countAbort) countAbort.abort();
+    if (!query) {
+        matchCountEl.textContent = '';
+        setQueryInvalid(false);
+        return;
+    }
+    countAbort = new AbortController();
+    try {
+        const r = await fetch('/api/v1/smart-playlists/count', {
+            method: 'POST',
+            headers: SG.csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ queryString: query }),
+            signal: countAbort.signal
+        });
+        const data = await r.json();
+        if (!r.ok) {
+            // Parse/validation error — mark the field invalid and surface the
+            // message quietly on the status line. Count slot gets a muted dash.
+            matchCountEl.textContent = '—';
+            setQueryInvalid(true, data.detail || data.error);
+            return;
+        }
+        const n = data.count;
+        matchCountEl.textContent = `${n} match${n === 1 ? '' : 'es'}`;
+        setQueryInvalid(false);
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        matchCountEl.textContent = '';
+    }
+}
+
+// Toggle the Bootstrap is-invalid state on #spQuery. When invalid, we also
+// put the parser message in the status line and flip aria-invalid for SRs.
+// Preview success resets both — a single source of truth for "is the current
+// query well-formed".
+function setQueryInvalid(invalid, message) {
+    const queryEl = document.getElementById('spQuery');
+    const statusEl = document.getElementById('spStatus');
+    if (!queryEl) return;
+    if (invalid) {
+        queryEl.classList.add('is-invalid');
+        queryEl.setAttribute('aria-invalid', 'true');
+        if (message && statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = 'sp-status status-error';
+        }
+    } else {
+        queryEl.classList.remove('is-invalid');
+        queryEl.removeAttribute('aria-invalid');
+    }
+}
+
+// Duplicate: clone the current editor state into a new unsaved smart
+// playlist. Uses live form values (not the stored record) so any in-flight
+// edits come along for the ride — matches how users expect copy/paste to
+// behave in a form.
+function duplicate() {
+    const nameEl = document.getElementById('spName');
+    const queryEl = document.getElementById('spQuery');
+    if (!nameEl || !queryEl) return;
+    const baseName = nameEl.value.trim() || 'Untitled';
+    pendingClone = {
+        name: `${baseName} (copy)`,
+        query: queryEl.value
+    };
+    SG.navigate({ view: 'smartPlaylist', smartPlaylistId: null });
+}
+
 function toggleSyntaxHelp() {
     const panel = document.getElementById('spSyntaxHelp');
     panel.classList.toggle('d-none');
@@ -320,6 +438,8 @@ function init() {
     });
     const matBtn = document.getElementById('spMaterializeBtn');
     if (matBtn) matBtn.addEventListener('click', () => SG.guardClick(matBtn, materialize));
+    const dupBtn = document.getElementById('spDuplicateBtn');
+    if (dupBtn) dupBtn.addEventListener('click', duplicate);
     const playBtn = document.getElementById('spPlayBtn');
     if (playBtn) playBtn.addEventListener('click', () => SG.guardClick(playBtn, playAll));
     const helpBtn = document.getElementById('spSyntaxHelpBtn');
@@ -333,6 +453,7 @@ function init() {
                 preview();
             }
         });
+        query.addEventListener('input', scheduleLiveCount);
     }
 }
 

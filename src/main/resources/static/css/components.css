@@ -1716,27 +1716,61 @@ input.loading { opacity: 0.6; background-image: url("data:image/svg+xml,%3Csvg x
 }
 
 /* ── Smart Playlists ─────────────────────────────── */
+.sp-editor {
+    /* Sits inside the main content panel — no background of its own,
+       just rhythm. Card surfaces are reserved for the help/results pieces. */
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
 .sp-query {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.875rem;
-    line-height: 1.5;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    line-height: 1.55;
+    letter-spacing: 0.01em;
+    resize: vertical;
+    min-height: 4.5rem;
 }
 
 .sp-help {
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    background: var(--surface-2, rgba(0,0,0,0.04));
-    border: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
-    line-height: 1.7;
+    position: relative;
+    padding: 0.85rem 1.1rem 0.85rem 1.25rem;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg, rgba(255, 220, 160, 0.03) 0%, transparent 60%),
+        var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--honey);
+    color: var(--text-secondary);
+    line-height: 1.75;
+    box-shadow: var(--bevel-in);
 }
-
+.sp-help strong {
+    color: var(--honey);
+    font-family: var(--font-stencil);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.82em;
+}
 .sp-help code {
-    padding: 0.05rem 0.3rem;
-    border-radius: 0.2rem;
-    background: var(--surface-3, rgba(0,0,0,0.06));
-    font-size: 0.85em;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--amber-hot);
+    font-family: var(--font-mono);
+    font-size: 0.88em;
 }
+[data-theme="light"] .sp-help code { color: var(--text-primary); }
 
-.sp-status { min-height: 1.2em; }
-.sp-status.status-success { color: var(--accent-green, #2e7d32); }
-.sp-status.status-error   { color: var(--accent-red, #c62828); }
+.sp-status { min-height: 1.2em; font-family: var(--font-mono); font-size: 0.85rem; }
+.sp-status.status-success { color: var(--success); }
+.sp-status.status-error   { color: var(--danger); }
+
+#spMatchCount {
+    font-family: var(--font-mono);
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+}
