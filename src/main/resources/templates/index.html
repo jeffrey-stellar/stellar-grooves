@@ -645,6 +645,10 @@
                                 <span id="spStatus" class="sp-status small" aria-live="polite"></span>
                             </div>
 
+                            <div id="spTruncated" class="alert alert-warning small mb-2" role="status" hidden>
+                                Server result cap reached — your query matched more tracks than the server returns by default. Add a <code>limit:</code> to control the cap, or narrow the query.
+                            </div>
+
                             <div class="table-responsive">
                                 <table class="table table-sm" aria-label="Smart playlist results">
                                     <thead><tr>

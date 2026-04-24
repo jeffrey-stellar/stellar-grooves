@@ -133,6 +133,7 @@ async function preview() {
     const matchCountEl = document.getElementById('spMatchCount');
     const resultsEl = document.getElementById('spResultsBody');
     const statusEl = document.getElementById('spStatus');
+    const truncatedEl = document.getElementById('spTruncated');
 
     if (!query) {
         statusEl.textContent = 'Enter a query to preview.';
@@ -142,6 +143,7 @@ async function preview() {
 
     statusEl.textContent = 'Running…';
     statusEl.className = 'sp-status';
+    if (truncatedEl) truncatedEl.hidden = true;
     try {
         const r = await fetch('/api/v1/smart-playlists/preview?page=0&size=100', {
             method: 'POST',
@@ -158,6 +160,7 @@ async function preview() {
         currentMatches = data.content || [];
         matchCountEl.textContent = `${data.totalElements} match${data.totalElements === 1 ? '' : 'es'}` +
                 (data.totalElements > currentMatches.length ? ` (showing ${currentMatches.length})` : '');
+        if (truncatedEl) truncatedEl.hidden = !data.truncated;
         resultsEl.innerHTML = '';
         currentMatches.forEach(t => resultsEl.appendChild(buildResultRow(t)));
         const playBtn = document.getElementById('spPlayBtn');
