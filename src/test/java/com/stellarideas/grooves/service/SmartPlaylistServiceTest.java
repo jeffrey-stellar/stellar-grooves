@@ -472,11 +472,35 @@ class SmartPlaylistServiceTest {
     }
 
     @Test
-    void forkRejectedWhenSourceDeleted() {
+    void forkFallsBackToSnapshotWhenSourceDeleted() {
+        // The subscriber row carries a snapshotted queryString from subscribe time —
+        // fork uses that rather than failing when the curator has deleted the source.
         SmartPlaylist sub = new SmartPlaylist();
+        sub.setId("sub-1");
         sub.setUserId("subscriber-1");
         sub.setSubscribedFromId("source-gone");
+        sub.setQueryString("genre:thrash_metal year:>=1986"); // snapshot
         when(repository.findById("source-gone")).thenReturn(java.util.Optional.empty());
-        assertThrows(IllegalStateException.class, () -> service.fork(sub));
+        when(repository.save(any(SmartPlaylist.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmartPlaylist forked = service.fork(sub);
+
+        assertNull(forked.getSubscribedFromId());
+        assertEquals("genre:thrash_metal year:>=1986", forked.getQueryString());
+        assertFalse(forked.isSubscription());
+    }
+
+    @Test
+    void subscriberCountReturnsZeroForUnsavedPlaylist() {
+        SmartPlaylist sp = new SmartPlaylist(); // no id
+        assertEquals(0L, service.subscriberCount(sp));
+        verify(repository, never()).countBySubscribedFromId(any());
+    }
+
+    @Test
+    void subscriberCountDelegatesToRepo() {
+        SmartPlaylist sp = playlist("curator-1", "genre:thrash_metal");
+        when(repository.countBySubscribedFromId("sp-1")).thenReturn(7L);
+        assertEquals(7L, service.subscriberCount(sp));
     }
 }

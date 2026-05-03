@@ -13,26 +13,35 @@ public class SmartPlaylistDTO {
     private String shareToken;
     private boolean subscribed;
     private String curatorUsername;
+    private Boolean sourceAvailable;
+    private Long subscriberCount;
     private Instant createdAt;
     private Instant updatedAt;
 
+    public static class View {
+        public String resolvedQuery;
+        public String resolvedDescription;
+        public String curatorUsername;
+        public Boolean sourceAvailable;
+        public Long subscriberCount;
+    }
+
     /**
-     * Build a DTO for the user's own list view. {@code resolvedQuery} and
-     * {@code resolvedDescription} should reflect the live source values for
-     * subscriptions; {@code curatorUsername} should be set for subscriptions.
+     * Build a DTO. The {@link View} bundle carries the resolved/computed values
+     * (live query/description for subscriptions, curator username, source-available
+     * flag, subscriber count). Pass {@code null} fields to leave them off the DTO.
      */
-    public static SmartPlaylistDTO from(SmartPlaylist sp,
-                                        String resolvedQuery,
-                                        String resolvedDescription,
-                                        String curatorUsername) {
+    public static SmartPlaylistDTO from(SmartPlaylist sp, View view) {
         SmartPlaylistDTO dto = new SmartPlaylistDTO();
         dto.id = sp.getId();
         dto.name = sp.getName();
-        dto.queryString = resolvedQuery;
-        dto.description = resolvedDescription;
+        dto.queryString = view != null && view.resolvedQuery != null ? view.resolvedQuery : sp.getQueryString();
+        dto.description = view != null && view.resolvedDescription != null ? view.resolvedDescription : sp.getDescription();
         dto.shareToken = sp.getShareToken();
         dto.subscribed = sp.isSubscription();
-        dto.curatorUsername = curatorUsername;
+        dto.curatorUsername = view != null ? view.curatorUsername : null;
+        dto.sourceAvailable = view != null ? view.sourceAvailable : null;
+        dto.subscriberCount = view != null ? view.subscriberCount : null;
         dto.createdAt = sp.getCreatedAt();
         dto.updatedAt = sp.getUpdatedAt();
         return dto;
@@ -40,7 +49,7 @@ public class SmartPlaylistDTO {
 
     /** Convenience for owner rows with no resolution required. */
     public static SmartPlaylistDTO from(SmartPlaylist sp) {
-        return from(sp, sp.getQueryString(), sp.getDescription(), null);
+        return from(sp, null);
     }
 
     public String getId() { return id; }
@@ -63,6 +72,12 @@ public class SmartPlaylistDTO {
 
     public String getCuratorUsername() { return curatorUsername; }
     public void setCuratorUsername(String curatorUsername) { this.curatorUsername = curatorUsername; }
+
+    public Boolean getSourceAvailable() { return sourceAvailable; }
+    public void setSourceAvailable(Boolean sourceAvailable) { this.sourceAvailable = sourceAvailable; }
+
+    public Long getSubscriberCount() { return subscriberCount; }
+    public void setSubscriberCount(Long subscriberCount) { this.subscriberCount = subscriberCount; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

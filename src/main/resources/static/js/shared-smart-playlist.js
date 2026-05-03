@@ -61,6 +61,13 @@ function render(data) {
     document.getElementById('sharedQuery').textContent = data.queryString || '';
     document.getElementById('sharedMatchCount').textContent = data.matchCount != null ? data.matchCount : 0;
 
+    const subEl = document.getElementById('sharedSubscriberCount');
+    if (subEl && data.subscriberCount != null && data.subscriberCount > 0) {
+        const n = data.subscriberCount;
+        subEl.textContent = `· ${n} curator${n === 1 ? '' : 's'} subscribed.`;
+        subEl.classList.remove('d-none');
+    }
+
     const desc = document.getElementById('sharedDescription');
     if (data.description && String(data.description).trim()) {
         desc.textContent = data.description;

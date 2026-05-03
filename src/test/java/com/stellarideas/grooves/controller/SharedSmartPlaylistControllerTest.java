@@ -96,4 +96,20 @@ class SharedSmartPlaylistControllerTest {
         ResponseEntity<?> response = controller.get(tooLong);
         assertEquals(404, response.getStatusCode().value());
     }
+
+    @Test
+    void exposesSubscriberCount() {
+        SmartPlaylist sp = sharedPlaylist("tok-3");
+        when(service.findByShareToken("tok-3")).thenReturn(Optional.of(sp));
+        when(service.count(sp)).thenReturn(50L);
+        when(service.findOwnerUsername(sp)).thenReturn(Optional.of("metalcurator"));
+        when(service.subscriberCount(sp)).thenReturn(12L);
+
+        ResponseEntity<?> response = controller.get("tok-3");
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertEquals(12L, body.get("subscriberCount"));
+    }
 }

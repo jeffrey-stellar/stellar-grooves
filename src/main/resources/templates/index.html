@@ -349,7 +349,10 @@
                         <div id="smartPlaylistSection">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="section-label">Smart Playlists</span>
-                                <button class="btn-icon-sm" id="showNewSmartPlaylistBtn" title="New smart playlist" aria-label="Create new smart playlist">+</button>
+                                <span class="d-flex gap-1">
+                                    <button class="btn-icon-sm" id="subscribeByLinkBtn" type="button" title="Subscribe to a curator's query by link" aria-label="Subscribe by link">⚓</button>
+                                    <button class="btn-icon-sm" id="showNewSmartPlaylistBtn" type="button" title="New smart playlist" aria-label="Create new smart playlist">+</button>
+                                </span>
                             </div>
                             <ul id="smartPlaylistList" class="playlist-list"></ul>
                         </div>
@@ -617,6 +620,10 @@
                                 Subscribed to <strong id="spCuratorName">curator</strong>'s query — the query updates automatically when they refine it. Fork to make it your own and edit.
                             </div>
 
+                            <div id="spSourceDeletedBanner" class="alert alert-warning small d-none mb-2" role="status">
+                                The original curator removed this query. The last known version is still saved. Fork to keep your own copy, or remove it from your sidebar.
+                            </div>
+
                             <div class="row g-2 align-items-end mb-2">
                                 <div class="col-12 col-md-5">
                                     <label for="spName" class="form-label small mb-1">Name</label>
@@ -643,6 +650,7 @@
                                     <button class="btn btn-sm btn-outline-danger" id="spShareRevokeBtn" type="button">Revoke</button>
                                 </div>
                                 <div class="small mt-1" style="color:var(--text-muted);">Anyone with the link sees the query, your username, and a match count from your library — not the actual tracks.</div>
+                                <div id="spSubscriberCount" class="small mt-1 d-none" style="color:var(--text-muted);"></div>
                             </div>
 
                             <div class="mb-2">
@@ -700,6 +708,26 @@
                     </div>
                 </div>
             </main>
+        </div>
+    </div>
+
+    <!-- Subscribe-by-link modal -->
+    <div class="modal fade" id="subscribeByLinkModal" tabindex="-1" aria-hidden="true" aria-labelledby="subscribeByLinkTitle">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content sg-modal">
+                <div class="modal-header sg-modal-header">
+                    <h6 class="modal-title" id="subscribeByLinkTitle">Subscribe to a Smart Playlist</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small mb-2 text-secondary-themed">Paste a share link or token from another curator. The query runs against your library — you don't need their tracks.</p>
+                    <input type="text" id="subscribeByLinkInput" class="form-control form-control-sm mb-2"
+                           placeholder="https://… /shared/smart-playlists/{token}"
+                           autocomplete="off" maxlength="512">
+                    <button id="subscribeByLinkConfirm" type="button" class="btn btn-primary w-100 btn-sm">Subscribe</button>
+                    <div id="subscribeByLinkStatus" class="mt-2 small" aria-live="polite"></div>
+                </div>
+            </div>
         </div>
     </div>
 

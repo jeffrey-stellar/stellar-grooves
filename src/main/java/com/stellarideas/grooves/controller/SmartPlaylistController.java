@@ -159,14 +159,20 @@ public class SmartPlaylistController {
     }
 
     private SmartPlaylistDTO dtoFor(SmartPlaylist sp) {
-        if (!sp.isSubscription()) return SmartPlaylistDTO.from(sp);
-        // Resolve live values from the source. If the source is gone, fall back to the
-        // last-snapshotted query so the row still renders something coherent.
-        Optional<SmartPlaylist> source = service.findSubscriptionSource(sp);
-        String resolvedQuery = source.map(SmartPlaylist::getQueryString).orElse(sp.getQueryString());
-        String resolvedDescription = source.map(SmartPlaylist::getDescription).orElse(null);
-        String curator = source.flatMap(service::findOwnerUsername).orElse(null);
-        return SmartPlaylistDTO.from(sp, resolvedQuery, resolvedDescription, curator);
+        SmartPlaylistDTO.View view = new SmartPlaylistDTO.View();
+        if (sp.isSubscription()) {
+            // Resolve live values from the source. If the source is gone, fall back to the
+            // last-snapshotted query so the row still renders something coherent.
+            Optional<SmartPlaylist> source = service.findSubscriptionSource(sp);
+            view.sourceAvailable = source.isPresent();
+            view.resolvedQuery = source.map(SmartPlaylist::getQueryString).orElse(sp.getQueryString());
+            view.resolvedDescription = source.map(SmartPlaylist::getDescription).orElse(null);
+            view.curatorUsername = source.flatMap(service::findOwnerUsername).orElse(null);
+        } else if (sp.getShareToken() != null) {
+            // Owner of a published query — surface the subscriber count for social proof.
+            view.subscriberCount = service.subscriberCount(sp);
+        }
+        return SmartPlaylistDTO.from(sp, view);
     }
 
     @GetMapping("/{id}/preview")

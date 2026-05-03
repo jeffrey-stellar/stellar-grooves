@@ -107,8 +107,16 @@ function renderView() {
     if (countAbort) countAbort.abort();
     if (countTimer) clearTimeout(countTimer);
 
+    const sourceDeletedBanner = document.getElementById('spSourceDeletedBanner');
+    const subscriberCountEl = document.getElementById('spSubscriberCount');
+
     if (sharePanel) sharePanel.classList.add('d-none');
     if (subBanner) subBanner.classList.add('d-none');
+    if (sourceDeletedBanner) sourceDeletedBanner.classList.add('d-none');
+    if (subscriberCountEl) {
+        subscriberCountEl.classList.add('d-none');
+        subscriberCountEl.textContent = '';
+    }
     if (shareBtn) shareBtn.classList.add('d-none');
     if (forkBtn) forkBtn.classList.add('d-none');
 
@@ -136,7 +144,10 @@ function renderView() {
 
         if (existing.subscribed) {
             // Subscription: query/description are read-only; only Fork edits.
-            if (subBanner) {
+            const sourceGone = existing.sourceAvailable === false;
+            if (sourceGone && sourceDeletedBanner) {
+                sourceDeletedBanner.classList.remove('d-none');
+            } else if (subBanner) {
                 document.getElementById('spCuratorName').textContent = existing.curatorUsername || 'curator';
                 subBanner.classList.remove('d-none');
             }
@@ -150,7 +161,16 @@ function renderView() {
             saveBtn.classList.remove('d-none');
             // Owner-only: Share button. Show panel pre-populated if already shared.
             if (shareBtn) shareBtn.classList.remove('d-none');
-            if (existing.shareToken) showSharePanel(existing.shareToken);
+            if (existing.shareToken) {
+                showSharePanel(existing.shareToken);
+                if (subscriberCountEl) {
+                    const n = existing.subscriberCount != null ? existing.subscriberCount : 0;
+                    subscriberCountEl.textContent = n === 0
+                        ? 'No subscribers yet.'
+                        : `${n} curator${n === 1 ? '' : 's'} subscribed.`;
+                    subscriberCountEl.classList.remove('d-none');
+                }
+            }
         }
     } else if (pendingClone) {
         nameEl.value = pendingClone.name;
@@ -495,10 +515,10 @@ async function share() {
             SG.showToast(await SG.errorMsg(r, 'Failed to create share link'));
             return;
         }
-        const data = await r.json();
-        showSharePanel(data.shareToken);
-        // Refresh local cache so subsequent renders carry the token
+        // Refresh local cache so the row carries the new shareToken + subscriberCount,
+        // then re-render so the share panel and count both reflect server state.
         await loadSmartPlaylists();
+        renderView();
     } catch (e) {
         SG.showToast('Failed to create share link');
     }
@@ -516,8 +536,8 @@ async function revokeShare() {
             SG.showToast(await SG.errorMsg(r, 'Failed to revoke share link'));
             return;
         }
-        document.getElementById('spSharePanel').classList.add('d-none');
         await loadSmartPlaylists();
+        renderView();
     } catch (e) {
         SG.showToast('Failed to revoke share link');
     }
@@ -553,6 +573,73 @@ async function fork() {
         SG.showToast('Forked — query is now yours to edit', 'info', 2500);
     } catch (e) {
         SG.showToast('Failed to fork subscription');
+    }
+}
+
+// ── Subscribe by link ──────────────────────────────────
+// Accepts either a full share URL or just the token. Trims whitespace so users
+// can paste with surrounding spaces. URL parsing isn't bulletproof — we just
+// take the last path segment, which works for our /shared/smart-playlists/{token}
+// shape and falls back gracefully when the input is already a bare token.
+function extractShareToken(input) {
+    if (!input) return '';
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('/')) {
+        const parts = trimmed.split('?')[0].split('#')[0].split('/');
+        return parts[parts.length - 1] || '';
+    }
+    return trimmed;
+}
+
+async function subscribeByLink() {
+    const inputEl = document.getElementById('subscribeByLinkInput');
+    const statusEl = document.getElementById('subscribeByLinkStatus');
+    const confirmBtn = document.getElementById('subscribeByLinkConfirm');
+    if (!inputEl || !statusEl) return;
+
+    statusEl.textContent = '';
+    statusEl.className = 'mt-2 small';
+    const token = extractShareToken(inputEl.value);
+    if (!token) {
+        statusEl.textContent = 'Paste a share link or token first.';
+        statusEl.className = 'mt-2 small status-error';
+        return;
+    }
+
+    confirmBtn.disabled = true;
+    try {
+        const r = await fetch('/api/v1/smart-playlists/subscribe', {
+            method: 'POST',
+            headers: SG.csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ shareToken: token })
+        });
+        if (r.status === 410) {
+            statusEl.textContent = 'That link has expired.';
+            statusEl.className = 'mt-2 small status-error';
+            return;
+        }
+        if (!r.ok) {
+            statusEl.textContent = await SG.errorMsg(r, 'Subscribe failed');
+            statusEl.className = 'mt-2 small status-error';
+            return;
+        }
+        const data = await r.json();
+        await loadSmartPlaylists();
+        // Close modal + jump to the new subscription
+        const modalEl = document.getElementById('subscribeByLinkModal');
+        if (modalEl && window.bootstrap) {
+            const m = window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl);
+            m.hide();
+        }
+        inputEl.value = '';
+        SG.navigate({ view: 'smartPlaylist', smartPlaylistId: data.id });
+        SG.showToast('Subscribed', 'info', 2000);
+    } catch (e) {
+        statusEl.textContent = 'Network error.';
+        statusEl.className = 'mt-2 small status-error';
+    } finally {
+        confirmBtn.disabled = false;
     }
 }
 
@@ -593,6 +680,23 @@ function init() {
 
     const forkBtn = document.getElementById('spForkBtn');
     if (forkBtn) forkBtn.addEventListener('click', () => SG.guardClick(forkBtn, fork));
+
+    const subByLinkBtn = document.getElementById('subscribeByLinkBtn');
+    if (subByLinkBtn) subByLinkBtn.addEventListener('click', () => {
+        const modalEl = document.getElementById('subscribeByLinkModal');
+        const statusEl = document.getElementById('subscribeByLinkStatus');
+        if (statusEl) { statusEl.textContent = ''; statusEl.className = 'mt-2 small'; }
+        if (modalEl && window.bootstrap) {
+            const m = window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl);
+            m.show();
+        }
+    });
+    const subByLinkConfirm = document.getElementById('subscribeByLinkConfirm');
+    if (subByLinkConfirm) subByLinkConfirm.addEventListener('click', () => SG.guardClick(subByLinkConfirm, subscribeByLink));
+    const subByLinkInput = document.getElementById('subscribeByLinkInput');
+    if (subByLinkInput) subByLinkInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); subscribeByLink(); }
+    });
 
     const query = document.getElementById('spQuery');
     if (query) {

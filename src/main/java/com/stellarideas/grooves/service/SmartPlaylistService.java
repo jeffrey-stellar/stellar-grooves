@@ -350,18 +350,30 @@ public class SmartPlaylistService {
      * Convert a subscription into an independent smart playlist. The current source's
      * query and description are copied in; the subscribedFromId link is cleared.
      * From this point the subscriber owns the row and can edit it normally.
+     *
+     * <p>If the source has been deleted the subscriber's row keeps its last-known
+     * snapshot of the query (set at subscribe time). We unlink against that snapshot
+     * rather than failing — losing the curator update stream is better than losing
+     * the query entirely.
      */
     public SmartPlaylist fork(SmartPlaylist subscription) {
         if (!subscription.isSubscription()) {
             throw new IllegalStateException("Only subscriptions can be forked");
         }
-        SmartPlaylist source = findSubscriptionSource(subscription)
-                .orElseThrow(() -> new IllegalStateException(
-                        "The original smart playlist for this subscription is no longer available"));
-        subscription.setQueryString(source.getQueryString());
-        subscription.setDescription(source.getDescription());
+        Optional<SmartPlaylist> source = findSubscriptionSource(subscription);
+        if (source.isPresent()) {
+            subscription.setQueryString(source.get().getQueryString());
+            subscription.setDescription(source.get().getDescription());
+        }
+        // else: keep the subscription's own snapshotted queryString/description
         subscription.setSubscribedFromId(null);
         return repository.save(subscription);
+    }
+
+    /** Number of users subscribed to a published smart playlist. */
+    public long subscriberCount(SmartPlaylist playlist) {
+        if (playlist == null || playlist.getId() == null) return 0L;
+        return repository.countBySubscribedFromId(playlist.getId());
     }
 
     private String generateShareToken() {

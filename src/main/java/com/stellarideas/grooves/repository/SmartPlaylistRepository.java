@@ -13,4 +13,5 @@ public interface SmartPlaylistRepository extends MongoRepository<SmartPlaylist, 
     boolean existsByUserIdAndName(String userId, String name);
     Optional<SmartPlaylist> findByShareToken(String shareToken);
     List<SmartPlaylist> findBySubscribedFromId(String subscribedFromId);
+    long countBySubscribedFromId(String subscribedFromId);
 }

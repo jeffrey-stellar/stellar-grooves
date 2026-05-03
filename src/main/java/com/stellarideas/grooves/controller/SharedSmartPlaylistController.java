@@ -71,6 +71,7 @@ public class SharedSmartPlaylistController {
         body.put("queryString", sp.getQueryString());
         body.put("curatorUsername", service.findOwnerUsername(sp).orElse(null));
         body.put("matchCount", matchCount);
+        body.put("subscriberCount", service.subscriberCount(sp));
         body.put("createdAt", sp.getCreatedAt());
         body.put("updatedAt", sp.getUpdatedAt());
         return ResponseEntity.ok(body);
