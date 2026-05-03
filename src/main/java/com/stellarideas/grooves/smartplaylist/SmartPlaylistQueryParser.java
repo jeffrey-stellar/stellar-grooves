@@ -48,6 +48,8 @@ public class SmartPlaylistQueryParser {
     private static final Pattern DUR_CMP = Pattern.compile("^(>=|<=|>|<)(\\d+)(d|w|mo|y)$");
     private static final Pattern INT_EQ = Pattern.compile("^-?\\d+$");
     private static final Pattern POS_INT = Pattern.compile("^\\d+$");
+    /** Matches the body of an {@code @phrase} reference (after the {@code @}). */
+    private static final Pattern PHRASE_NAME = Pattern.compile("^[a-z0-9][a-z0-9_-]*$");
 
     public static final int MAX_QUERY_LENGTH = 1000;
     public static final int MAX_LIMIT = 100_000;
@@ -220,9 +222,19 @@ public class SmartPlaylistQueryParser {
     private QueryExpr parseLeaf(String token) {
         boolean negated = false;
         String working = token;
-        if (working.startsWith("-") && working.length() > 1 && Character.isLetter(working.charAt(1))) {
+        if (working.startsWith("-") && working.length() > 1
+                && (Character.isLetter(working.charAt(1)) || working.charAt(1) == '@')) {
             negated = true;
             working = working.substring(1);
+        }
+        if (working.startsWith("@")) {
+            String name = working.substring(1);
+            if (name.isEmpty() || !PHRASE_NAME.matcher(name).matches()) {
+                throw new QueryParseException("Invalid phrase name: " + token
+                        + " (expected lowercase letters, digits, '-', '_')");
+            }
+            QueryExpr ref = new QueryExpr.PhraseRef(name);
+            return negated ? new QueryExpr.Not(ref) : ref;
         }
         int colon = indexOfUnquotedColon(working);
         if (colon <= 0 || colon == working.length() - 1) {

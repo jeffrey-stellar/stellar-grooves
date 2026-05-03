@@ -117,6 +117,11 @@ public class SmartPlaylistQueryTranslator {
         if (e instanceof QueryExpr.Not not) {
             return new Criteria().norOperator(translateExpr(not.child()));
         }
+        if (e instanceof QueryExpr.PhraseRef ref) {
+            // Should never reach the translator — phrases must be expanded first.
+            throw new IllegalStateException("Unresolved phrase reference @" + ref.name()
+                    + ". Phrase expansion was skipped before translation.");
+        }
         throw new IllegalStateException("Unhandled expression: " + e);
     }
 

@@ -23,4 +23,12 @@ public sealed interface QueryExpr {
 
     /** Logical negation of a subexpression. */
     record Not(QueryExpr child) implements QueryExpr {}
+
+    /**
+     * Reference to a named phrase ({@code @jazz-core}). Resolved at execution time
+     * by walking the AST and substituting the parsed body of the corresponding
+     * {@link com.stellarideas.grooves.model.SmartPlaylistPhrase}. The translator
+     * never sees this — if it does, that signals the expansion step was skipped.
+     */
+    record PhraseRef(String name) implements QueryExpr {}
 }

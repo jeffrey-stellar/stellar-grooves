@@ -8,6 +8,8 @@ import com.stellarideas.grooves.repository.PlaylistRepository;
 import com.stellarideas.grooves.repository.SmartPlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.smartplaylist.ParsedQuery;
+import com.stellarideas.grooves.smartplaylist.PhraseExpander;
+import com.stellarideas.grooves.smartplaylist.QueryExpr;
 import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryParser;
 import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryTranslator;
 import com.stellarideas.grooves.smartplaylist.SortSpec;
@@ -40,6 +42,7 @@ public class SmartPlaylistService {
     private final UserRepository userRepository;
     private final SmartPlaylistQueryParser parser;
     private final SmartPlaylistQueryTranslator translator;
+    private final PhraseExpander phraseExpander;
     private final MongoTemplate mongoTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -54,12 +57,14 @@ public class SmartPlaylistService {
                                 UserRepository userRepository,
                                 SmartPlaylistQueryParser parser,
                                 SmartPlaylistQueryTranslator translator,
+                                PhraseExpander phraseExpander,
                                 MongoTemplate mongoTemplate) {
         this.repository = repository;
         this.playlistRepository = playlistRepository;
         this.userRepository = userRepository;
         this.parser = parser;
         this.translator = translator;
+        this.phraseExpander = phraseExpander;
         this.mongoTemplate = mongoTemplate;
     }
 
@@ -120,7 +125,22 @@ public class SmartPlaylistService {
 
     /** Execute a saved smart playlist and return paginated tracks. */
     public PreviewResult preview(SmartPlaylist playlist, int page, int size) {
-        return execute(playlist.getUserId(), resolveQueryString(playlist), page, size);
+        return executeCore(playlist.getUserId(), resolvePhraseOwnerUserId(playlist),
+                resolveQueryString(playlist), page, size);
+    }
+
+    /**
+     * For owner rows, the phrase library is the row owner's. For subscriptions the
+     * query is the curator's, so {@code @phrase} references resolve against the
+     * curator's library — that's the "share taste vocabulary" semantic. The criteria
+     * scope ({@code userId} on the Mongo query) stays the row owner — subscribers
+     * see <em>their own</em> tracks that match the curator's vocabulary.
+     */
+    public String resolvePhraseOwnerUserId(SmartPlaylist playlist) {
+        if (!playlist.isSubscription()) return playlist.getUserId();
+        return repository.findById(playlist.getSubscribedFromId())
+                .map(SmartPlaylist::getUserId)
+                .orElse(playlist.getUserId()); // source gone — fall back to row owner; phrases will likely 404
     }
 
     /**
@@ -165,8 +185,15 @@ public class SmartPlaylistService {
      * {@link PreviewResult#truncated()} flag is set when the cap clipped the result.
      */
     public PreviewResult execute(String userId, String queryString, int page, int size) {
+        // Ad-hoc dry-run: caller is both the criteria-scope owner and the phrase library owner.
+        return executeCore(userId, userId, queryString, page, size);
+    }
+
+    private PreviewResult executeCore(String criteriaScopeUserId, String phraseOwnerUserId,
+                                      String queryString, int page, int size) {
         ParsedQuery parsed = parser.parse(queryString);
-        Criteria criteria = translator.translate(parsed.expression(), userId);
+        Optional<QueryExpr> expanded = phraseExpander.expand(parsed.expression(), phraseOwnerUserId);
+        Criteria criteria = translator.translate(expanded, criteriaScopeUserId);
         Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
 
         if (parsed.sort().map(SortSpec::isRandom).orElse(false)) {
@@ -199,13 +226,18 @@ public class SmartPlaylistService {
 
     /** Count matches for a saved smart playlist (subscriptions resolve query from source). */
     public long count(SmartPlaylist playlist) {
-        return count(playlist.getUserId(), resolveQueryString(playlist));
+        return countCore(playlist.getUserId(), resolvePhraseOwnerUserId(playlist), resolveQueryString(playlist));
     }
 
     /** Count matches for an ad-hoc query (dry-run). Applies the query's limit when present. */
     public long count(String userId, String queryString) {
+        return countCore(userId, userId, queryString);
+    }
+
+    private long countCore(String criteriaScopeUserId, String phraseOwnerUserId, String queryString) {
         ParsedQuery parsed = parser.parse(queryString);
-        Criteria criteria = translator.translate(parsed.expression(), userId);
+        Optional<QueryExpr> expanded = phraseExpander.expand(parsed.expression(), phraseOwnerUserId);
+        Criteria criteria = translator.translate(expanded, criteriaScopeUserId);
         Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
         long raw = mongoTemplate.count(new Query(criteria).maxTime(timeout), MusicFile.class);
         return parsed.limit().isPresent() ? Math.min(raw, parsed.limit().getAsInt()) : raw;
@@ -219,7 +251,9 @@ public class SmartPlaylistService {
      */
     public MaterializeResult materialize(SmartPlaylist source, String name) {
         ParsedQuery parsed = parser.parse(resolveQueryString(source));
-        Criteria criteria = translator.translate(parsed.expression(), source.getUserId());
+        Optional<QueryExpr> expanded = phraseExpander.expand(parsed.expression(),
+                resolvePhraseOwnerUserId(source));
+        Criteria criteria = translator.translate(expanded, source.getUserId());
         Duration timeout = Duration.ofSeconds(Math.max(1, queryTimeoutSeconds));
 
         int userLimit = parsed.limit().orElse(Integer.MAX_VALUE);

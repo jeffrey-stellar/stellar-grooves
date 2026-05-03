@@ -5,8 +5,10 @@ import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.Playlist;
 import com.stellarideas.grooves.model.SmartPlaylist;
 import com.stellarideas.grooves.repository.PlaylistRepository;
+import com.stellarideas.grooves.repository.SmartPlaylistPhraseRepository;
 import com.stellarideas.grooves.repository.SmartPlaylistRepository;
 import com.stellarideas.grooves.repository.UserRepository;
+import com.stellarideas.grooves.smartplaylist.PhraseExpander;
 import com.stellarideas.grooves.smartplaylist.QueryParseException;
 import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryParser;
 import com.stellarideas.grooves.smartplaylist.SmartPlaylistQueryTranslator;
@@ -40,12 +42,18 @@ class SmartPlaylistServiceTest {
         playlistRepository = mock(PlaylistRepository.class);
         userRepository = mock(UserRepository.class);
         mongoTemplate = mock(MongoTemplate.class);
+        SmartPlaylistQueryParser parser = new SmartPlaylistQueryParser();
+        // Empty phrase repo — these tests don't exercise phrase resolution.
+        // Phrase-aware tests live in PhraseExpanderTest.
+        SmartPlaylistPhraseRepository phraseRepo = mock(SmartPlaylistPhraseRepository.class);
+        PhraseExpander phraseExpander = new PhraseExpander(phraseRepo, parser);
         service = new SmartPlaylistService(
                 repository,
                 playlistRepository,
                 userRepository,
-                new SmartPlaylistQueryParser(),
+                parser,
                 new SmartPlaylistQueryTranslator(),
+                phraseExpander,
                 mongoTemplate);
         ReflectionTestUtils.setField(service, "materializeMax", 100);
     }
