@@ -94,6 +94,7 @@ public class MusicScannerService {
     private final Timer scanTimer;
     private final Counter filesScannedCounter;
     private final Counter scanErrorsCounter;
+    private final LibraryStatsCache statsCache;
 
     public MusicScannerService(MusicCatalogService catalogService,
                                MusicFileRepository repository,
@@ -104,6 +105,7 @@ public class MusicScannerService {
                                AudioMetadataReader metadataReader,
                                CoverArtHandler coverArtHandler,
                                FileHasher fileHasher,
+                               LibraryStatsCache statsCache,
                                MeterRegistry meterRegistry) {
         this.catalogService = catalogService;
         this.repository = repository;
@@ -114,6 +116,7 @@ public class MusicScannerService {
         this.metadataReader = metadataReader;
         this.coverArtHandler = coverArtHandler;
         this.fileHasher = fileHasher;
+        this.statsCache = statsCache;
         this.scanTimer = Timer.builder("grooves.scan.duration")
                 .description("Time spent scanning directories")
                 .register(meterRegistry);
@@ -325,6 +328,8 @@ public class MusicScannerService {
             repository.saveAll(batch);
             result.addSaved(batch.size());
         }
+
+        if (result.getSaved() > 0) statsCache.invalidate(user.getId());
 
         logger.info("Scan complete for user '{}': {} saved, {} skipped, {} errors",
                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());

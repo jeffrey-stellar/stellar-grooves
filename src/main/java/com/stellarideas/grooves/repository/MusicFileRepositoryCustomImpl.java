@@ -286,23 +286,63 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
 
     @Override
     public Map<String, Object> getStatistics(String userId) {
-        Map<String, Object> stats = new LinkedHashMap<>();
+        // Single $facet pipeline: one match stage feeds seven parallel branches.
+        // Replaced six sequential aggregations + a count() round-trip with one server hit.
+        AggregationOperation facet = context -> new Document("$facet", new Document()
+                .append("totalTracks", List.of(new Document("$count", "n")))
+                .append("genres", List.of(
+                        new Document("$group", new Document("_id", "$genre")
+                                .append("count", new Document("$sum", 1))),
+                        new Document("$sort", new Document("count", -1))))
+                .append("topArtists", List.of(
+                        new Document("$match", new Document("artist",
+                                new Document("$nin", List.of("", null)))),
+                        new Document("$group", new Document("_id", "$artist")
+                                .append("count", new Document("$sum", 1))),
+                        new Document("$sort", new Document("count", -1)),
+                        new Document("$limit", 10)))
+                .append("totalArtists", List.of(
+                        new Document("$match", new Document("artist",
+                                new Document("$nin", List.of("", null)))),
+                        new Document("$group", new Document("_id", "$artist")),
+                        new Document("$count", "n")))
+                .append("totalAlbums", List.of(
+                        new Document("$match", new Document("album",
+                                new Document("$nin", List.of("", null)))),
+                        new Document("$group", new Document("_id", "$album")),
+                        new Document("$count", "n")))
+                .append("decades", List.of(
+                        new Document("$match", new Document("year", new Document("$ne", null))),
+                        new Document("$group", new Document("_id",
+                                new Document("$concat", List.of(
+                                        new Document("$toString", new Document("$subtract",
+                                                List.of("$year",
+                                                        new Document("$mod", List.of("$year", 10))))),
+                                        "s")))
+                                .append("count", new Document("$sum", 1))),
+                        new Document("$sort", new Document("_id", 1))))
+                .append("ratingAvg", List.of(
+                        new Document("$match", new Document("rating", new Document("$gt", 0))),
+                        new Document("$group", new Document("_id", null)
+                                .append("avg", new Document("$avg", "$rating"))))));
 
-        // Total tracks
-        Criteria countCriteria = Criteria.where("userId").is(userId).and("deleted").ne(true);
-        long total = mongoTemplate.count(
-                org.springframework.data.mongodb.core.query.Query.query(countCriteria), "music_files");
-        stats.put("totalTracks", total);
-
-        // Genre distribution
-        Aggregation genreAgg = Aggregation.newAggregation(
+        Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true)),
-                Aggregation.group("genre").count().as("count"),
-                Aggregation.sort(org.springframework.data.domain.Sort.Direction.DESC, "count")
-        );
-        List<Document> genreResults = mongoTemplate.aggregate(genreAgg, "music_files", Document.class).getMappedResults();
+                facet);
+
+        List<Document> facetResults = mongoTemplate.aggregate(
+                aggregation, "music_files", Document.class).getMappedResults();
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        if (facetResults.isEmpty()) {
+            return emptyStats();
+        }
+        Document facetDoc = facetResults.get(0);
+
+        stats.put("totalTracks", scalarFromBranch(facetDoc, "totalTracks", "n"));
+
         List<Map<String, Object>> genreDist = new ArrayList<>();
-        for (Document d : genreResults) {
+        for (Document d : safeBranchList(facetDoc, "genres")) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("genre", d.get("_id") != null ? d.get("_id").toString() : "OTHER");
             entry.put("count", d.getInteger("count", 0));
@@ -310,52 +350,20 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
         }
         stats.put("genreDistribution", genreDist);
 
-        // Top 10 artists
-        Aggregation artistAgg = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true).and("artist").ne(null).ne("")),
-                Aggregation.group("artist").count().as("count"),
-                Aggregation.sort(org.springframework.data.domain.Sort.Direction.DESC, "count"),
-                Aggregation.limit(10)
-        );
-        List<Document> artistResults = mongoTemplate.aggregate(artistAgg, "music_files", Document.class).getMappedResults();
         List<Map<String, Object>> topArtists = new ArrayList<>();
-        for (Document d : artistResults) {
+        for (Document d : safeBranchList(facetDoc, "topArtists")) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("artist", d.getString("_id"));
             entry.put("count", d.getInteger("count", 0));
             topArtists.add(entry);
         }
         stats.put("topArtists", topArtists);
-        // Total distinct artists
-        long totalArtists = mongoTemplate.aggregate(Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true).and("artist").ne(null).ne("")),
-                Aggregation.group("artist")
-        ), "music_files", Document.class).getMappedResults().size();
-        stats.put("totalArtists", totalArtists);
 
-        // Total distinct albums
-        long totalAlbums = mongoTemplate.aggregate(Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true).and("album").ne(null).ne("")),
-                Aggregation.group("album")
-        ), "music_files", Document.class).getMappedResults().size();
-        stats.put("totalAlbums", totalAlbums);
+        stats.put("totalArtists", scalarFromBranch(facetDoc, "totalArtists", "n"));
+        stats.put("totalAlbums", scalarFromBranch(facetDoc, "totalAlbums", "n"));
 
-        // Decade distribution: floor(year/10)*10, formatted as "1980s".
-        AggregationOperation decadeGroup = context -> new Document("$group",
-                new Document("_id", new Document("$concat", List.of(
-                        new Document("$toString",
-                                new Document("$subtract", List.of("$year",
-                                        new Document("$mod", List.of("$year", 10))))),
-                        "s")))
-                        .append("count", new Document("$sum", 1)));
-        Aggregation decadeAgg = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true).and("year").ne(null)),
-                decadeGroup,
-                Aggregation.sort(org.springframework.data.domain.Sort.Direction.ASC, "_id")
-        );
-        List<Document> decadeResults = mongoTemplate.aggregate(decadeAgg, "music_files", Document.class).getMappedResults();
         List<Map<String, Object>> decadeDist = new ArrayList<>();
-        for (Document d : decadeResults) {
+        for (Document d : safeBranchList(facetDoc, "decades")) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("decade", d.getString("_id"));
             entry.put("count", d.getInteger("count", 0));
@@ -363,15 +371,39 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
         }
         stats.put("decadeDistribution", decadeDist);
 
-        // Average rating (excluding unrated)
-        Aggregation ratingAgg = Aggregation.newAggregation(
-                Aggregation.match(Criteria.where("userId").is(userId).and("deleted").ne(true).and("rating").gt(0)),
-                Aggregation.group().avg("rating").as("avgRating")
-        );
-        List<Document> ratingResults = mongoTemplate.aggregate(ratingAgg, "music_files", Document.class).getMappedResults();
-        double avgRating = ratingResults.isEmpty() ? 0.0 : ratingResults.get(0).getDouble("avgRating");
+        List<Document> ratingBranch = safeBranchList(facetDoc, "ratingAvg");
+        double avgRating = 0.0;
+        if (!ratingBranch.isEmpty()) {
+            Object avg = ratingBranch.get(0).get("avg");
+            if (avg instanceof Number n) avgRating = n.doubleValue();
+        }
         stats.put("averageRating", Math.round(avgRating * 100.0) / 100.0);
 
+        return stats;
+    }
+
+    private static List<Document> safeBranchList(Document facetDoc, String branch) {
+        List<Document> list = facetDoc.getList(branch, Document.class);
+        return list != null ? list : List.of();
+    }
+
+    /** Reads a single-document scalar from a $facet branch (e.g. {@code [{ n: 42 }]}). */
+    private static long scalarFromBranch(Document facetDoc, String branch, String field) {
+        List<Document> list = safeBranchList(facetDoc, branch);
+        if (list.isEmpty()) return 0L;
+        Object v = list.get(0).get(field);
+        return v instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private static Map<String, Object> emptyStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalTracks", 0L);
+        stats.put("genreDistribution", List.of());
+        stats.put("topArtists", List.of());
+        stats.put("totalArtists", 0L);
+        stats.put("totalAlbums", 0L);
+        stats.put("decadeDistribution", List.of());
+        stats.put("averageRating", 0.0);
         return stats;
     }
 }

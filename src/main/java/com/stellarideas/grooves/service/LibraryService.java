@@ -37,6 +37,7 @@ public class LibraryService {
     private final PlayEventRepository playEventRepository;
     private final MusicCatalogService catalogService;
     private final MongoTemplate mongoTemplate;
+    private final LibraryStatsCache statsCache;
 
     public LibraryService(MusicFileRepository musicFileRepository,
                           PlaylistRepository playlistRepository,
@@ -44,7 +45,8 @@ public class LibraryService {
                           PlaybackQueueRepository playbackQueueRepository,
                           PlayEventRepository playEventRepository,
                           MusicCatalogService catalogService,
-                          MongoTemplate mongoTemplate) {
+                          MongoTemplate mongoTemplate,
+                          LibraryStatsCache statsCache) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
@@ -52,6 +54,7 @@ public class LibraryService {
         this.playEventRepository = playEventRepository;
         this.catalogService = catalogService;
         this.mongoTemplate = mongoTemplate;
+        this.statsCache = statsCache;
     }
 
     public Page<MusicFile> getFiles(String userId, Genre genre, int page, int size) {
@@ -125,12 +128,15 @@ public class LibraryService {
         if (file.getArtist() != null && !file.getArtist().isBlank()) {
             catalogService.recordCorrection(file.getArtist(), genre, userId);
         }
+        statsCache.invalidate(userId);
         return file;
     }
 
     public MusicFile updateRating(MusicFile file, int rating) {
         file.setRating(rating);
-        return musicFileRepository.save(file);
+        MusicFile saved = musicFileRepository.save(file);
+        statsCache.invalidate(file.getUserId());
+        return saved;
     }
 
     static final int MAX_TAG_LENGTH = 50;
@@ -272,7 +278,9 @@ public class LibraryService {
         Update update = new Update()
                 .set("deleted", true)
                 .set("deletedAt", Instant.now());
-        return mongoTemplate.updateMulti(query, update, MusicFile.class).getModifiedCount();
+        long modified = mongoTemplate.updateMulti(query, update, MusicFile.class).getModifiedCount();
+        if (modified > 0) statsCache.invalidate(userId);
+        return modified;
     }
 
     @Transactional
@@ -280,6 +288,7 @@ public class LibraryService {
         file.setDeleted(true);
         file.setDeletedAt(Instant.now());
         musicFileRepository.save(file);
+        statsCache.invalidate(userId);
     }
 
     public List<MusicFileDTO> getTrash(String userId) {
@@ -304,6 +313,7 @@ public class LibraryService {
         file.setDeleted(false);
         file.setDeletedAt(null);
         musicFileRepository.save(file);
+        statsCache.invalidate(userId);
     }
 
     @Transactional
@@ -314,6 +324,9 @@ public class LibraryService {
         }
         musicFileRepository.delete(opt.get());
         removeFilesFromPlaylists(Set.of(id), userId);
+        // Trash purges don't change the active library, but invalidate anyway —
+        // covers any drift between the soft-delete write and this purge.
+        statsCache.invalidate(userId);
     }
 
     @Transactional
@@ -323,6 +336,7 @@ public class LibraryService {
         Set<String> trashedIds = trashed.stream().map(MusicFile::getId).collect(Collectors.toSet());
         musicFileRepository.deleteAll(trashed);
         removeFilesFromPlaylists(trashedIds, userId);
+        statsCache.invalidate(userId);
     }
 
     public List<MusicFile> getAllFiles(String userId) {
@@ -336,6 +350,7 @@ public class LibraryService {
         coverArtRepository.deleteByUserId(userId);
         playbackQueueRepository.deleteByUserId(userId);
         playEventRepository.deleteByUserId(userId);
+        statsCache.invalidate(userId);
         return fileCount;
     }
 
@@ -358,7 +373,7 @@ public class LibraryService {
     }
 
     public Map<String, Object> getStatistics(String userId) {
-        return musicFileRepository.getStatistics(userId);
+        return statsCache.get(userId, musicFileRepository::getStatistics);
     }
 
     public LibraryBackup createBackup(String userId, String username) {
@@ -457,6 +472,7 @@ public class LibraryService {
             for (MusicFile mf : saved) {
                 fileNameToId.putIfAbsent(mf.getFileName(), mf.getId());
             }
+            statsCache.invalidate(userId);
         }
 
         if (backup.getPlaylists() != null) {

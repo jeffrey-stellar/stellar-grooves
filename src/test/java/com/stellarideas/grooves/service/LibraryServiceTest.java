@@ -47,7 +47,7 @@ class LibraryServiceTest {
         mongoTemplate = mock(MongoTemplate.class);
         com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
         com.stellarideas.grooves.repository.PlayEventRepository playEventRepository = mock(com.stellarideas.grooves.repository.PlayEventRepository.class);
-        service = new LibraryService(musicFileRepository, playlistRepository, coverArtRepository, playbackQueueRepository, playEventRepository, catalogService, mongoTemplate);
+        service = new LibraryService(musicFileRepository, playlistRepository, coverArtRepository, playbackQueueRepository, playEventRepository, catalogService, mongoTemplate, new LibraryStatsCache());
         org.springframework.test.util.ReflectionTestUtils.setField(service, "maxSearchQueryLength", 200);
     }
 
