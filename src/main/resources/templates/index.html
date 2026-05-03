@@ -359,6 +359,17 @@
 
                         <hr class="my-3">
 
+                        <!-- Phrases section — reusable @name fragments referenced from smart-playlist queries -->
+                        <div id="phrasesSection">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="section-label">Phrases</span>
+                                <button class="btn-icon-sm" id="showNewPhraseBtn" type="button" title="New phrase" aria-label="Create new phrase">+</button>
+                            </div>
+                            <ul id="phrasesList" class="playlist-list"></ul>
+                        </div>
+
+                        <hr class="my-3">
+
                         <!-- History section -->
                         <div id="historySection" class="mb-2">
                             <a href="#" id="showHistoryBtn" class="history-link d-flex align-items-center gap-2" role="button">
@@ -701,6 +712,48 @@
                         </div>
                     </div>
 
+                    <!-- Phrase editor view — manage reusable @phrase fragments -->
+                    <div id="viewPhrase" class="d-none" role="region" aria-label="Phrase editor">
+                        <div class="sp-editor p-3">
+                            <div class="row g-2 align-items-end mb-2">
+                                <div class="col-12 col-md-5">
+                                    <label for="phName" class="form-label small mb-1">Name <span class="text-secondary-themed small">(referenced as <code>@name</code>)</span></label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" aria-hidden="true">@</span>
+                                        <input type="text" id="phName" class="form-control form-control-sm"
+                                               maxlength="50" pattern="[a-z0-9][a-z0-9_-]*"
+                                               placeholder="thrash-core"
+                                               aria-describedby="phNameHelp">
+                                    </div>
+                                    <div id="phNameHelp" class="form-text small">lowercase letters, digits, dashes, underscores</div>
+                                </div>
+                                <div class="col-12 col-md-7 d-flex gap-2 justify-content-md-end flex-wrap">
+                                    <button class="btn btn-sm btn-primary" id="phSaveBtn" type="button">Save</button>
+                                    <button class="btn btn-sm btn-outline-danger d-none" id="phDeleteBtn" type="button">Delete</button>
+                                </div>
+                            </div>
+
+                            <div class="mb-2">
+                                <label for="phDescription" class="form-label small mb-1">Description <span class="text-secondary-themed small">(optional)</span></label>
+                                <input type="text" id="phDescription" class="form-control form-control-sm" maxlength="200" placeholder="What this phrase captures">
+                            </div>
+
+                            <div class="mb-2">
+                                <label for="phBody" class="form-label small mb-1">Body <span class="text-secondary-themed small">(query fragment — no <code>sort:</code> or <code>limit:</code>)</span></label>
+                                <textarea id="phBody" class="form-control form-control-sm sp-query" rows="3" spellcheck="false" placeholder="genre:thrash_metal year:1986..1995"></textarea>
+                            </div>
+
+                            <div class="alert alert-secondary small mb-2" role="note">
+                                Phrases are reusable building blocks. Reference them in any smart-playlist query as <code>@name</code>. They can reference other phrases too — Stellar Grooves resolves the chain at execution time.
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span id="phHint" class="small text-secondary-themed"></span>
+                                <span id="phStatus" class="sp-status small" aria-live="polite"></span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Empty state -->
                     <div id="emptyState" class="empty-state">
                         <div class="empty-state-icon">&#x1F3B5;</div>
@@ -812,6 +865,7 @@
     <script th:src="@{/js/theme.js(v=${appVersion})}"></script>
     <script th:src="@{/js/player.js(v=${appVersion})}"></script>
     <script th:src="@{/js/smart-playlist.js(v=${appVersion})}"></script>
+    <script th:src="@{/js/phrases.js(v=${appVersion})}"></script>
     <script th:src="@{/js/tags.js(v=${appVersion})}"></script>
     <script th:src="@{/js/history.js(v=${appVersion})}"></script>
     <script th:src="@{/js/rediscover.js(v=${appVersion})}"></script>

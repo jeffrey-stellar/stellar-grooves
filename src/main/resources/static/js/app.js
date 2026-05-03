@@ -204,6 +204,7 @@ function navigate(newNav) {
     renderBreadcrumb(); renderCurrentView();
     renderPlaylistSidebar();
     if (typeof SG.renderSmartPlaylistSidebar === 'function') SG.renderSmartPlaylistSidebar();
+    if (typeof SG.renderPhrasesSidebar === 'function') SG.renderPhrasesSidebar();
     if (typeof SG.renderTagsSidebar === 'function') SG.renderTagsSidebar();
 }
 
@@ -226,6 +227,7 @@ function renderBreadcrumb() {
     else if (nav.view === 'tracks' && nav.album) { crumb('My Music Library', hc); crumb('Albums', () => navigate({ view: 'albums' })); crumb(nav.album, null); }
     else if (nav.view === 'playlist') { crumb('My Music Library', hc); crumb(nav.playlistName || 'Playlist', null); }
     else if (nav.view === 'smartPlaylist') { crumb('My Music Library', hc); crumb('Smart Playlists', null); }
+    else if (nav.view === 'phrase') { crumb('My Music Library', hc); crumb('Phrases', null); }
     else if (nav.view === 'duplicates') { crumb('My Music Library', hc); crumb('Duplicates', null); }
     else if (nav.view === 'history') { crumb('My Music Library', hc); crumb('Listening History', null); }
     else if (nav.view === 'rediscover') { crumb('My Music Library', hc); crumb('Rediscover', null); }
@@ -237,11 +239,16 @@ function renderBreadcrumb() {
 
 // ── View rendering ───────────────────────────────────────
 function renderCurrentView() {
-    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewSmartPlaylist','viewDuplicates','viewHistory','viewRediscover','emptyState'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('d-none'); });
+    ['viewArtists','viewAlbums','viewTracks','viewPlaylist','viewSmartPlaylist','viewPhrase','viewDuplicates','viewHistory','viewRediscover','emptyState'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('d-none'); });
     document.getElementById('bulkBar').classList.add('d-none');
     if (nav.view === 'smartPlaylist') {
         document.getElementById('viewSmartPlaylist').classList.remove('d-none');
         if (typeof SG.renderSmartPlaylistView === 'function') SG.renderSmartPlaylistView();
+        return;
+    }
+    if (nav.view === 'phrase') {
+        document.getElementById('viewPhrase').classList.remove('d-none');
+        if (typeof SG.renderPhraseView === 'function') SG.renderPhraseView();
         return;
     }
     if (nav.view === 'history') {
@@ -944,6 +951,7 @@ async function loadLibrary() {
         }
         updateStats(); renderCurrentView(); await loadPlaylists();
         if (typeof SG.loadSmartPlaylists === 'function') await SG.loadSmartPlaylists();
+        if (typeof SG.loadPhrases === 'function') await SG.loadPhrases();
         if (typeof SG.loadTags === 'function') await SG.loadTags();
     } catch (e) { console.error(e); showToast('Failed to load library'); }
 }
