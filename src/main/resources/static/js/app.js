@@ -638,10 +638,15 @@ plBody.addEventListener('drop', async e => {
     announceDrag(title + ' moved to position ' + ([...plBody.querySelectorAll('tr[data-file-id]')].indexOf(dragRow) + 1));
     // Persist new order
     const newOrder = [...plBody.querySelectorAll('tr[data-file-id]')].map(r => r.dataset.fileId);
-    await fetch(`/api/v1/playlists/${nav.playlistId}/tracks/reorder`, {
+    const reorderResp = await fetch(`/api/v1/playlists/${nav.playlistId}/tracks/reorder`, {
         method: 'PUT', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ trackIds: newOrder })
     });
+    if (!reorderResp.ok) {
+        showToast(await errorMsg(reorderResp, 'Failed to save new order'));
+        await renderPlaylistView();
+        return;
+    }
     await loadPlaylists();
 });
 
@@ -732,6 +737,11 @@ async function renderDuplicatesView() {
     container.innerHTML = '<p class="small" style="color:var(--text-muted);">Loading...</p>';
     try {
         const resp = await fetch('/api/v1/library/duplicates');
+        if (!resp.ok) {
+            container.innerHTML = '';
+            showToast(await errorMsg(resp, 'Failed to load duplicates'));
+            return;
+        }
         const groups = await resp.json();
         container.innerHTML = '';
         if (groups.length === 0) { container.innerHTML = '<p style="color:var(--text-secondary);">No duplicates found.</p>'; return; }
@@ -771,7 +781,14 @@ function renderQueue() { SG.renderQueue(); }
 function loadScanSchedule() { SG.loadScanSchedule(); }
 
 // ── Playlists ────────────────────────────────────────────
-async function loadPlaylists() { try { const r = await fetch('/api/v1/playlists'); playlists = await r.json(); renderPlaylistSidebar(); } catch (e) { console.error(e); } }
+async function loadPlaylists() {
+    try {
+        const r = await fetch('/api/v1/playlists');
+        if (!r.ok) { showToast(await errorMsg(r, 'Failed to load playlists')); return; }
+        playlists = await r.json();
+        renderPlaylistSidebar();
+    } catch (e) { console.error(e); showToast('Failed to load playlists'); }
+}
 
 function renderPlaylistSidebar() {
     const ul = document.getElementById('playlistList'); ul.innerHTML = '';
@@ -910,12 +927,24 @@ document.getElementById('addToPlaylistConfirm').addEventListener('click', async 
 SG.loadLibrary = loadLibrary;
 async function loadLibrary() {
     try {
-        allFiles = []; let p = 0, tp = 1;
-        while (p < tp) { const r = await fetch(`/api/v1/library/files?page=${p}&size=200`); const d = await r.json(); allFiles = allFiles.concat(d.content); tp = d.totalPages; p++; }
+        allFiles = [];
+        let p = 0, tp = 1;
+        // Hard cap protects against a server returning an unbounded totalPages or
+        // a runaway loop if a response omits totalPages. 1000 pages × 200 = 200k tracks.
+        const MAX_PAGES = 1000;
+        while (p < tp && p < MAX_PAGES) {
+            const r = await fetch(`/api/v1/library/files?page=${p}&size=200`);
+            if (!r.ok) { showToast(await errorMsg(r, 'Failed to load library')); return; }
+            const d = await r.json();
+            if (!Array.isArray(d.content)) { showToast('Library response was malformed'); return; }
+            allFiles = allFiles.concat(d.content);
+            tp = Number.isFinite(d.totalPages) ? d.totalPages : 0;
+            p++;
+        }
         updateStats(); renderCurrentView(); await loadPlaylists();
         if (typeof SG.loadSmartPlaylists === 'function') await SG.loadSmartPlaylists();
         if (typeof SG.loadTags === 'function') await SG.loadTags();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); showToast('Failed to load library'); }
 }
 SG.loadPlaylists = loadPlaylists;
 

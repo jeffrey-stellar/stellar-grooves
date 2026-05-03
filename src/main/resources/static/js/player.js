@@ -53,7 +53,11 @@ function _reportPlay(completed) {
         method: 'POST',
         headers,
         body: JSON.stringify({ listenedMs, completed: !!completed })
-    }).catch(() => { /* play recording is best-effort */ });
+    }).then(r => {
+        // Best-effort telemetry — surface server errors in console so a curator
+        // debugging "why are my play counts wrong?" can see what happened.
+        if (!r.ok) console.warn('Play recording rejected:', r.status, fileId);
+    }).catch(err => { console.warn('Play recording network error:', err && err.message); });
 }
 
 function _accumulateListened(el) {

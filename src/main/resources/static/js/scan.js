@@ -22,7 +22,10 @@ function connectScanProgress(statusSpan, onComplete, onError) {
     try {
         stompClient = new StompJs.Client({
             webSocketFactory: () => new SockJS('/ws'),
-            reconnectDelay: 0,
+            // 5s delay between reconnect attempts — 0 disables auto-reconnect entirely
+            // in StompJS. Brief WebSocket drops mid-scan should recover automatically;
+            // hard STOMP errors still fall through to the SSE fallback below.
+            reconnectDelay: 5000,
             onConnect: () => {
                 stompClient.subscribe('/topic/scan/' + userId, (message) => {
                     try {
