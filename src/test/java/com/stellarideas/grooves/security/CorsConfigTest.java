@@ -110,4 +110,39 @@ class CorsConfigTest {
         assertTrue(origins.contains("https://a.com"));
         assertTrue(origins.contains("https://b.com"));
     }
+
+    @Test
+    void rejectsWildcardOrigin() {
+        WebSecurityConfig config = createConfig("*");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, config::corsConfigurationSource);
+        assertTrue(ex.getMessage().contains("*"));
+    }
+
+    @Test
+    void rejectsNullOrigin() {
+        WebSecurityConfig config = createConfig("null");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, config::corsConfigurationSource);
+        assertTrue(ex.getMessage().toLowerCase().contains("null"));
+    }
+
+    @Test
+    void rejectsOriginWithoutScheme() {
+        WebSecurityConfig config = createConfig("example.com");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, config::corsConfigurationSource);
+        assertTrue(ex.getMessage().contains("scheme"));
+    }
+
+    @Test
+    void rejectsOriginWithTrailingSlash() {
+        WebSecurityConfig config = createConfig("https://example.com/");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, config::corsConfigurationSource);
+        assertTrue(ex.getMessage().contains("trailing slash"));
+    }
+
+    @Test
+    void acceptsLocalhostHttp() {
+        // http://localhost is allowed (warns but does not throw)
+        WebSecurityConfig config = createConfig("http://localhost:8080");
+        assertNotNull(config.corsConfigurationSource());
+    }
 }

@@ -7,8 +7,11 @@ import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.MessageHelper;
+import com.stellarideas.grooves.config.PaginationDefaults;
 import com.stellarideas.grooves.service.PlaylistService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/playlists")
 @Tag(name = "Playlists", description = "Playlist creation, management, sharing, and export")
+@org.springframework.validation.annotation.Validated
 public class PlaylistController {
 
     private static final Logger logger = LoggerFactory.getLogger(PlaylistController.class);
@@ -95,8 +99,8 @@ public class PlaylistController {
     @Operation(summary = "Get playlist tracks", description = "Get tracks in a playlist in order. Pass page+size for paginated hydration on large playlists; omit both for the full list (legacy behavior).")
     @GetMapping("/{id}/tracks")
     public ResponseEntity<?> getPlaylistTracks(@CurrentUser User user, @PathVariable String id,
-                                               @RequestParam(required = false) Integer page,
-                                               @RequestParam(required = false) Integer size) {
+                                               @RequestParam(required = false) @Min(0) Integer page,
+                                               @RequestParam(required = false) @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) Integer size) {
         Optional<Playlist> opt = playlistService.findByIdAndUserId(id, user.getId());
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
         if (page != null || size != null) {

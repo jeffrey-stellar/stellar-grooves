@@ -17,6 +17,8 @@ import com.stellarideas.grooves.service.ScanProgressEmitter;
 import com.stellarideas.grooves.service.ScanRateLimiter;
 import com.stellarideas.grooves.service.UserRateLimiter;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,8 +180,8 @@ public class LibraryController {
     public ResponseEntity<?> getFiles(
             @CurrentUser User user,
             @RequestParam(required = false) String genre,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         Genre g = null;
         if (genre != null && !genre.isBlank()) {
             try {
@@ -206,8 +208,8 @@ public class LibraryController {
             @RequestParam(required = false) @Size(max = 100) String artist,
             @RequestParam(required = false) @Size(max = 4) String year,
             @RequestParam(required = false) @Size(max = 10) String format,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         boolean hasQuery = q != null && !q.isBlank();
         boolean hasFilters = (genre != null && !genre.isBlank())
                 || (artist != null && !artist.isBlank())
@@ -526,8 +528,8 @@ public class LibraryController {
     @GetMapping("/history/recent")
     public ResponseEntity<?> historyRecent(@CurrentUser User user,
                                            @RequestParam(required = false) String window,
-                                           @RequestParam(required = false) Integer page,
-                                           @RequestParam(required = false) Integer size) {
+                                           @RequestParam(required = false) @Min(0) Integer page,
+                                           @RequestParam(required = false) @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) Integer size) {
         com.stellarideas.grooves.service.PlayHistoryService.Window w =
                 com.stellarideas.grooves.service.PlayHistoryService.Window.parse(window);
         int p = page != null ? page : 0;
@@ -546,7 +548,7 @@ public class LibraryController {
     @GetMapping("/history/top-tracks")
     public ResponseEntity<?> historyTopTracks(@CurrentUser User user,
                                               @RequestParam(required = false) String window,
-                                              @RequestParam(required = false) Integer limit) {
+                                              @RequestParam(required = false) @Min(1) @Max(100) Integer limit) {
         com.stellarideas.grooves.service.PlayHistoryService.Window w =
                 com.stellarideas.grooves.service.PlayHistoryService.Window.parse(window);
         int l = limit != null ? limit : 25;
@@ -558,7 +560,7 @@ public class LibraryController {
     @GetMapping("/history/top-artists")
     public ResponseEntity<?> historyTopArtists(@CurrentUser User user,
                                                @RequestParam(required = false) String window,
-                                               @RequestParam(required = false) Integer limit) {
+                                               @RequestParam(required = false) @Min(1) @Max(100) Integer limit) {
         com.stellarideas.grooves.service.PlayHistoryService.Window w =
                 com.stellarideas.grooves.service.PlayHistoryService.Window.parse(window);
         int l = limit != null ? limit : 25;
@@ -597,16 +599,16 @@ public class LibraryController {
     @GetMapping("/duplicates")
     public ResponseEntity<?> getDuplicates(
             @CurrentUser User user,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         return ResponseEntity.ok(libraryService.findDuplicates(user.getId(), page, size));
     }
 
     @GetMapping("/duplicates/by-hash")
     public ResponseEntity<?> getHashDuplicates(
             @CurrentUser User user,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         return ResponseEntity.ok(libraryService.findHashDuplicates(user.getId(), page, size));
     }
 
@@ -632,8 +634,8 @@ public class LibraryController {
 
     @GetMapping("/trash")
     public ResponseEntity<?> getTrash(@CurrentUser User user,
-                                      @RequestParam(defaultValue = "0") int page,
-                                      @RequestParam(defaultValue = "50") int size) {
+                                      @RequestParam(defaultValue = "0") @Min(0) int page,
+                                      @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         Page<MusicFileDTO> result = libraryService.getTrash(user.getId(), page, size);
         return ResponseEntity.ok(Map.of(
                 "content", result.getContent(),
