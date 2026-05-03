@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 public class PasswordResetExecuteDTO {
 
     @NotBlank
+    @Size(max = 256, message = "Token must not exceed 256 characters")
     private String token;
 
     @NotBlank

@@ -8,8 +8,11 @@ import java.util.List;
 public class PlaybackQueueDTO {
 
     @Size(max = 5000, message = "Queue cannot exceed 5000 tracks")
-    private List<String> trackIds;
+    private List<@Size(max = 64, message = "Each trackId must not exceed 64 characters") String> trackIds;
+
+    @Size(max = 64, message = "currentTrackId must not exceed 64 characters")
     private String currentTrackId;
+
     private boolean shuffle;
 
     public PlaybackQueueDTO() {}

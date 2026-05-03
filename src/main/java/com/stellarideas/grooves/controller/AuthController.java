@@ -11,12 +11,12 @@ import com.stellarideas.grooves.model.PasswordResetToken;
 import com.stellarideas.grooves.model.RefreshToken;
 import com.stellarideas.grooves.model.Role;
 import com.stellarideas.grooves.model.User;
-import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.EmailVerificationTokenRepository;
 import com.stellarideas.grooves.repository.PasswordResetTokenRepository;
 import com.stellarideas.grooves.repository.RefreshTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
+import com.stellarideas.grooves.security.TokenBlacklistService;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.EmailVerificationService;
 import com.stellarideas.grooves.service.LoginAttemptService;
@@ -60,7 +60,7 @@ public class AuthController {
     private final MessageHelper msg;
     private final LoginAttemptService loginAttemptService;
     private final AuditService auditService;
-    private final BlacklistedTokenRepository blacklistedTokenRepository;
+    private final TokenBlacklistService tokenBlacklistService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetMailService passwordResetMailService;
@@ -73,7 +73,7 @@ public class AuthController {
     public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository,
                           PasswordEncoder encoder, JwtUtils jwtUtils, MessageHelper msg,
                           LoginAttemptService loginAttemptService, AuditService auditService,
-                          BlacklistedTokenRepository blacklistedTokenRepository,
+                          TokenBlacklistService tokenBlacklistService,
                           RefreshTokenRepository refreshTokenRepository,
                           PasswordResetTokenRepository passwordResetTokenRepository,
                           PasswordResetMailService passwordResetMailService,
@@ -86,7 +86,7 @@ public class AuthController {
         this.msg = msg;
         this.loginAttemptService = loginAttemptService;
         this.auditService = auditService;
-        this.blacklistedTokenRepository = blacklistedTokenRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordResetMailService = passwordResetMailService;
@@ -237,7 +237,7 @@ public class AuthController {
         String jti = jwtUtils.getJtiFromToken(token);
         Instant expiration = jwtUtils.getExpirationFromToken(token);
         if (jti != null && expiration != null) {
-            blacklistedTokenRepository.save(new BlacklistedToken(jti, expiration, username));
+            tokenBlacklistService.blacklist(new BlacklistedToken(jti, expiration, username));
         }
     }
 
@@ -316,7 +316,7 @@ public class AuthController {
         String username = jwtUtils.getUserNameFromJwtToken(token);
 
         if (jti != null && expiration != null) {
-            blacklistedTokenRepository.save(new BlacklistedToken(jti, expiration, username));
+            tokenBlacklistService.blacklist(new BlacklistedToken(jti, expiration, username));
 
             // Delete all refresh tokens for this user
             userRepository.findByUsername(username).ifPresent(

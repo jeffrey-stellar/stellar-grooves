@@ -9,11 +9,11 @@ import com.stellarideas.grooves.model.EmailVerificationToken;
 import com.stellarideas.grooves.model.PasswordResetToken;
 import com.stellarideas.grooves.model.RefreshToken;
 import com.stellarideas.grooves.model.User;
-import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.PasswordResetTokenRepository;
 import com.stellarideas.grooves.repository.RefreshTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
+import com.stellarideas.grooves.security.TokenBlacklistService;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LoginAttemptService;
 import com.stellarideas.grooves.service.MessageHelper;
@@ -52,7 +52,7 @@ class AuthControllerTest {
     private JwtUtils jwtUtils;
     private LoginAttemptService loginAttemptService;
     private AuditService auditService;
-    private BlacklistedTokenRepository blacklistedTokenRepository;
+    private TokenBlacklistService tokenBlacklistService;
     private RefreshTokenRepository refreshTokenRepository;
     private PasswordResetTokenRepository passwordResetTokenRepository;
     private PasswordResetMailService passwordResetMailService;
@@ -67,7 +67,7 @@ class AuthControllerTest {
         jwtUtils = mock(JwtUtils.class);
         loginAttemptService = mock(LoginAttemptService.class);
         auditService = mock(AuditService.class);
-        blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
+        tokenBlacklistService = mock(TokenBlacklistService.class);
         refreshTokenRepository = mock(RefreshTokenRepository.class);
         passwordResetTokenRepository = mock(PasswordResetTokenRepository.class);
         passwordResetMailService = mock(PasswordResetMailService.class);
@@ -79,7 +79,7 @@ class AuthControllerTest {
         MessageHelper msgHelper = new MessageHelper(messageSource);
 
         controller = new AuthController(authenticationManager, userRepository, passwordEncoder, jwtUtils,
-                msgHelper, loginAttemptService, auditService, blacklistedTokenRepository,
+                msgHelper, loginAttemptService, auditService, tokenBlacklistService,
                 refreshTokenRepository, passwordResetTokenRepository, passwordResetMailService,
                 emailVerificationTokenRepository, emailVerificationService);
     }
@@ -384,7 +384,7 @@ class AuthControllerTest {
         ResponseEntity<?> response = controller.logoutUser(request);
 
         assertEquals(200, response.getStatusCode().value());
-        verify(blacklistedTokenRepository).save(any());
+        verify(tokenBlacklistService).blacklist(any());
         verify(refreshTokenRepository).deleteByUserId("user1");
     }
 
@@ -396,7 +396,7 @@ class AuthControllerTest {
         ResponseEntity<?> response = controller.logoutUser(request);
 
         assertEquals(400, response.getStatusCode().value());
-        verify(blacklistedTokenRepository, never()).save(any());
+        verify(tokenBlacklistService, never()).blacklist(any());
     }
 
     // --- Email verification tests ---

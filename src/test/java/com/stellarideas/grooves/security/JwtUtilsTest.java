@@ -1,6 +1,5 @@
 package com.stellarideas.grooves.security;
 
-import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,16 +17,16 @@ import static org.mockito.Mockito.when;
 class JwtUtilsTest {
 
     private JwtUtils jwtUtils;
-    private BlacklistedTokenRepository blacklistedTokenRepository;
+    private TokenBlacklistService tokenBlacklistService;
 
     private static final String TEST_SECRET =
             "c3RlbGxhci1ncm9vdmVzLXNlY3JldC1rZXktZm9yLWp3dC1wbGVhc2UtY2hhbmdlLWluLXByb2R1Y3Rpb24tZW52";
 
     @BeforeEach
     void setUp() {
-        blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
-        when(blacklistedTokenRepository.existsByJti(anyString())).thenReturn(false);
-        jwtUtils = new JwtUtils(blacklistedTokenRepository);
+        tokenBlacklistService = mock(TokenBlacklistService.class);
+        when(tokenBlacklistService.isBlacklisted(anyString())).thenReturn(false);
+        jwtUtils = new JwtUtils(tokenBlacklistService);
         ReflectionTestUtils.setField(jwtUtils, "jwtSecret", TEST_SECRET);
         ReflectionTestUtils.setField(jwtUtils, "jwtExpirationMs", 86400000);
     }
@@ -73,7 +72,7 @@ class JwtUtilsTest {
 
     @Test
     void expiredTokenReturnsFalse() {
-        JwtUtils expiredUtils = new JwtUtils(blacklistedTokenRepository);
+        JwtUtils expiredUtils = new JwtUtils(tokenBlacklistService);
         ReflectionTestUtils.setField(expiredUtils, "jwtSecret", TEST_SECRET);
         ReflectionTestUtils.setField(expiredUtils, "jwtExpirationMs", -1000); // already expired
         Authentication auth = buildAuthentication("expireduser");
@@ -86,8 +85,7 @@ class JwtUtilsTest {
         Authentication auth = buildAuthentication("testuser");
         String token = jwtUtils.generateJwtToken(auth);
 
-        // Make the blacklist check return true for any JTI
-        when(blacklistedTokenRepository.existsByJti(anyString())).thenReturn(true);
+        when(tokenBlacklistService.isBlacklisted(anyString())).thenReturn(true);
 
         assertFalse(jwtUtils.validateJwtToken(token));
     }
