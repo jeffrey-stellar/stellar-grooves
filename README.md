@@ -1,8 +1,8 @@
 # Stellar Grooves
 
-A self-hosted, multi-user music library for rock and metal collections. Scan local directories for audio files, auto-categorize tracks by sub-genre, manage playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI. Installable as a Progressive Web App on desktop and mobile.
+A self-hosted, multi-user music library for rock and metal collections — built around **smart playlists you can share as queries**. Scan local directories for audio files, auto-categorize tracks by sub-genre, build smart playlists with a focused query DSL (and reusable `@phrase` fragments), publish them so other curators can run your queries against their own libraries, manage regular playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI. Installable as a Progressive Web App on desktop and mobile.
 
-Built with Spring Boot, MongoDB, and vanilla JavaScript.
+Built with Spring Boot, MongoDB, and vanilla JavaScript. See [HOW_TO_USE.md](HOW_TO_USE.md) for an end-to-end walkthrough of the everyday browser flow.
 
 ---
 
@@ -22,9 +22,21 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Audio transcoding** — on-the-fly FLAC/M4A to MP3 conversion via ffmpeg; request `?format=mp3` on the transcode endpoint; gracefully degrades if ffmpeg is not installed
 - **Scheduled scans** — configure a cron expression and directory path per user; the system checks every 60 seconds and triggers scans when due
 
+### Smart Playlists & Curation
+- **Smart playlists** — saved queries written in a focused DSL (`genre:hard_rock rating:>=4 lastPlayed:>1y sort:random limit:25`). Supported fields: `artist`, `album`, `title` (text contains), `genre`, `year`, `rating`, `playCount` (numeric with `=`/`>`/`>=`/`<`/`<=`/`low..high`), `tag`, and `lastPlayed:<7d` / `lastPlayed:>1mo` time windows. Boolean composition with `AND`/`OR`/parens, `-` for negation, top-level `sort:` (with `random`) and `limit:` clauses
+- **Phrases** — name a query fragment once and reuse it everywhere via `@phrase-name`; phrases compose other phrases; cycle detection, max-depth, and max-resolutions guards keep expansion bounded
+- **Smart playlist preview & match count** — dry-run any query (saved or unsaved) to see results and a count before committing
+- **Materialize** — snapshot a smart playlist's current matches into a regular (static) playlist for export or for sharing audio
+- **Smart playlist sharing (query sharing, not audio)** — the curator publishes a public link; subscribers run the *curator's query* against their *own library*. Subscribers only see tracks they themselves own. Subscriber count is visible to the curator
+- **Subscribe by link** — paste a `/shared/smart-playlists/{token}` URL to add a curator's playlist to your sidebar
+- **Fork** — copy a curator's query into your own editable smart playlist; forks are independent of later curator edits; if the source has been deleted, fork falls back to the last known query body
+- **Source-deleted state** — if a curator deletes a shared playlist, subscribers see a "source deleted" badge but the cached query keeps working until they fork or unsubscribe
+- **Listening rediscovery** — pre-built queries surface tracks you've forgotten about: high-rated-not-played-recently, high-rated-low-play-count, and one-track-only artists
+
 ### Organization & Search
 - **Full-text search** — MongoDB text index across title (3x weight), artist (2x), and album (1x) with relevance scoring; falls back to regex search when text index is unavailable
 - **Playlist management** — create playlists, add/remove tracks, drag-drop reorder tracks, sort by title/artist/album/genre/rating/year, export as M3U or JSON; share playlists via read-only links
+- **Custom tags** — apply free-form tags to tracks (e.g. `live`, `acoustic`, `road-trip`) with bulk add/remove across up to 1000 files; tag listing with usage counts; tags are searchable in smart-playlist queries via `tag:value`
 - **Library export** — download full library metadata as JSON or CSV for backup
 - **Backup & restore** — full library backup (tracks, playlists, ratings, genre corrections, file hashes) as a single portable JSON file; restore on any instance to recreate your library metadata and playlists
 - **Library statistics** — genre distribution, top 10 artists, decade distribution, and average rating via MongoDB aggregation
@@ -207,6 +219,12 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.rateLimit.login.windowMs` | — | `60000` (1 min) | Login/signup rate limit window in milliseconds |
 | `stellar.grooves.rateLimit.trustProxy` | `RATE_LIMIT_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` header for client IP detection |
 | `stellar.grooves.rateLimit.trustedProxies` | `RATE_LIMIT_TRUSTED_PROXIES` | *(empty)* | Comma-separated proxy IPs allowed to set `X-Forwarded-For` (required when `trustProxy=true`; empty list disables proxy trust even if `trustProxy=true`) |
+| `stellar.grooves.rateLimit.shared.maxRequests` | `RATE_LIMIT_SHARED_MAX` | `5` | Max requests per IP per window for public `/api/v1/shared/**` endpoints |
+| `stellar.grooves.rateLimit.shared.windowMs` | `RATE_LIMIT_SHARED_WINDOW_MS` | `60000` (1 min) | Window for the shared-endpoint rate limit |
+| `stellar.grooves.userRateLimit.maxRequests` | `USER_RATE_LIMIT_MAX` | `10` | Max per-user requests per window for cooldown-protected endpoints (e.g. materialize) |
+| `stellar.grooves.userRateLimit.windowSeconds` | `USER_RATE_LIMIT_WINDOW_SECONDS` | `60` | Window for the per-user rate limit |
+| `stellar.grooves.adminRateLimit.maxRequests` | `ADMIN_RATE_LIMIT_MAX` | `20` | Max requests per admin per window for admin operations |
+| `stellar.grooves.adminRateLimit.windowSeconds` | `ADMIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Window for the admin rate limit |
 | `server.servlet.session.timeout` | `SESSION_TIMEOUT` | `30m` | Idle session timeout |
 
 ### Scanner & Storage
@@ -214,13 +232,37 @@ All settings live in `src/main/resources/application.properties` and can be over
 | Property | Env var | Default | Description |
 |----------|---------|---------|-------------|
 | `stellar.grooves.scan.maxDepth` | — | `20` | Max directory depth for recursive scan |
+| `stellar.grooves.scan.hardMaxDepth` | `SCAN_HARD_MAX_DEPTH` | `50` | Absolute upper bound on scan depth, even if `maxDepth` is overridden |
 | `stellar.grooves.scan.timeoutMinutes` | `SCAN_TIMEOUT_MINUTES` | `5` | Overall scan timeout |
 | `stellar.grooves.scan.cooldownSeconds` | `SCAN_COOLDOWN_SECONDS` | `60` | Per-user cooldown between scans |
 | `stellar.grooves.scan.perFileTimeoutSeconds` | `SCAN_PER_FILE_TIMEOUT_SECONDS` | `30` | Timeout for reading a single audio file |
 | `stellar.grooves.scan.fileReaderThreads` | `SCAN_FILE_READER_THREADS` | `2` | Thread pool size for audio file reading during scans |
+| `stellar.grooves.scan.batchSize` | `SCAN_BATCH_SIZE` | `200` | Tracks committed per Mongo batch insert |
 | `stellar.grooves.scan.supportedExtensions` | `SCAN_SUPPORTED_EXTENSIONS` | `.mp3,.m4a,.flac` | Comma-separated list of audio file extensions to scan (add `.ogg`, `.wav`, `.opus`, etc.) |
+| `stellar.grooves.scan.allowedBaseDirs` | `SCAN_ALLOWED_BASE_DIRS` | *(empty — any path)* | Comma-separated allow-list of base directories. When set, scans must be inside one of these. Recommended for shared/multi-tenant deployments |
 | `stellar.grooves.coverArt.maxBytesPerUser` | `COVER_ART_QUOTA_BYTES` | `524288000` (500 MB) | Per-user cover art storage quota |
+| `stellar.grooves.coverArt.maxBytesPerImage` | `COVER_ART_MAX_BYTES_PER_IMAGE` | `10485760` (10 MB) | Max bytes per individual cover art image |
+| `stellar.grooves.coverArt.maxBytesGlobal` | `COVER_ART_GLOBAL_QUOTA_BYTES` | `10737418240` (10 GB) | Global cap across all users |
+| `stellar.grooves.trash.retentionDays` | `TRASH_RETENTION_DAYS` | `30` | Days a soft-deleted track stays in trash before purge |
+| `stellar.grooves.trash.purgeCron` | `TRASH_PURGE_CRON` | `0 0 3 * * *` | Cron for the trash-purge job (default 3 AM daily) |
 | `stellar.grooves.catalogPath` | — | *(bundled catalog.json)* | Path to a custom artist-genre catalog JSON file |
+
+### Smart Playlists
+
+| Property | Env var | Default | Description |
+|----------|---------|---------|-------------|
+| `stellar.grooves.smartPlaylist.queryTimeoutSeconds` | `SMART_PLAYLIST_QUERY_TIMEOUT_SECONDS` | `10` | Max time to evaluate a single smart-playlist query against MongoDB |
+| `stellar.grooves.smartPlaylist.materializeMax` | `SMART_PLAYLIST_MATERIALIZE_MAX` | `5000` | Cap on tracks captured when snapshotting a smart playlist into a regular playlist |
+
+### Search, Export, Queue, Transcoding
+
+| Property | Env var | Default | Description |
+|----------|---------|---------|-------------|
+| `stellar.grooves.search.maxQueryLength` | `SEARCH_MAX_QUERY_LENGTH` | `200` | Max length of a search query string |
+| `stellar.grooves.export.maxSize` | `EXPORT_MAX_SIZE` | `50000` | Max tracks included in a library export |
+| `stellar.grooves.queue.maxTracks` | `QUEUE_MAX_TRACKS` | `5000` | Max tracks in a saved playback queue |
+| `stellar.grooves.transcode.maxFileSize` | `TRANSCODE_MAX_FILE_SIZE` | `524288000` (500 MB) | Max source-file size accepted by the transcode endpoint |
+| `stellar.grooves.transcode.timeoutSeconds` | `TRANSCODE_TIMEOUT_SECONDS` | `300` | Max ffmpeg invocation time |
 
 ### Request Size Limits
 
@@ -251,6 +293,7 @@ When `EMAIL_VERIFICATION_REQUIRED=true`, new users receive a verification email 
 | `dev` | `--spring.profiles.active=dev` | Debug logging, Thymeleaf cache disabled, CORS allows `localhost:8080`, Swagger enabled |
 | `prod` | `--spring.profiles.active=prod` | INFO logging, requires `CORS_ALLOWED_ORIGINS` env var, trusts proxy headers from configured IPs, Swagger disabled, audit + app logs written to files |
 | `json-logging` | `--spring.profiles.active=prod,json-logging` | Structured JSON console output via Logstash encoder; use with `prod` for centralized log aggregation (ELK, Grafana Loki) |
+| `file-logging` | `--spring.profiles.active=dev,file-logging` | Force rolling file appenders for app + audit logs even outside `prod` (useful in dev when you need persistent logs without enabling the full prod profile) |
 
 When no profile is active, the base `application.properties` defaults apply.
 
@@ -334,19 +377,25 @@ The JSON format maps artist names to arrays of genre values:
 8. Use the artist, album, and genre filter dropdowns or the search box to find tracks.
 9. Rate tracks with the 5-star widget. Sort by any column including rating.
 10. Create playlists from the sidebar, add tracks via the "+" button, and reorder with drag-drop.
-11. Share a playlist via the share button — generates a read-only public link.
-12. Select multiple tracks with checkboxes for bulk delete or bulk add-to-playlist.
-13. Deleted tracks go to trash — restore them or empty trash to permanently remove.
-14. Click the "Duplicated Songs" stat card to review and resolve duplicate tracks (paginated).
-15. Export playlists as M3U or JSON, or export your entire library as JSON/CSV from the library view.
-16. Use the hash-based duplicates view to find exact file copies across different folders.
-17. Back up your entire library (tracks + playlists + ratings) via the backup endpoint — restore it on any instance.
-18. Set up a scheduled scan to auto-import new files on a cron schedule.
-19. Toggle light/dark mode with the sun/moon button in the navbar.
-20. Admin users can access the admin dashboard at **/admin** to manage users.
-21. Install the app as a PWA from the browser's install prompt for a standalone experience.
-22. Visit **/help** for the built-in user guide — accessible from the navbar, login, and signup pages (no login required).
-23. Browse the interactive API documentation at **/swagger-ui.html** (dev mode only).
+11. Create a **Smart Playlist** with a query like `genre:hard_rock rating:>=4 sort:rating:desc limit:50` — see [HOW_TO_USE.md](HOW_TO_USE.md) for the full DSL.
+12. Define reusable `@phrase` fragments and reference them from any smart playlist (`@road-trip rating:>=4`).
+13. Share a smart playlist — subscribers run *your* query against *their* library; or fork it into their own editable copy.
+14. Share a regular playlist via the share button — generates a read-only public link.
+15. Select multiple tracks with checkboxes for bulk delete or bulk add-to-playlist.
+16. Deleted tracks go to trash — restore them or empty trash to permanently remove.
+17. Click the "Duplicated Songs" stat card to review and resolve duplicate tracks (paginated).
+18. Export playlists as M3U or JSON, or export your entire library as JSON/CSV from the library view.
+19. Use the hash-based duplicates view to find exact file copies across different folders.
+20. Back up your entire library (tracks + playlists + ratings + smart playlists + phrases) via the backup endpoint — restore it on any instance.
+21. Set up a scheduled scan to auto-import new files on a cron schedule.
+22. Open the **Listening History** sidebar entry for Recently Played, Top Tracks, and Top Artists across configurable time windows.
+23. Open **Rediscover** to surface forgotten tracks, neglected favorites, and one-hit-wonder artists from your library.
+24. Apply custom **Tags** (e.g. `live`, `acoustic`) and use them in smart-playlist queries with `tag:live`.
+25. Toggle light/dark mode with the sun/moon button in the navbar.
+26. Admin users can access the admin dashboard at **/admin** to manage users.
+27. Install the app as a PWA from the browser's install prompt for a standalone experience.
+28. Visit **/help** for the built-in user guide — accessible from the navbar, login, and signup pages (no login required).
+29. Browse the interactive API documentation at **/swagger-ui.html** (dev mode only).
 
 ---
 
@@ -446,11 +495,48 @@ All error responses follow [RFC 7807 Problem Details](https://www.rfc-editor.org
 | `POST` | `/api/v1/playlists/{id}/share` | — | Generate a read-only share link; returns `{ shareToken, shareUrl }` |
 | `DELETE` | `/api/v1/playlists/{id}/share` | — | Revoke the share link |
 
+### Smart Playlists
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/smart-playlists` | — | List the user's smart playlists (own + subscribed) |
+| `GET` | `/api/v1/smart-playlists/{id}` | — | Get a single smart playlist (definition + metadata) |
+| `POST` | `/api/v1/smart-playlists` | `{ "name", "query", "description?" }` | Create a smart playlist; query is parsed and validated |
+| `PUT` | `/api/v1/smart-playlists/{id}` | `{ "name", "query", "description?" }` | Update name/query/description |
+| `DELETE` | `/api/v1/smart-playlists/{id}` | — | Delete a smart playlist (subscribers see "source deleted") |
+| `POST` | `/api/v1/smart-playlists/{id}/share` | — | Generate a public share link; returns `{ shareToken, shareUrl }` |
+| `DELETE` | `/api/v1/smart-playlists/{id}/share` | — | Revoke the share link |
+| `POST` | `/api/v1/smart-playlists/subscribe` | `{ "token": "..." }` | Subscribe to a curator's shared playlist via its share token |
+| `POST` | `/api/v1/smart-playlists/{id}/fork` | — | Fork a subscribed playlist into an independent owned copy |
+| `GET` | `/api/v1/smart-playlists/{id}/preview` | — | Run a saved playlist's query and return matching tracks; `?page=&size=` |
+| `POST` | `/api/v1/smart-playlists/preview` | `{ "query": "..." }` | Dry-run an unsaved query and return matching tracks |
+| `GET` | `/api/v1/smart-playlists/{id}/count` | — | Match count for a saved playlist |
+| `POST` | `/api/v1/smart-playlists/count` | `{ "query": "..." }` | Match count for a dry-run query |
+| `POST` | `/api/v1/smart-playlists/{id}/materialize` | `{ "name?": "..." }` | Snapshot current matches into a new regular playlist |
+
+### Smart Playlist Phrases
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/smart-playlists/phrases` | — | List the user's phrases |
+| `POST` | `/api/v1/smart-playlists/phrases` | `{ "name", "body", "description?" }` | Create a phrase; name must match `^[a-z0-9][a-z0-9_-]*$` |
+| `PUT` | `/api/v1/smart-playlists/phrases/{id}` | `{ "body", "description?" }` | Update a phrase body/description (renaming is not supported) |
+| `DELETE` | `/api/v1/smart-playlists/phrases/{id}` | — | Delete a phrase (referencing smart playlists fail until updated) |
+
+### Listening Rediscovery
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/library/rediscovery/forgotten` | High-rated tracks not played recently; `?limit=` |
+| `GET` | `/api/v1/library/rediscovery/neglected-favorites` | High-rated tracks with low play counts; `?limit=` |
+| `GET` | `/api/v1/library/rediscovery/one-hit-wonders` | Artists you've played exactly one track from; `?limit=` |
+
 ### Shared Playlists (public, no auth required)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/shared/playlists/{token}` | View a shared playlist's name and tracks |
+| `GET` | `/api/v1/shared/smart-playlists/{token}` | View a shared smart playlist's query, name, and curator's match count |
 
 ### Admin (requires `ROLE_ADMIN`)
 
@@ -484,16 +570,22 @@ src/main/java/com/stellarideas/grooves/
 │   └── WebConfig.java                   # Registers @CurrentUser argument resolver
 ├── controller/
 │   ├── AuthController.java              # Signup/signin/logout/refresh/password-reset/email-verification endpoints
-│   ├── LibraryController.java           # Library CRUD + streaming + transcoding + search + scan + queue + duplicates + cover art + trash + export + backup/restore + stats
+│   ├── LibraryController.java           # Library CRUD + streaming + transcoding + search + scan + queue + duplicates + cover art + trash + export + backup/restore + stats + tags + history
 │   ├── PlaylistController.java          # Playlist management + reorder + export + sharing
 │   ├── SharedPlaylistController.java    # Public read-only shared playlist access
+│   ├── SmartPlaylistController.java     # Smart playlist CRUD + share/subscribe/fork + preview/count + materialize
+│   ├── SmartPlaylistPhraseController.java  # Reusable @phrase fragments referenced from smart-playlist queries
+│   ├── SharedSmartPlaylistController.java  # Public read-only shared smart playlist access
+│   ├── RediscoveryController.java       # Forgotten / neglected-favorites / one-hit-wonders endpoints
 │   ├── AdminController.java             # Admin stats + user management
-│   ├── ViewController.java              # Thymeleaf page routes (/, /login, /signup, /help, /admin)
+│   ├── ViewController.java              # Thymeleaf page routes (/, /login, /signup, /help, /admin, /shared/*)
 │   └── GlobalExceptionHandler.java      # RFC 7807 Problem Details error handling
 ├── model/
 │   ├── User.java                        # User document (with scan schedule fields, emailVerified flag)
-│   ├── MusicFile.java                   # Track document (with rating, hasCoverArt, fileHash, soft delete, playCount, lastPlayedAt)
+│   ├── MusicFile.java                   # Track document (with rating, hasCoverArt, fileHash, soft delete, playCount, lastPlayedAt, tags)
 │   ├── Playlist.java                    # Playlist document (with shareToken, @Version optimistic locking)
+│   ├── SmartPlaylist.java               # Saved DSL query (with shareToken, sourcePlaylistId for subscriptions, snapshotQuery for source-deleted state)
+│   ├── SmartPlaylistPhrase.java         # Named query fragment referenced via @phrase-name
 │   ├── EmailVerificationToken.java      # Email verification tokens (SHA-256 hashed, 24h TTL)
 │   ├── PlaybackQueue.java               # Persisted playback queue (per user)
 │   ├── PlayEvent.java                   # Individual play history events (userId + musicFileId + playedAt + listenedMs + completed)
@@ -504,6 +596,15 @@ src/main/java/com/stellarideas/grooves/
 │   ├── Genre.java                       # Genre enum
 │   ├── GenreCorrection.java             # User genre corrections (artist -> genre override)
 │   └── Role.java                        # Role enum
+├── smartplaylist/                       # Smart-playlist DSL: parser → AST → Mongo translator
+│   ├── SmartPlaylistQueryParser.java    # Recursive-descent parser, quoted-string aware
+│   ├── SmartPlaylistQueryTranslator.java  # AST → Spring Data Criteria
+│   ├── PhraseExpander.java              # Resolves @phrase references with cycle/depth/branching guards
+│   ├── ParsedQuery.java                 # Parsed query with expression tree + sort/limit
+│   ├── QueryExpr.java                   # AST node: AND/OR/NOT/Predicate/PhraseRef
+│   ├── QueryPredicate.java              # Leaf predicates: GenreEq, TextContains, IntEq, IntRange, IntCompare, TagEq, LastPlayed*
+│   ├── SortSpec.java                    # Sort field + direction (or random)
+│   └── QueryParseException.java         # Parser error type
 ├── dto/
 │   ├── AddTrackRequest.java             # Add track to playlist
 │   ├── BulkDeleteRequest.java           # Bulk delete tracks (validated, max 100)
@@ -529,27 +630,32 @@ src/main/java/com/stellarideas/grooves/
 │   ├── CoverArtRepository.java          # Includes cover art size aggregation for quotas
 │   ├── GenreCorrectionRepository.java
 │   ├── MusicFileRepository.java         # Includes regex search, soft-delete filtering
-│   ├── MusicFileRepositoryCustom.java   # Custom aggregation interface (duplicates, hash duplicates, text search, statistics)
+│   ├── MusicFileRepositoryCustom.java   # Custom aggregation interface (duplicates, hash duplicates, text search, statistics, tags, rediscovery)
 │   ├── MusicFileRepositoryCustomImpl.java # MongoDB aggregation implementations
 │   ├── EmailVerificationTokenRepository.java
 │   ├── PasswordResetTokenRepository.java
 │   ├── PlaybackQueueRepository.java     # Playback queue persistence
 │   ├── PlayEventRepository.java         # Play history events (query by user, cascade delete)
 │   ├── PlaylistRepository.java          # Includes findByShareToken
+│   ├── SmartPlaylistRepository.java     # Smart playlists (with findByShareToken, subscriber count)
+│   ├── SmartPlaylistPhraseRepository.java  # Phrase fragments (per-user uniqueness on name)
 │   ├── RefreshTokenRepository.java
 │   └── UserRepository.java
 ├── security/
-│   ├── WebSecurityConfig.java           # Security filter chain + CSRF + CORS + CSP
+│   ├── WebSecurityConfig.java           # Security filter chain + CSRF + CORS (rejects wildcards/missing-scheme origins) + CSP
 │   ├── AuthTokenFilter.java             # JWT extraction filter
-│   ├── JwtUtils.java                    # Token generation/validation (jti + iss claims)
+│   ├── JwtUtils.java                    # Token generation/validation (jti + iss claims, Caffeine-cached parses)
+│   ├── TokenBlacklistService.java       # In-memory blacklist backed by TTL-indexed Mongo collection; revokes on logout/refresh
 │   ├── CurrentUser.java                 # @CurrentUser parameter annotation
 │   ├── CurrentUserResolver.java         # Resolves authenticated user into controller params
 │   ├── UserDetailsImpl.java             # Spring Security adapter
 │   └── UserDetailsServiceImpl.java      # User loading service
 └── service/
+    ├── AdminRateLimiter.java            # Per-admin operation cooldown
     ├── AuditService.java                # Structured audit logging (AUDIT logger + MDC)
     ├── EmailVerificationService.java     # Email verification email delivery
-    ├── LibraryService.java              # Library business logic (CRUD, search, trash, export, backup/restore, stats)
+    ├── FfmpegAvailability.java          # Probes ffmpeg at startup; toggles transcode endpoint
+    ├── LibraryService.java              # Library business logic (CRUD, search, trash, export, backup/restore, stats, tags)
     ├── LoginAttemptService.java         # Failed login tracking + account lockout
     ├── MessageHelper.java               # Shared i18n message resolution
     ├── MusicCatalogService.java         # Artist -> genre mapping (JSON catalog + user corrections)
@@ -557,9 +663,18 @@ src/main/java/com/stellarideas/grooves/
     ├── PasswordResetMailService.java     # Password reset email delivery
     ├── PlayHistoryService.java          # Records play events; atomic $inc playCount + $set lastPlayedAt on MusicFile
     ├── PlaylistService.java             # Playlist business logic (CRUD, sharing, track management)
+    ├── RediscoveryService.java          # Forgotten / neglected-favorites / one-hit-wonders aggregations
+    ├── ScanPathValidator.java           # Path traversal + symlink + ownership checks for scan paths
     ├── ScanProgressEmitter.java         # SSE emitter for real-time scan progress (with scheduled stale cleanup)
     ├── ScanRateLimiter.java             # Per-user scan cooldown
-    └── ScheduledScanService.java        # Cron-based automatic directory scanning
+    ├── ScheduledScanService.java        # Cron-based automatic directory scanning
+    ├── SmartPlaylistService.java        # Smart playlist business logic (parse + share/subscribe/fork + preview + materialize)
+    ├── TrashPurgeService.java           # Scheduled 30-day purge of soft-deleted tracks
+    ├── UserRateLimiter.java             # Per-user request cooldowns (e.g. for materialize)
+    └── scan/                            # Scan-internal helpers (extracted from MusicScannerService)
+        ├── AudioMetadataReader.java     # JAudioTagger reader with per-file timeout
+        ├── CoverArtHandler.java         # Cover art extraction + per-user quota enforcement
+        └── FileHasher.java              # Streaming SHA-256 file hash
 
 src/main/resources/
 ├── application.properties               # Shared configuration
@@ -573,16 +688,24 @@ src/main/resources/
 │   ├── sw.js                            # Service worker (static asset caching + offline fallback)
 │   ├── offline.html                     # Offline fallback page
 │   ├── css/
-│   │   ├── main.css                     # Core layout and responsive styles
+│   │   ├── main.css                     # Core entry point (imports the rest)
+│   │   ├── layout.css                   # Page layout + responsive grid
 │   │   ├── theme.css                    # Dark/light mode theme variables
-│   │   ├── jukebox.css                  # Retro jukebox decorative effects
+│   │   ├── jukebox.css                  # Retro jukebox decorative effects (dark theme)
+│   │   ├── engraving-light.css          # Screen-print treatment for light theme
 │   │   └── components.css               # UI component styles (player, cards, buttons)
 │   ├── js/
-│   │   ├── app.js                       # Main application (library, search, filters, bulk ops)
+│   │   ├── app.js                       # Main application (library, search, filters, bulk ops, navigation)
 │   │   ├── helpers.js                   # Pure utility functions (testable module: text, escapeHtml, formatTime, crossfade, filtering, virtual scroll)
 │   │   ├── player.js                    # Audio playback engine (crossfade, seek, shuffle)
 │   │   ├── queue.js                     # Playback queue (WebSocket sync, localStorage fallback)
 │   │   ├── scan.js                      # Directory scanning (SSE progress, cooldown timer)
+│   │   ├── smart-playlist.js            # Smart playlist editor + preview + share/subscribe/fork UI
+│   │   ├── phrases.js                   # @phrase fragment editor + sidebar list
+│   │   ├── shared-smart-playlist.js     # Public shared smart-playlist viewer
+│   │   ├── history.js                   # Listening history view (recent / top tracks / top artists)
+│   │   ├── rediscover.js                # Forgotten / neglected / one-hit-wonders views
+│   │   ├── tags.js                      # Tag listing + bulk tag operations
 │   │   ├── theme.js                     # Dark/light mode toggle
 │   │   ├── admin.js                     # Admin dashboard logic
 │   │   └── signup.js                    # Signup form handler
@@ -592,11 +715,12 @@ src/main/resources/
 │   │   └── stomp/                       # STOMP messaging client
 │   └── images/                          # SVG logos, PNG assets, PWA icons, favicon
 └── templates/
-    ├── index.html                       # Main library dashboard (with crossfade button)
+    ├── index.html                       # Main library dashboard (library, smart playlists, phrases, history, rediscovery)
     ├── admin.html                       # Admin dashboard
     ├── help.html                        # Built-in user guide (no auth required)
     ├── login.html                       # Login page
-    └── signup.html                      # Registration page
+    ├── signup.html                      # Registration page
+    └── shared-smart-playlist.html       # Public shared smart-playlist landing page
 
 src/test/js/
 └── helpers.test.js                      # Vitest frontend unit tests (60 tests)
@@ -608,7 +732,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**510 tests** (450 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**763 tests** (703 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
 
 ---
 
@@ -628,7 +752,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (510 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (763 tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
 | Observability | Logstash encoder (structured JSON logs) + correlation IDs + Web Vitals |
 
