@@ -1,6 +1,5 @@
 package com.stellarideas.grooves.security;
 
-import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -23,7 +22,7 @@ public class JwtUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
-    private final BlacklistedTokenRepository blacklistedTokenRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${stellar.grooves.jwtSecret:}")
     private String jwtSecret;
@@ -34,8 +33,8 @@ public class JwtUtils {
     @Value("${stellar.grooves.refreshTokenExpirationMs:604800000}")
     private long refreshTokenExpirationMs;
 
-    public JwtUtils(BlacklistedTokenRepository blacklistedTokenRepository) {
-        this.blacklistedTokenRepository = blacklistedTokenRepository;
+    public JwtUtils(TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @PostConstruct
@@ -85,7 +84,7 @@ public class JwtUtils {
             Claims claims = Jwts.parser().verifyWith(key()).build()
                     .parseSignedClaims(authToken).getPayload();
             String jti = claims.getId();
-            if (jti != null && blacklistedTokenRepository.existsByJti(jti)) {
+            if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
                 logger.warn("JWT token has been revoked (jti={})", jti);
                 return false;
             }

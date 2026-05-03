@@ -1,9 +1,9 @@
 package com.stellarideas.grooves.controller;
 
 import com.stellarideas.grooves.dto.SignupRequest;
-import com.stellarideas.grooves.repository.BlacklistedTokenRepository;
 import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.security.JwtUtils;
+import com.stellarideas.grooves.security.TokenBlacklistService;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.LoginAttemptService;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,14 +48,14 @@ class AuthConcurrencyTest {
 
         LoginAttemptService loginAttemptService = mock(LoginAttemptService.class);
         AuditService auditService = mock(AuditService.class);
-        BlacklistedTokenRepository blacklistedTokenRepository = mock(BlacklistedTokenRepository.class);
+        TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
         com.stellarideas.grooves.repository.RefreshTokenRepository refreshTokenRepository = mock(com.stellarideas.grooves.repository.RefreshTokenRepository.class);
         com.stellarideas.grooves.repository.PasswordResetTokenRepository passwordResetTokenRepository = mock(com.stellarideas.grooves.repository.PasswordResetTokenRepository.class);
         com.stellarideas.grooves.service.PasswordResetMailService passwordResetMailService = mock(com.stellarideas.grooves.service.PasswordResetMailService.class);
         com.stellarideas.grooves.repository.EmailVerificationTokenRepository emailVerificationTokenRepository = mock(com.stellarideas.grooves.repository.EmailVerificationTokenRepository.class);
         com.stellarideas.grooves.service.EmailVerificationService emailVerificationService = mock(com.stellarideas.grooves.service.EmailVerificationService.class);
         controller = new AuthController(authenticationManager, userRepository, passwordEncoder, jwtUtils,
-                msgHelper, loginAttemptService, auditService, blacklistedTokenRepository, refreshTokenRepository, passwordResetTokenRepository, passwordResetMailService,
+                msgHelper, loginAttemptService, auditService, tokenBlacklistService, refreshTokenRepository, passwordResetTokenRepository, passwordResetMailService,
                 emailVerificationTokenRepository, emailVerificationService);
 
         when(passwordEncoder.encode(any())).thenReturn("encoded");

@@ -14,7 +14,7 @@ public class BulkTagsRequest {
 
     @NotEmpty(message = "fileIds must not be empty")
     @Size(max = 1000, message = "At most 1000 files per bulk tag operation")
-    private List<String> fileIds;
+    private List<@Size(max = 64, message = "Each fileId must not exceed 64 characters") String> fileIds;
 
     @Size(max = 20, message = "At most 20 tags may be added at once")
     private List<@Size(max = 50, message = "Each tag must be 50 characters or fewer") String> add;
