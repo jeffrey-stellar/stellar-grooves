@@ -5,6 +5,8 @@ import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.service.RediscoveryService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/library/rediscovery")
 @Tag(name = "Rediscovery", description = "Curator surfaces over play history, ratings, and catalog coverage")
+@org.springframework.validation.annotation.Validated
 public class RediscoveryController {
 
     private static final int MAX_PAGE_SIZE = 100;
@@ -34,8 +37,8 @@ public class RediscoveryController {
     @GetMapping("/forgotten")
     public ResponseEntity<?> forgotten(@CurrentUser User user,
                                        @RequestParam(required = false) Integer days,
-                                       @RequestParam(required = false) Integer page,
-                                       @RequestParam(required = false) Integer size) {
+                                       @RequestParam(required = false) @Min(0) Integer page,
+                                       @RequestParam(required = false) @Min(1) @Max(MAX_PAGE_SIZE) Integer size) {
         Pageable pageable = pageable(page, size);
         Page<MusicFileDTO> result = service.findForgotten(user.getId(), days, pageable);
         return ResponseEntity.ok(body(result));
@@ -45,8 +48,8 @@ public class RediscoveryController {
     public ResponseEntity<?> neglectedFavorites(@CurrentUser User user,
                                                 @RequestParam(required = false) Integer minRating,
                                                 @RequestParam(required = false) Integer days,
-                                                @RequestParam(required = false) Integer page,
-                                                @RequestParam(required = false) Integer size) {
+                                                @RequestParam(required = false) @Min(0) Integer page,
+                                                @RequestParam(required = false) @Min(1) @Max(MAX_PAGE_SIZE) Integer size) {
         Pageable pageable = pageable(page, size);
         Page<MusicFileDTO> result = service.findNeglectedFavorites(user.getId(), minRating, days, pageable);
         return ResponseEntity.ok(body(result));
@@ -55,7 +58,7 @@ public class RediscoveryController {
     @GetMapping("/one-hit-wonders")
     public ResponseEntity<?> oneHitWonders(@CurrentUser User user,
                                            @RequestParam(required = false) Integer minCatalog,
-                                           @RequestParam(required = false) Integer limit) {
+                                           @RequestParam(required = false) @Min(1) @Max(MAX_PAGE_SIZE) Integer limit) {
         List<RediscoveryService.OneHitWonder> items = service.findOneHitWonders(user.getId(), minCatalog, limit);
         return ResponseEntity.ok(Map.of("items", items));
     }

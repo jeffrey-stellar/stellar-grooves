@@ -11,21 +11,32 @@
         </encoder>
     </appender>
 
-    <!-- Audit log file — separate, append-only file for security-sensitive events -->
-    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/audit.log</file>
+    <!-- Audit events on stdout when file logging is disabled. Distinguishable by the
+         leading "AUDIT" marker; aggregators can split on logger name (it remains "AUDIT"). -->
+    <appender name="AUDIT_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} [%X{correlationId:-}] %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} [%X{correlationId:-}] AUDIT %msg%n</pattern>
         </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/audit.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>90</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
-        </rollingPolicy>
     </appender>
 
-    <!-- Application log file (prod only) -->
-    <springProfile name="prod">
+    <!-- File appenders are active when:
+           • Not running under the prod profile (preserves existing dev behavior), OR
+           • The "file-logging" profile is explicitly activated (e.g. when a writable
+             volume is mounted at ./logs in production).
+         The default prod container is read-only, so file appenders stay off there. -->
+    <springProfile name="!prod | file-logging">
+        <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>logs/audit.log</file>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} [%X{correlationId:-}] %msg%n</pattern>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>logs/audit.%d{yyyy-MM-dd}.log</fileNamePattern>
+                <maxHistory>90</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+
         <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>logs/application.log</file>
             <encoder>
@@ -37,8 +48,10 @@
                 <totalSizeCap>2GB</totalSizeCap>
             </rollingPolicy>
         </appender>
+    </springProfile>
 
-        <!-- Structured JSON console output for centralized log aggregation (ELK/Loki) -->
+    <!-- Structured JSON console output for centralized log aggregation (ELK/Loki) -->
+    <springProfile name="json-logging">
         <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
                 <includeMdcKeyName>correlationId</includeMdcKeyName>
@@ -50,17 +63,22 @@
         </appender>
     </springProfile>
 
-    <!-- Audit logger — routed to its own file, not mixed with app logs -->
-    <logger name="AUDIT" level="INFO" additivity="false">
-        <appender-ref ref="AUDIT_FILE"/>
-    </logger>
+    <!-- Audit logger: file when available, otherwise its own console appender -->
+    <springProfile name="!prod | file-logging">
+        <logger name="AUDIT" level="INFO" additivity="false">
+            <appender-ref ref="AUDIT_FILE"/>
+        </logger>
+    </springProfile>
+    <springProfile name="prod &amp; !file-logging">
+        <logger name="AUDIT" level="INFO" additivity="false">
+            <appender-ref ref="AUDIT_CONSOLE"/>
+        </logger>
+    </springProfile>
 
-    <!-- Dev profile: debug logging -->
+    <!-- Per-profile log levels -->
     <springProfile name="dev">
         <logger name="com.stellarideas.grooves" level="DEBUG"/>
     </springProfile>
-
-    <!-- Prod profile: info logging -->
     <springProfile name="prod">
         <logger name="com.stellarideas.grooves" level="INFO"/>
         <logger name="org.springframework.security" level="WARN"/>
@@ -69,23 +87,40 @@
     <!-- Quiet noisy libraries -->
     <logger name="org.jaudiotagger" level="ERROR"/>
 
-    <!-- Dev: console only -->
-    <springProfile name="!prod">
+    <!-- Root logger composition. Each combination is mutually exclusive. -->
+    <!-- Dev / non-prod, no JSON, no file (no-op for file appender) -->
+    <springProfile name="!prod &amp; !json-logging &amp; !file-logging">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
-
-    <!-- Prod with human-readable console (default) -->
-    <springProfile name="prod &amp; !json-logging">
+    <!-- Dev / non-prod with file logging -->
+    <springProfile name="!prod &amp; !json-logging &amp; file-logging">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="APP_FILE"/>
         </root>
     </springProfile>
-
-    <!-- Prod with structured JSON console (activate with: SPRING_PROFILES_ACTIVE=prod,json-logging) -->
-    <springProfile name="json-logging">
+    <!-- Prod text default: console only (read-only filesystem safe) -->
+    <springProfile name="prod &amp; !json-logging &amp; !file-logging">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+    <!-- Prod text with file logging (volume mounted) -->
+    <springProfile name="prod &amp; !json-logging &amp; file-logging">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="APP_FILE"/>
+        </root>
+    </springProfile>
+    <!-- JSON console (any profile) -->
+    <springProfile name="json-logging &amp; !file-logging">
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </root>
+    </springProfile>
+    <springProfile name="json-logging &amp; file-logging">
         <root level="INFO">
             <appender-ref ref="JSON_CONSOLE"/>
             <appender-ref ref="APP_FILE"/>

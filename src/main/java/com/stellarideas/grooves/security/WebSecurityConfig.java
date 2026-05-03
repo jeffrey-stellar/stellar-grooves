@@ -1,5 +1,7 @@
 package com.stellarideas.grooves.security;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +29,8 @@ import java.util.stream.Collectors;
 @Configuration
 @EnableMethodSecurity
 public class WebSecurityConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(WebSecurityConfig.class);
 
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtUtils jwtUtils;
@@ -77,6 +81,7 @@ public class WebSecurityConfig {
                     "CORS allowed origins not configured. Set CORS_ALLOWED_ORIGINS "
                     + "(comma-separated list of origins, e.g. https://grooves.example.com).");
         }
+        validateOrigins(origins);
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN", "X-CSRF-TOKEN"));
@@ -84,6 +89,33 @@ public class WebSecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    /**
+     * Reject origins that are clearly misconfigured. {@code allowCredentials=true}
+     * makes wildcard origins both unsafe and silently rejected by browsers, so we
+     * fail fast rather than ship a broken CORS policy.
+     */
+    static void validateOrigins(List<String> origins) {
+        for (String origin : origins) {
+            if ("*".equals(origin) || "null".equalsIgnoreCase(origin)) {
+                throw new IllegalStateException(
+                        "CORS allowed origins must not include '" + origin + "'. "
+                        + "List specific origins (e.g. https://grooves.example.com).");
+            }
+            if (!origin.startsWith("http://") && !origin.startsWith("https://")) {
+                throw new IllegalStateException(
+                        "CORS origin '" + origin + "' must include a scheme (http:// or https://).");
+            }
+            if (origin.endsWith("/")) {
+                throw new IllegalStateException(
+                        "CORS origin '" + origin + "' must not have a trailing slash.");
+            }
+            if (origin.startsWith("http://") && !origin.startsWith("http://localhost")
+                    && !origin.startsWith("http://127.0.0.1") && !origin.startsWith("http://[::1]")) {
+                logger.warn("CORS origin '{}' uses plain http:// — prefer https:// outside local development.", origin);
+            }
+        }
     }
 
     @Bean

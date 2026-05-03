@@ -9,9 +9,12 @@ import com.stellarideas.grooves.model.User;
 import com.stellarideas.grooves.security.CurrentUser;
 import com.stellarideas.grooves.service.AuditService;
 import com.stellarideas.grooves.service.SmartPlaylistService;
+import com.stellarideas.grooves.config.PaginationDefaults;
 import com.stellarideas.grooves.smartplaylist.QueryParseException;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/smart-playlists")
 @Tag(name = "Smart Playlists", description = "Saved queries over the user's library")
+@org.springframework.validation.annotation.Validated
 public class SmartPlaylistController {
 
     private final SmartPlaylistService service;
@@ -85,8 +89,8 @@ public class SmartPlaylistController {
 
     @GetMapping("/{id}/preview")
     public ResponseEntity<?> preview(@CurrentUser User user, @PathVariable String id,
-                                     @RequestParam(defaultValue = "0") int page,
-                                     @RequestParam(defaultValue = "50") int size) {
+                                     @RequestParam(defaultValue = "0") @Min(0) int page,
+                                     @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         Optional<SmartPlaylist> existing = service.findByIdAndUserId(id, user.getId());
         if (existing.isEmpty()) return ResponseEntity.notFound().build();
         try {
@@ -101,8 +105,8 @@ public class SmartPlaylistController {
     @PostMapping("/preview")
     public ResponseEntity<?> dryRun(@CurrentUser User user,
                                     @Valid @RequestBody SmartPlaylistPreviewRequest body,
-                                    @RequestParam(defaultValue = "0") int page,
-                                    @RequestParam(defaultValue = "50") int size) {
+                                    @RequestParam(defaultValue = "0") @Min(0) int page,
+                                    @RequestParam(defaultValue = "50") @Min(1) @Max(PaginationDefaults.MAX_PAGE_SIZE) int size) {
         try {
             SmartPlaylistService.PreviewResult result = service.execute(user.getId(), body.getQueryString(), page, size);
             return ResponseEntity.ok(pageBody(result));

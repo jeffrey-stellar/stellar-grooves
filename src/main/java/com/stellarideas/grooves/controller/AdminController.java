@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1/admin")
 @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Admin", description = "Admin-only user management, system stats, and genre catalog administration")
+@org.springframework.validation.annotation.Validated
 public class AdminController {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
@@ -86,8 +87,10 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<?> getAllUsers(
             @CurrentUser User admin,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "" + PaginationDefaults.DEFAULT_PAGE_SIZE) int size) {
+            @RequestParam(defaultValue = "0") @jakarta.validation.constraints.Min(0) int page,
+            @RequestParam(defaultValue = "" + PaginationDefaults.DEFAULT_PAGE_SIZE)
+            @jakarta.validation.constraints.Min(1)
+            @jakarta.validation.constraints.Max(PaginationDefaults.ADMIN_MAX_PAGE_SIZE) int size) {
         ResponseEntity<?> throttle = rateLimit(admin, "list-users");
         if (throttle != null) return throttle;
         auditService.log(admin.getUsername(), AuditService.Action.ADMIN_VIEW_USERS);
