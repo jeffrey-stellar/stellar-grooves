@@ -292,4 +292,39 @@ class MusicScannerServiceTest {
         assertTrue(ex.getMessage().contains("already in progress"));
     }
 
+    @Test
+    void runtimeExceptionFromDoScanMarksJobFailed() {
+        // Simulate an unexpected RuntimeException originating inside doScan. Without the fix
+        // in executeScan, this would leave the ScanJob in RUNNING state forever.
+        when(repository.findByUserId("user1")).thenThrow(new IllegalArgumentException("boom"));
+
+        assertThrows(RuntimeException.class,
+                () -> scannerService.scanDirectorySync(testUser, tempDir.toString(), ScanJob.Type.MANUAL));
+
+        org.mockito.ArgumentCaptor<ScanJob> captor = org.mockito.ArgumentCaptor.forClass(ScanJob.class);
+        verify(scanJobRepository, atLeastOnce()).save(captor.capture());
+        ScanJob terminal = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertEquals(ScanJob.Status.FAILED, terminal.getStatus());
+        assertNotNull(terminal.getErrorMessage());
+        assertTrue(terminal.getErrorMessage().contains("boom"));
+        assertNotNull(terminal.getFinishedAt());
+    }
+
+    @Test
+    void timedOutScanRecordsErrorMessage() throws Exception {
+        // Force the deadline check to fire on the first iteration.
+        org.springframework.test.util.ReflectionTestUtils.setField(scannerService, "scanTimeoutMinutes", -1);
+        Files.write(tempDir.resolve("track.mp3"), new byte[]{0});
+
+        scan(tempDir);
+
+        org.mockito.ArgumentCaptor<ScanJob> captor = org.mockito.ArgumentCaptor.forClass(ScanJob.class);
+        verify(scanJobRepository, atLeastOnce()).save(captor.capture());
+        ScanJob terminal = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertEquals(ScanJob.Status.TIMED_OUT, terminal.getStatus());
+        assertNotNull(terminal.getErrorMessage());
+        assertTrue(terminal.getErrorMessage().toLowerCase().contains("timeout"),
+                "expected timeout message but got: " + terminal.getErrorMessage());
+    }
+
 }

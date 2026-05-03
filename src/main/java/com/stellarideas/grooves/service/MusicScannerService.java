@@ -244,6 +244,12 @@ public class MusicScannerService {
         } catch (java.io.UncheckedIOException e) {
             finishJob(job, ScanJob.Status.FAILED, e.getCause().getMessage());
             throw e.getCause();
+        } catch (RuntimeException e) {
+            // RuntimeException from doScan would otherwise leave the ScanJob stuck in RUNNING.
+            // Critical for scanDirectorySync (scheduled scans), where no caller marks the job FAILED.
+            logger.error("Scan failed for user '{}' on path '{}': {}", user.getUsername(), root, e.getMessage(), e);
+            finishJob(job, ScanJob.Status.FAILED, e.getMessage());
+            throw e;
         } finally {
             lock.unlock();
             userScanLocks.compute(user.getId(), (k, v) -> {
@@ -324,7 +330,10 @@ public class MusicScannerService {
                 user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
 
         ScanJob.Status finalStatus = timedOut ? ScanJob.Status.TIMED_OUT : ScanJob.Status.COMPLETED;
-        finalizeJob(job, finalStatus, result);
+        String timeoutMessage = timedOut
+                ? "Scan exceeded " + scanTimeoutMinutes + "-minute timeout"
+                : null;
+        finalizeJob(job, finalStatus, result, timeoutMessage);
         progressEmitter.sendComplete(user.getId(), result.getSaved(), result.getSkipped(), result.getErrors());
         return result;
     }
@@ -399,12 +408,15 @@ public class MusicScannerService {
                 result.getErrors(), currentFile);
     }
 
-    private void finalizeJob(ScanJob job, ScanJob.Status status, ScanResult result) {
+    private void finalizeJob(ScanJob job, ScanJob.Status status, ScanResult result, String errorMessage) {
         job.setStatus(status);
         job.setFilesSaved(result.getSaved());
         job.setFilesSkipped(result.getSkipped());
         job.setFilesErrored(result.getErrors());
         job.setCurrentFile(null);
+        if (errorMessage != null) {
+            job.setErrorMessage(errorMessage);
+        }
         Instant now = Instant.now();
         job.setUpdatedAt(now);
         job.setFinishedAt(now);
