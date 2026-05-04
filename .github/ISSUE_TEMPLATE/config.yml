@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/jeffrey-stellar/stellar-grooves/security/advisories/new
+    about: Report security issues privately. Do not file public issues for vulnerabilities.
+  - name: Question or discussion
+    url: https://github.com/jeffrey-stellar/stellar-grooves/discussions
+    about: Ask a question or discuss an idea before opening a feature proposal.

@@ -1,0 +1,80 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in the fields
+        below so the issue can be reproduced and triaged.
+
+        **Do not file security vulnerabilities here.** See
+        [SECURITY.md](../SECURITY.md) for private reporting.
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do? List the exact steps.
+      placeholder: |
+        1. Sign in as a regular user
+        2. Open the smart-playlist editor
+        3. Save a query containing `lastPlayed:>1y`
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include error messages, stack traces, or screenshots if relevant.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Stellar Grooves version (or commit SHA)
+      placeholder: "v0.1.0 or abc1234"
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java version
+      description: Output of `java -version`.
+      placeholder: "Temurin 17.0.10"
+    validations:
+      required: true
+
+  - type: input
+    id: mongo
+    attributes:
+      label: MongoDB version
+      placeholder: "7.0.5"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser (UI bugs only)
+      placeholder: "Firefox 134, Chrome 132, Safari 18"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste any relevant lines from `logs/stellar-grooves.log` or the browser console. Redact anything sensitive.
+      render: shell

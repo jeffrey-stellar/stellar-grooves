@@ -1,0 +1,55 @@
+name: Feature proposal
+description: Suggest a new feature or a substantive change to an existing one.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Stellar Grooves is positioned as a **self-hosted library for curators**,
+        with smart playlists as the keystone. Features that don't serve that
+        audience (social feeds, external streaming integrations, file upload
+        UIs) are likely out of scope. See `README.md` for the project's stance.
+
+        For small fixes or polish, just open a PR — no proposal needed.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that the current app makes hard or impossible? Lead with the user need, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What change do you have in mind? UI sketches, query examples, API shapes — whatever helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or other approaches you weighed and rejected.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: How big do you think this is?
+      options:
+        - Small (a few files, <1 day)
+        - Medium (touches several layers, ~1 week)
+        - Large (multi-PR, design discussion needed)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to send a PR for this if accepted.
