@@ -64,7 +64,10 @@ class ScanPathValidatorTest {
         Path music = tempDir.toRealPath().resolve("music");
         Files.createDirectory(music);
 
-        ScanPathValidator v = new ScanPathValidator(msgHelper, "");
+        // Allowlist tempDir so the test passes on Linux too — without it,
+        // the system-path blocklist rejects /tmp/junit-* paths on Linux CI
+        // (macOS sidesteps it because /tmp resolves to /private/tmp).
+        ScanPathValidator v = new ScanPathValidator(msgHelper, tempDir.toRealPath().toString());
         Path result = v.validate(music.toString());
         assertEquals(music, result);
     }

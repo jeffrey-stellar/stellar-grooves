@@ -787,4 +787,8 @@ jpackage --type exe `
 
 ## License
 
-MIT
+Stellar Grooves is licensed under the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later). See [`LICENSE`](LICENSE) for the full text.
+
+The AGPL's network-use clause means anyone who hosts a modified version as a service must publish their source. If you want to contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md) — the project uses a Contributor License Agreement (see [`CLA.md`](CLA.md)) that grants the maintainer the right to relicense contributions, so a future commercial license remains an option.
+
+For security issues, see [`SECURITY.md`](SECURITY.md).

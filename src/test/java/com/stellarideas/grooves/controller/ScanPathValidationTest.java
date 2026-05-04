@@ -56,7 +56,15 @@ class ScanPathValidationTest {
         when(scanRateLimiter.tryAcquire(anyString())).thenReturn(true);
         com.stellarideas.grooves.repository.PlaybackQueueRepository playbackQueueRepository = mock(com.stellarideas.grooves.repository.PlaybackQueueRepository.class);
         com.stellarideas.grooves.service.ScanProgressEmitter scanProgressEmitter = mock(com.stellarideas.grooves.service.ScanProgressEmitter.class);
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""), mock(com.stellarideas.grooves.service.PlayHistoryService.class), mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
+        // Allowlist the JUnit temp dir so /tmp/junit-* paths pass validation
+        // on Linux CI (macOS sidesteps this because /tmp resolves to /private/tmp).
+        String allowedBase;
+        try {
+            allowedBase = tempDir.toRealPath().toString();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase), mock(com.stellarideas.grooves.service.PlayHistoryService.class), mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
 
         testUser = new User();
         testUser.setId("user1");

@@ -64,9 +64,17 @@ class LibraryControllerTest {
         when(scanRateLimiter.tryAcquire(anyString())).thenReturn(true);
         when(userRateLimiter.tryAcquire(anyString(), anyString())).thenReturn(true);
 
+        // Allowlist the JUnit temp dir so /tmp/junit-* paths pass validation
+        // on Linux CI (macOS sidesteps this because /tmp resolves to /private/tmp).
+        String allowedBase;
+        try {
+            allowedBase = tempDir.toRealPath().toString();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         controller = new LibraryController(scannerService, libraryService, msgHelper,
                 auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter,
-                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
+                new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase),
                 playHistoryService,
                 mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
