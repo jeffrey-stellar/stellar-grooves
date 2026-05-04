@@ -869,4 +869,10 @@ Stellar Grooves is licensed under the **GNU Affero General Public License v3.0 o
 
 The AGPL's network-use clause means anyone who hosts a modified version as a service must publish their source. If you want to contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md) — the project uses a Contributor License Agreement (see [`CLA.md`](CLA.md)) that grants the maintainer the right to relicense contributions, so a future commercial license remains an option.
 
+**Documentation** in this repository (README.md, CONTRIBUTING.md, and files under `docs/`) is additionally licensed under the [Creative Commons Attribution 4.0 International License (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/), so it can be quoted or adapted in tutorials and articles independently of AGPL terms.
+
+**Trademarks.** "Stellar Grooves", the Stellar Grooves wordmark, and the project logo are trademarks of Stellar Ideas LLC and are **not** covered by the AGPL. See [`TRADEMARKS.md`](TRADEMARKS.md) for the brand-usage policy and forking guidelines.
+
+**Third-party attribution.** A complete inventory of dependencies and their licenses is in [`THIRD-PARTY.txt`](THIRD-PARTY.txt); see [`NOTICE`](NOTICE) for the consolidated attribution summary.
+
 For security issues, see [`SECURITY.md`](SECURITY.md).
