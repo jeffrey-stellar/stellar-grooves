@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/main/resources/static/images/icon-512-notes.png" alt="Stellar Grooves" width="280">
+</p>
+
 # Stellar Grooves
 
 A self-hosted, multi-user music library for rock and metal collections — built around **smart playlists you can share as queries**. Scan local directories for audio files, auto-categorize tracks by sub-genre, build smart playlists with a focused query DSL (and reusable `@phrase` fragments), publish them so other curators can run your queries against their own libraries, manage regular playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI. Installable as a Progressive Web App on desktop and mobile.
