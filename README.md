@@ -459,6 +459,37 @@ Prometheus metrics are exposed at `/actuator/prometheus` for scraping, and JSON 
 
 ---
 
+## Operations & Hardening
+
+A short checklist for self-hosters running Stellar Grooves on a public network.
+
+**Required before exposing the app to the internet:**
+
+- **Run with the `prod` profile**: `--spring.profiles.active=prod` (or `SPRING_PROFILES_ACTIVE=prod`). This disables Swagger/OpenAPI, tightens logging, and trusts proxy headers from the configured trusted-proxy list.
+- **Set `JWT_SECRET`** to a Base64-encoded value of at least 256 bits. The app refuses to start in `prod` without it. Generate one with `openssl rand -base64 32`.
+- **Set `CORS_ALLOWED_ORIGINS`** to the exact origins that should be allowed (comma-separated). The app refuses to start in `prod` if this is empty.
+- **Set `MONGO_URI`** to a MongoDB instance with authentication enabled. Don't expose MongoDB to the public internet.
+- **Set `ADMIN_PASSWORD`** on first startup so the bootstrap admin user has a strong password (the bootstrap process logs whether it created a new admin or promoted an existing user).
+- **Set `SCAN_ALLOWED_BASE_DIRS`** (comma-separated) to restrict where the scanner can read from — paths outside the allowlist are rejected. Recommended even on single-tenant deployments.
+
+**Reverse proxy and TLS:**
+
+- Terminate TLS at a reverse proxy (Caddy, nginx, Traefik). HSTS is already enabled by the application security config; the proxy should also send HSTS headers and redirect HTTP → HTTPS.
+- **Restrict `/actuator/*`** at the proxy. The app exposes `/actuator/health` (anonymous, basic status only) and `/actuator/prometheus` + `/actuator/metrics`. Restrict the latter two to trusted IPs (your scrape target) or strip them from public traffic.
+- Configure `RATE_LIMIT_TRUSTED_PROXIES` to your reverse-proxy IPs so the rate limiter sees real client IPs from `X-Forwarded-For` instead of the proxy's IP.
+
+**Container and process:**
+
+- The provided `Dockerfile` already runs as a non-root user. If you build your own image, preserve that.
+- Mount music libraries **read-only** (`:ro`) into the container; the scanner doesn't need write access.
+- Persist MongoDB data on a backed-up volume. The library catalog can be rescanned, but user accounts, playlists, listening history, and smart-playlist definitions cannot.
+
+**Updates:**
+
+- Watch GitHub releases for security patches. Dependabot is enabled in this repo for Maven, npm, and GitHub Actions ecosystems.
+
+---
+
 ## REST API
 
 > **Interactive docs:** Browse the full API at [/swagger-ui.html](http://localhost:8080/swagger-ui.html) when the app is running. The OpenAPI spec is available at `/api-docs`.
@@ -770,7 +801,7 @@ src/main/resources/
     └── shared-smart-playlist.html       # Public shared smart-playlist landing page
 
 src/test/js/
-└── helpers.test.js                      # Vitest frontend unit tests (60 tests)
+└── helpers.test.js                      # Vitest unit tests for pure helpers module
 
 package.json                             # Frontend vendor dependency management + test scripts
 vitest.config.js                         # Vitest configuration (jsdom environment)
@@ -779,7 +810,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**763 tests** (703 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**700+ tests** across backend (controllers, services, security, smart-playlist DSL) and a focused Vitest suite for pure-utility frontend helpers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase. Broader frontend test coverage (DOM-level integration) is open for contribution.
 
 ---
 
@@ -799,7 +830,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (763 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (700+ tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
 | Observability | Logstash encoder (structured JSON logs) + correlation IDs + Web Vitals |
 
