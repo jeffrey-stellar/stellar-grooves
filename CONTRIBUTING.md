@@ -10,7 +10,7 @@ Prerequisites:
 
 - Java 17 (Temurin recommended)
 - Maven 3.9+
-- Node.js 20+ (for frontend tests and vendor asset copy)
+- Node.js 22+ (for frontend tests and vendor asset copy)
 - Docker (for integration tests — Testcontainers needs a running daemon)
 - A local MongoDB instance, or use the bundled `docker-compose.yml`
 
