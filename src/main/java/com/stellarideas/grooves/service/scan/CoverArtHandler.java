@@ -9,12 +9,26 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Handles extraction and persistence of cover art during a scan, enforcing per-user
  * byte quotas and per-album deduplication.
+ *
+ * <p>Art is resolved in priority order: embedded tag artwork first, then — when the
+ * track has no embedded art — a "sidecar" image file sitting next to the track in
+ * the same directory (cover.jpg / folder.jpg / front.jpg …), which is how most
+ * lossless rips ship cover art. Sidecar lookup is local-only (no network) and can
+ * be disabled via {@code stellar.grooves.coverArt.folderImageEnabled=false}.
  *
  * <p>Stateless across scans; each scan allocates a fresh {@link Budget} to track
  * running byte usage and which albums have already been handled. Quota is checked
@@ -26,6 +40,19 @@ public class CoverArtHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(CoverArtHandler.class);
 
+    /** Preferred sidecar base names, in descending priority (lower index wins). */
+    private static final List<String> PREFERRED_NAMES = List.of(
+            "cover", "folder", "front", "albumart", "album", "artwork", "thumb", "default");
+
+    /** Recognised sidecar image extensions → mime type. */
+    private static final Map<String, String> IMAGE_MIME = Map.of(
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg",
+            "png", "image/png",
+            "webp", "image/webp",
+            "gif", "image/gif",
+            "bmp", "image/bmp");
+
     @Value("${stellar.grooves.coverArt.maxBytesPerImage:10485760}")
     private int maxBytesPerImage;
 
@@ -35,6 +62,10 @@ public class CoverArtHandler {
     /** Global ceiling across all users; 0 disables the check. */
     @Value("${stellar.grooves.coverArt.maxBytesGlobal:10737418240}")
     private long maxBytesGlobal;
+
+    /** Whether to fall back to a sidecar image when a track has no embedded art. */
+    @Value("${stellar.grooves.coverArt.folderImageEnabled:true}")
+    private boolean folderImageEnabled = true;
 
     private final CoverArtRepository repository;
 
@@ -49,10 +80,21 @@ public class CoverArtHandler {
     }
 
     /**
-     * Extract cover art for the given tag/album, persist it if within quota, and return
-     * whether the file has cover art (either newly stored or already present for this album).
+     * Embedded-art-only entry point (no sidecar fallback). Retained for callers/tests
+     * that don't have the track's path; delegates with a null path.
      */
     public boolean process(Tag tag, String userId, String artist, String album, Budget budget) {
+        return process(tag, null, userId, artist, album, budget);
+    }
+
+    /**
+     * Resolve cover art for the given track and persist it if within quota. Tries the
+     * embedded tag artwork first, then a sidecar image in {@code filePath}'s directory
+     * (when {@code filePath} is non-null and folder fallback is enabled).
+     *
+     * @return whether the file has cover art (newly stored, or already present for this album)
+     */
+    public boolean process(Tag tag, Path filePath, String userId, String artist, String album, Budget budget) {
         if (artist == null || artist.isBlank() || album == null || album.isBlank()) return false;
 
         String key = artist.toLowerCase() + "\0" + album.toLowerCase();
@@ -62,7 +104,18 @@ public class CoverArtHandler {
             return false;
         }
 
-        long stored = extract(tag, userId, artist, album, budget);
+        // Album already has art (an earlier track this scan, or a prior run)? Count the
+        // file as covered and skip both the write and any disk read. This also lets a
+        // track with no embedded art inherit its album's existing cover.
+        if (repository.findByUserIdAndArtistAndAlbum(userId, artist, album).isPresent()) {
+            budget.albumsSeen.add(key);
+            return true;
+        }
+
+        long stored = extractEmbedded(tag, userId, artist, album, budget);
+        if (stored == 0 && folderImageEnabled && filePath != null && !budget.exhausted) {
+            stored = extractFolderImage(filePath, userId, artist, album, budget);
+        }
         if (stored > 0) {
             budget.albumsSeen.add(key);
             budget.usedBytes += stored;
@@ -72,38 +125,82 @@ public class CoverArtHandler {
         return false;
     }
 
-    private long extract(Tag tag, String userId, String artist, String album, Budget budget) {
+    /** Extract and persist embedded tag artwork. Returns bytes stored, or 0 if none/over quota. */
+    private long extractEmbedded(Tag tag, String userId, String artist, String album, Budget budget) {
         try {
             if (tag == null) return 0;
             Artwork artwork = tag.getFirstArtwork();
             if (artwork == null || artwork.getBinaryData() == null || artwork.getBinaryData().length == 0) {
                 return 0;
             }
-            int len = artwork.getBinaryData().length;
-            if (len > maxBytesPerImage) {
+            byte[] data = artwork.getBinaryData();
+            if (data.length > maxBytesPerImage) {
                 logger.warn("Cover art for '{} - {}' exceeds per-image cap ({} bytes), skipping",
-                        artist, album, len);
+                        artist, album, data.length);
                 return 0;
             }
-            // If we already persisted art for this album earlier (other scan, prior run),
-            // count the file as having cover art but don't write again.
-            if (repository.findByUserIdAndArtistAndAlbum(userId, artist, album).isPresent()) {
-                return len;
+            String mime = artwork.getMimeType() != null ? artwork.getMimeType() : "image/jpeg";
+            return persist(userId, artist, album, mime, data, "embedded", budget);
+        } catch (RuntimeException e) {
+            logger.debug("Failed to extract embedded cover art for '{} - {}': {}", artist, album, e.getMessage());
+            return 0;
+        }
+    }
+
+    /** Look for a sidecar image next to the track and persist it. Returns bytes stored, or 0. */
+    private long extractFolderImage(Path filePath, String userId, String artist, String album, Budget budget) {
+        try {
+            Path dir = filePath.getParent();
+            if (dir == null || !Files.isDirectory(dir)) return 0;
+
+            Path chosen = findBestSidecar(dir);
+            if (chosen == null) return 0;
+
+            long size = Files.size(chosen);
+            if (size <= 0) return 0;
+            if (size > maxBytesPerImage) {
+                logger.warn("Sidecar cover art '{}' for '{} - {}' exceeds per-image cap ({} bytes), skipping",
+                        chosen.getFileName(), artist, album, size);
+                return 0;
             }
-            // Live quota re-check guards against concurrent scans pushing us over the limit.
+
+            byte[] data = Files.readAllBytes(chosen);
+            if (data.length == 0 || data.length > maxBytesPerImage) return 0;
+
+            String mime = mimeForExtension(chosen);
+            long stored = persist(userId, artist, album, mime, data, "folder", budget);
+            if (stored > 0) {
+                logger.debug("Stored sidecar cover art '{}' for '{} - {}'", chosen.getFileName(), artist, album);
+            }
+            return stored;
+        } catch (IOException | RuntimeException e) {
+            logger.debug("Failed to read sidecar cover art for '{} - {}': {}", artist, album, e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Persist a cover-art image after a live quota re-check. Returns the number of bytes
+     * written, or 0 if the write was skipped (quota) or failed. Marks the budget exhausted
+     * when a quota ceiling is hit so the rest of the scan stops trying.
+     */
+    private long persist(String userId, String artist, String album, String mime, byte[] data,
+                         String source, Budget budget) {
+        try {
+            // Live per-user quota re-check guards against concurrent scans pushing us over.
             Long live = repository.getTotalCoverArtSizeByUserId(userId);
-            if (live != null && live + len > maxBytesPerUser) {
+            if (live != null && live + data.length > maxBytesPerUser) {
                 budget.exhausted = true;
                 logger.debug("Cover art quota would overflow for user '{}' (live={} + {}), skipping",
-                        userId, live, len);
+                        userId, live, data.length);
                 return 0;
             }
             if (maxBytesGlobal > 0) {
                 Long liveGlobal = repository.getTotalCoverArtSize();
-                if (liveGlobal != null && liveGlobal + len > maxBytesGlobal) {
+                if (liveGlobal != null && liveGlobal + data.length > maxBytesGlobal) {
                     budget.exhausted = true;
                     logger.warn("Global cover art quota reached ({} + {} > {}), skipping further extraction for user '{}'",
-                            liveGlobal, len, maxBytesGlobal, userId);
+                            liveGlobal, data.length, maxBytesGlobal, userId);
                     return 0;
                 }
             }
@@ -111,14 +208,48 @@ public class CoverArtHandler {
             art.setUserId(userId);
             art.setArtist(artist);
             art.setAlbum(album);
-            art.setMimeType(artwork.getMimeType() != null ? artwork.getMimeType() : "image/jpeg");
-            art.setData(artwork.getBinaryData());
+            art.setMimeType(mime);
+            art.setData(data);
+            art.setSource(source);
             repository.save(art);
-            return len;
+            return data.length;
         } catch (RuntimeException e) {
-            logger.debug("Failed to extract cover art for '{} - {}': {}", artist, album, e.getMessage());
+            logger.debug("Failed to persist cover art for '{} - {}': {}", artist, album, e.getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Choose the best sidecar image in a directory: the recognised image file whose base
+     * name ranks highest in {@link #PREFERRED_NAMES}. Returns null if the directory holds
+     * no preferred-named image (we don't grab arbitrary images, to avoid false matches).
+     */
+    private Path findBestSidecar(Path dir) throws IOException {
+        try (Stream<Path> entries = Files.list(dir)) {
+            return entries
+                    .filter(Files::isRegularFile)
+                    .filter(p -> sidecarRank(p) >= 0)
+                    .min(Comparator.comparingInt(this::sidecarRank))
+                    .orElse(null);
+        }
+    }
+
+    /** Priority rank of a path as a sidecar (lower = better); -1 if not a preferred image. */
+    private int sidecarRank(Path p) {
+        String name = p.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        if (dot < 0) return -1;
+        String ext = name.substring(dot + 1).toLowerCase(Locale.ROOT);
+        if (!IMAGE_MIME.containsKey(ext)) return -1;
+        String base = name.substring(0, dot).toLowerCase(Locale.ROOT);
+        return PREFERRED_NAMES.indexOf(base);
+    }
+
+    private String mimeForExtension(Path p) {
+        String name = p.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String ext = dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+        return IMAGE_MIME.getOrDefault(ext, "image/jpeg");
     }
 
     /** Per-scan quota tracking. Mutated in-place by {@link #process}. */

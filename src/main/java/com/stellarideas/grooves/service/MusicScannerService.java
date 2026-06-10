@@ -364,7 +364,7 @@ public class MusicScannerService {
                 ? genres.stream().filter(g -> g != primary).collect(Collectors.toList())
                 : null;
 
-        boolean hasCover = coverArtHandler.process(meta.tag(), userId, meta.artist(), meta.album(), artBudget);
+        boolean hasCover = coverArtHandler.process(meta.tag(), path, userId, meta.artist(), meta.album(), artBudget);
         String hash = fileHasher.sha256(path);
 
         MusicFile file = MusicFile.builder()
