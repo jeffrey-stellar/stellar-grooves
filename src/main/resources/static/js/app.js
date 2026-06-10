@@ -676,9 +676,16 @@ document.getElementById('musicTableBody').addEventListener('click', function(e) 
             fetch(`/api/v1/library/files/${file.id}/rating`, {
                 method: 'PATCH', headers: csrfHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({ rating })
-            }).then(async r => { if (r.ok) { const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating; } else showToast(await errorMsg(r, 'Failed to update rating')); })
+            }).then(async r => {
+                if (r.ok) {
+                    const i = allFiles.findIndex(f => f.id === file.id); if (i !== -1) allFiles[i].rating = rating;
+                    // Update the stars in place rather than re-rendering the whole
+                    // table, so the list keeps its scroll position after rating.
+                    if (starWrap) starWrap.querySelectorAll('.star').forEach((s, idx) => s.classList.toggle('filled', idx < rating));
+                } else showToast(await errorMsg(r, 'Failed to update rating'));
+            })
               .catch(e => { console.error('Rating update failed:', e); showToast('Failed to update rating — check your connection'); })
-              .finally(() => { if (starWrap) starWrap.classList.remove('loading'); renderTracksView(); });
+              .finally(() => { if (starWrap) starWrap.classList.remove('loading'); });
         } break;
         case 'select': {
             if (el.checked) selectedIds.add(tr.dataset.fileId); else selectedIds.delete(tr.dataset.fileId);
