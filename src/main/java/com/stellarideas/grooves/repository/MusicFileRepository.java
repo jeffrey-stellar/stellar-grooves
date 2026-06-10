@@ -23,6 +23,7 @@ public interface MusicFileRepository extends MongoRepository<MusicFile, String>,
     long deleteByUserId(String userId);
     long countByUserId(String userId);
     List<MusicFile> findByUserIdAndFilePathIn(String userId, Set<String> filePaths);
+    List<MusicFile> findByUserIdAndArtistAndAlbumAndDeletedFalse(String userId, String artist, String album);
 
     @Aggregation(pipeline = {
         "{ '$match': { 'userId': { '$in': ?0 } } }",

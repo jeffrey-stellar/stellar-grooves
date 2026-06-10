@@ -596,6 +596,33 @@ public class LibraryController {
                 .body(art.getData());
     }
 
+    @PostMapping(value = "/files/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadCoverArt(@CurrentUser User user, @PathVariable String id,
+                                            @RequestParam(value = "file", required = false) org.springframework.web.multipart.MultipartFile file)
+            throws IOException {
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "cover-upload");
+        if (rateLimited != null) return rateLimited;
+
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
+        if (fileOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("No image uploaded");
+        }
+        byte[] data = file.getBytes();
+        String mime = com.stellarideas.grooves.util.ImageTypeDetector.detectMime(data);
+        if (mime == null) {
+            throw new IllegalArgumentException("File is not a supported image (JPEG, PNG, WebP, GIF, or BMP)");
+        }
+
+        MusicFile mf = fileOpt.get();
+        int updated = libraryService.setAlbumCoverArt(user.getId(), mf, data, mime);
+        auditService.log(user.getUsername(), AuditService.Action.COVER_ART_UPLOAD, mf.getId(),
+                mf.getArtist() + " - " + mf.getAlbum());
+        return ResponseEntity.ok(Map.of("updated", updated, "album", mf.getAlbum() == null ? "" : mf.getAlbum()));
+    }
+
     @GetMapping("/duplicates")
     public ResponseEntity<?> getDuplicates(
             @CurrentUser User user,

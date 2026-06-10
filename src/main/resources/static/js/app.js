@@ -287,11 +287,48 @@ function renderArtistsView() {
 
 let albumViewMode = 'grid';
 
+// Cache-busting for covers replaced this session — keyed by "album||artist".
+// Without it, a re-uploaded cover keeps showing the stale 30-day-cached image.
+const coverArtVersions = {};
+function coverBust(key) { return coverArtVersions[key] ? `?v=${coverArtVersions[key]}` : ''; }
+
+// Prompt for an image file and upload it as the album's cover art.
+function pickAndUploadCover(fileId, key, album, artist) {
+    if (!fileId) { showToast('No track available to attach cover art to'); return; }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp,image/gif,image/bmp';
+    input.addEventListener('change', async () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        const fd = new FormData(); fd.append('file', f);
+        try {
+            const r = await fetch(`/api/v1/library/files/${fileId}/cover`, {
+                method: 'POST', headers: csrfHeaders(), body: fd
+            });
+            if (r.ok) {
+                allFiles.forEach(x => {
+                    if ((x.album || '(Unknown)') === album && (x.artist || '—') === artist) x.hasCoverArt = true;
+                });
+                coverArtVersions[key] = Date.now();
+                showToast('Cover art updated', 'success');
+                renderCurrentView();
+            } else {
+                showToast(await errorMsg(r, 'Failed to upload cover art'));
+            }
+        } catch (e) {
+            console.error('Cover upload failed', e);
+            showToast('Cover upload failed — check your connection');
+        }
+    });
+    input.click();
+}
+
 function renderAlbumsView() {
     const src = nav.artist ? allFiles.filter(f => (f.artist || '(Unknown)') === nav.artist) : allFiles;
     const m = {}; src.forEach(f => {
         const al = f.album || '(Unknown)'; const ar = f.artist || '\u2014'; const k = al + '||' + ar;
-        if (!m[k]) m[k] = { album: al, artist: ar, tracks: 0, coverFileId: null };
+        if (!m[k]) m[k] = { key: k, album: al, artist: ar, tracks: 0, coverFileId: null, anyFileId: f.id };
         m[k].tracks++;
         if (!m[k].coverFileId && f.hasCoverArt) m[k].coverFileId = f.id;
     });
@@ -305,11 +342,11 @@ function renderAlbumsView() {
     if (albumViewMode === 'grid') {
         grid.classList.remove('d-none');
         grid.innerHTML = '';
-        sorted.forEach(({ album, artist, tracks, coverFileId }) => {
+        sorted.forEach(({ key, album, artist, tracks, coverFileId, anyFileId }) => {
             const card = document.createElement('div'); card.className = 'album-card';
             if (coverFileId) {
                 const img = document.createElement('img'); img.className = 'album-card-art';
-                img.src = `/api/v1/library/files/${coverFileId}/cover`; img.alt = escapeHtml(album);
+                img.src = `/api/v1/library/files/${coverFileId}/cover${coverBust(key)}`; img.alt = escapeHtml(album);
                 img.loading = 'lazy';
                 card.appendChild(img);
             } else {
@@ -322,6 +359,16 @@ function renderAlbumsView() {
                 + `<div class="album-card-artist">${escapeHtml(artist)}</div>`
                 + `<div class="album-card-count">${tracks} track${tracks !== 1 ? 's' : ''}</div>`;
             card.appendChild(info);
+            // Upload/replace cover \u2014 only when the album is identifiable (has artist + album)
+            if (album !== '(Unknown)' && artist !== '\u2014') {
+                const up = document.createElement('button');
+                up.type = 'button'; up.className = 'album-card-upload';
+                up.title = coverFileId ? 'Change cover art' : 'Add cover art';
+                up.setAttribute('aria-label', up.title);
+                up.textContent = '\uD83D\uDCF7';
+                up.addEventListener('click', e => { e.stopPropagation(); pickAndUploadCover(anyFileId, key, album, artist); });
+                card.appendChild(up);
+            }
             card.addEventListener('click', () => navigate({ view: 'tracks', artist: nav.artist || artist, album }));
             grid.appendChild(card);
         });
@@ -332,17 +379,17 @@ function renderAlbumsView() {
         if (withArt.length === 0) {
             artGallery.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:2rem;">No cover art found. Scan a library with embedded artwork to populate this gallery.</p>';
         } else {
-            withArt.forEach(({ album, artist, coverFileId }) => {
+            withArt.forEach(({ key, album, artist, coverFileId }) => {
                 const card = document.createElement('div'); card.className = 'art-gallery-card';
                 const img = document.createElement('img');
-                img.src = `/api/v1/library/files/${coverFileId}/cover`; img.alt = escapeHtml(album);
+                img.src = `/api/v1/library/files/${coverFileId}/cover${coverBust(key)}`; img.alt = escapeHtml(album);
                 img.loading = 'lazy';
                 card.appendChild(img);
                 const label = document.createElement('div'); label.className = 'art-gallery-label';
                 label.innerHTML = `<strong>${escapeHtml(album)}</strong><span>${escapeHtml(artist)}</span>`;
                 card.appendChild(label);
                 card.addEventListener('click', () => openCoverArtLightbox(
-                    `/api/v1/library/files/${coverFileId}/cover`, album, artist));
+                    `/api/v1/library/files/${coverFileId}/cover${coverBust(key)}`, album, artist));
                 artGallery.appendChild(card);
             });
         }
