@@ -25,7 +25,11 @@ public class ItunesCoverArtProvider implements AlbumArtProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(ItunesCoverArtProvider.class);
     private static final String SEARCH_URL = "https://itunes.apple.com/search";
-    private static final int MAX_RESULTS = 5;
+    // iTunes ranks compilations/tributes/other albums by the same artist high, so the exact
+    // album often sits well down the list — a small limit misses it. 25 gives enough recall
+    // for the strict artist+album match below to find the right release. (Validated live:
+    // "Metallica Master of Puppets" first matches at index 7.)
+    private static final int MAX_RESULTS = 25;
 
     private final RestClient client;
     private final int maxImageBytes;
