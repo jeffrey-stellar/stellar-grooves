@@ -1459,6 +1459,32 @@ tr.drag-over td { border-top: 2px solid var(--amber-hot) !important; box-shadow:
     z-index: 1;
     filter: contrast(1.02) saturate(1.05);
 }
+.album-card-upload {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(12, 8, 6, 0.72);
+    color: #fff;
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease-out-soft), transform 0.15s, background 0.2s;
+}
+.album-card:hover .album-card-upload,
+.album-card-upload:focus-visible {
+    opacity: 1;
+}
+.album-card-upload:hover {
+    background: var(--ruby);
+    transform: scale(1.08);
+}
 .album-card-placeholder {
     width: 100%;
     aspect-ratio: 1;

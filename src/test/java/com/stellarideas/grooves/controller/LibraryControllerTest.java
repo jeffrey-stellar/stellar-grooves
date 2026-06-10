@@ -88,6 +88,66 @@ class LibraryControllerTest {
         testUser.setMusicDirectory(tempDir.toString());
     }
 
+    // ---- uploadCoverArt ----
+
+    private static org.springframework.mock.web.MockMultipartFile pngUpload() {
+        byte[] png = new byte[16];
+        byte[] head = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+        System.arraycopy(head, 0, png, 0, head.length);
+        return new org.springframework.mock.web.MockMultipartFile("file", "cover.png", "image/png", png);
+    }
+
+    @Test
+    void uploadCoverArtStoresAndReturnsCount() throws IOException {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.setAlbumCoverArt(eq("user1"), eq(file), any(), eq("image/png"))).thenReturn(7);
+
+        ResponseEntity<?> response = controller.uploadCoverArt(testUser, "f1", pngUpload());
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals(7, body.get("updated"));
+        verify(libraryService).setAlbumCoverArt(eq("user1"), eq(file), any(), eq("image/png"));
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.COVER_ART_UPLOAD), eq("f1"), anyString());
+    }
+
+    @Test
+    void uploadCoverArtReturns404WhenFileMissing() throws IOException {
+        when(libraryService.findFileByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.uploadCoverArt(testUser, "nope", pngUpload());
+
+        assertEquals(404, response.getStatusCode().value());
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadCoverArtRejectsNonImage() {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        var notImage = new org.springframework.mock.web.MockMultipartFile(
+                "file", "evil.png", "image/png", "%PDF-1.4 not really an image".getBytes());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.uploadCoverArt(testUser, "f1", notImage));
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadCoverArtRejectsEmptyFile() {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        var empty = new org.springframework.mock.web.MockMultipartFile(
+                "file", "cover.png", "image/png", new byte[0]);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.uploadCoverArt(testUser, "f1", empty));
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
     // ---- getFiles ----
 
     @Test

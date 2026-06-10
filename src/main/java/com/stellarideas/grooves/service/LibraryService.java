@@ -38,6 +38,7 @@ public class LibraryService {
     private final MusicCatalogService catalogService;
     private final MongoTemplate mongoTemplate;
     private final LibraryStatsCache statsCache;
+    private final com.stellarideas.grooves.service.scan.CoverArtHandler coverArtHandler;
 
     public LibraryService(MusicFileRepository musicFileRepository,
                           PlaylistRepository playlistRepository,
@@ -46,7 +47,8 @@ public class LibraryService {
                           PlayEventRepository playEventRepository,
                           MusicCatalogService catalogService,
                           MongoTemplate mongoTemplate,
-                          LibraryStatsCache statsCache) {
+                          LibraryStatsCache statsCache,
+                          com.stellarideas.grooves.service.scan.CoverArtHandler coverArtHandler) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
@@ -55,6 +57,7 @@ public class LibraryService {
         this.catalogService = catalogService;
         this.mongoTemplate = mongoTemplate;
         this.statsCache = statsCache;
+        this.coverArtHandler = coverArtHandler;
     }
 
     public Page<MusicFile> getFiles(String userId, Genre genre, int page, int size) {
@@ -356,6 +359,25 @@ public class LibraryService {
 
     public Optional<CoverArt> getCoverArt(String userId, String artist, String album) {
         return coverArtRepository.findByUserIdAndArtistAndAlbum(userId, artist, album);
+    }
+
+    /**
+     * Store a manually-uploaded cover image for the album that {@code file} belongs to,
+     * replacing any existing art, and mark every track in that album as having cover art.
+     *
+     * @return the number of tracks in the album whose {@code hasCoverArt} flag was set
+     * @throws IllegalArgumentException if the image is invalid or a storage quota is exceeded
+     */
+    @Transactional
+    public int setAlbumCoverArt(String userId, MusicFile file, byte[] data, String mime) {
+        coverArtHandler.storeManualCover(userId, file.getArtist(), file.getAlbum(), data, mime);
+        List<MusicFile> albumFiles = musicFileRepository
+                .findByUserIdAndArtistAndAlbumAndDeletedFalse(userId, file.getArtist(), file.getAlbum());
+        for (MusicFile f : albumFiles) {
+            f.setHasCoverArt(true);
+        }
+        musicFileRepository.saveAll(albumFiles);
+        return albumFiles.size();
     }
 
     public List<Map<String, Object>> findDuplicates(String userId) {

@@ -82,6 +82,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, ex.getMessage()));
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMaxUploadSize(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(problem(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file is too large"));
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ProblemDetail> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

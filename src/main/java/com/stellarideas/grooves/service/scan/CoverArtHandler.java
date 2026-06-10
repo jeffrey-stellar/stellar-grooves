@@ -125,6 +125,49 @@ public class CoverArtHandler {
         return false;
     }
 
+    /**
+     * Store a manually-supplied cover image for an album, replacing any existing art for it.
+     * Unlike scan extraction this always upserts (a curator setting art means "use this one"),
+     * and enforces the per-image and per-user/global byte quotas accounting for the replaced
+     * art's size. Throws {@link IllegalArgumentException} on an empty image or a quota breach.
+     */
+    public void storeManualCover(String userId, String artist, String album, byte[] data, String mime) {
+        if (artist == null || artist.isBlank() || album == null || album.isBlank()) {
+            throw new IllegalArgumentException("Track has no album/artist to attach cover art to");
+        }
+        if (data == null || data.length == 0) {
+            throw new IllegalArgumentException("Image is empty");
+        }
+        if (data.length > maxBytesPerImage) {
+            throw new IllegalArgumentException("Image exceeds the " + (maxBytesPerImage / (1024 * 1024)) + " MB per-image limit");
+        }
+
+        var existing = repository.findByUserIdAndArtistAndAlbum(userId, artist, album);
+        long oldSize = existing.map(c -> c.getData() != null ? c.getData().length : 0).orElse(0);
+
+        Long usage = repository.getTotalCoverArtSizeByUserId(userId);
+        long current = usage != null ? usage : 0L;
+        if (current - oldSize + data.length > maxBytesPerUser) {
+            throw new IllegalArgumentException("Cover art storage quota exceeded");
+        }
+        if (maxBytesGlobal > 0) {
+            Long g = repository.getTotalCoverArtSize();
+            long globalUsage = g != null ? g : 0L;
+            if (globalUsage - oldSize + data.length > maxBytesGlobal) {
+                throw new IllegalArgumentException("Global cover art storage quota exceeded");
+            }
+        }
+
+        CoverArt art = existing.orElseGet(CoverArt::new);
+        art.setUserId(userId);
+        art.setArtist(artist);
+        art.setAlbum(album);
+        art.setMimeType(mime);
+        art.setData(data);
+        art.setSource("manual");
+        repository.save(art);
+    }
+
     /** Extract and persist embedded tag artwork. Returns bytes stored, or 0 if none/over quota. */
     private long extractEmbedded(Tag tag, String userId, String artist, String album, Budget budget) {
         try {
