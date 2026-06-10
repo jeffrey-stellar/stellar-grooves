@@ -1,0 +1,85 @@
+# Frozen public demo for Stellar Grooves.
+#
+# This stack runs the app against an isolated demo database that is seeded from
+# demo/seed/ and reset on a schedule (see demo/scripts/reset-demo.sh). It is
+# meant for a public "try it" instance — NOT for hosting real libraries:
+#   * No music directory is mounted, so a visitor's "Scan" finds nothing.
+#   * The seed ships WITHOUT album art; covers are fetched at runtime from
+#     public providers (no copyrighted images live in this repo).
+#   * Anything a visitor changes (ratings, playlists) is wiped on the next reset.
+#
+# Quick start (from the repo root):
+#   cp demo/.env.example demo/.env   # then set JWT_SECRET
+#   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml up -d --build
+#   ./demo/scripts/reset-demo.sh     # seed the DB + warm cover art
+#
+# Then schedule the reset nightly (host crontab), e.g. 4am:
+#   0 4 * * * cd /path/to/stellar-grooves && ./demo/scripts/reset-demo.sh >> /var/log/sg-demo-reset.log 2>&1
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "${DEMO_PORT:-8089}:8089"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/stellar_grooves_demo
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in demo/.env - generate with openssl rand -base64 32}"
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      MAIL_ENABLED: "false"
+      EMAIL_VERIFICATION_REQUIRED: "false"
+      # Covers are fetched at runtime so no copyrighted art ships in the repo.
+      COVER_ART_EXTERNAL_ENABLED: "true"
+      COVER_ART_EXTERNAL_CONTACT: ${COVER_ART_EXTERNAL_CONTACT:-demo@stellargrooves.local}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  mongo:
+    image: mongo:7
+    # The seed archive is mounted read-only so reset-demo.sh can restore it.
+    volumes:
+      - mongo-demo-data:/data/db
+      - ./seed:/seed:ro
+    healthcheck:
+      test: mongosh --eval "db.adminCommand('ping')" --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+volumes:
+  mongo-demo-data:
