@@ -27,7 +27,7 @@ The scanner:
 
 - Recurses into subdirectories (configurable depth, default 20).
 - Reads `.mp3`, `.flac`, and `.m4a` by default — extend with `SCAN_SUPPORTED_EXTENSIONS`.
-- Extracts artist, album, title, year, and embedded cover art via JAudioTagger.
+- Extracts artist, album, title, year, and cover art via JAudioTagger — embedded artwork first, then a sidecar image (`cover.jpg`, `folder.jpg`, `front.jpg`, `albumart.jpg`…) next to the track when none is embedded.
 - Computes a SHA-256 hash of each file for exact-duplicate detection.
 - Auto-classifies tracks against the bundled artist→genre catalog (Classic Rock, Hard Rock, Hair Metal, Heavy Metal, Thrash Metal). Anything unmatched lands as **Other**.
 - Skips files already imported by path or by `(title, artist)`.
@@ -42,6 +42,8 @@ Tracks land in the main library table. From there you can:
 - **Search** with the full-text search box — title, artist, and album are weighted.
 - **Sort** by clicking column headers (title, artist, album, genre, year, rating, last played).
 - **Switch views**: list view or album-grid view (toggle in the toolbar). Album grid shows cover art thumbnails.
+- **Set cover art**: hover an album in the grid and click the 📷 button to upload or replace its cover from an image file (JPEG, PNG, WebP, GIF, or BMP). The chosen image applies to every track on that album.
+- **Fetch missing art online** *(only if the admin has enabled it)*: a **Fetch missing art** button in the album toolbar looks up covers for albums that don't have any, using MusicBrainz and iTunes. It asks for confirmation first, because it sends your album and artist names to those services.
 - **Drill down** by clicking an artist or album row to filter to that scope.
 - **Rate** tracks with the 5-star widget on each row. Sort by rating to find favorites.
 - **Tag** tracks with custom labels (e.g. `live`, `acoustic`, `road-trip`). Tags are listed in the **Tags** sidebar entry with usage counts.

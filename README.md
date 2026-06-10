@@ -125,7 +125,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Light mode** — full light theme with manual toggle (sun/moon button in navbar); respects `prefers-color-scheme` media query; preference saved to localStorage
 - **Loading states** — spinner feedback on genre changes, rating updates, bulk delete, add-to-playlist, and search operations
 - **Toast notifications** — non-intrusive error and success toasts for all async operations (genre changes, rating updates, deletions, playlist actions, search failures)
-- **Album art** — embedded cover art extracted during scan, displayed in the player bar, album grid view, and available via API
+- **Album art** — resolved in priority order: embedded tag artwork, then a sidecar image (`cover`/`folder`/`front`…) next to the track when there's no embedded art; curators can upload/replace a cover by hand (📷 on album cards), and an optional opt-in job can fetch missing covers online (MusicBrainz + Cover Art Archive, then iTunes — off by default). Displayed in the player bar, album grid, art gallery, and lightbox, and available via API
 - **Accessibility** — ARIA labels on all interactive elements, `aria-sort` on sortable columns, `aria-pressed` on toggle buttons, `aria-live` regions for status updates and toast notifications, `aria-hidden` on decorative elements (equalizer canvas), `role="group"` on star rating widget, `role="button"` with keyboard handlers on drill-down rows and jukebox side items, modal focus management (auto-focus first element on open), `:focus-visible` outlines for keyboard navigation, keyboard-navigable sort headers, `prefers-reduced-motion` support
 - **Performance monitoring** — Web Vitals reporting (LCP, FID, CLS) via PerformanceObserver API; virtual scrolling for libraries with 250+ tracks
 - **Responsive design** — mobile-first layout with Bootstrap 5.3; columns hide on small screens; track action buttons visible on touch devices (no hover required)
@@ -292,9 +292,23 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.coverArt.maxBytesPerUser` | `COVER_ART_QUOTA_BYTES` | `524288000` (500 MB) | Per-user cover art storage quota |
 | `stellar.grooves.coverArt.maxBytesPerImage` | `COVER_ART_MAX_BYTES_PER_IMAGE` | `10485760` (10 MB) | Max bytes per individual cover art image |
 | `stellar.grooves.coverArt.maxBytesGlobal` | `COVER_ART_GLOBAL_QUOTA_BYTES` | `10737418240` (10 GB) | Global cap across all users |
+| `stellar.grooves.coverArt.folderImageEnabled` | `COVER_ART_FOLDER_IMAGE_ENABLED` | `true` | When a track has no embedded art, fall back to a sidecar image (`cover`/`folder`/`front`/`albumart`…) in the same directory. Local-only |
 | `stellar.grooves.trash.retentionDays` | `TRASH_RETENTION_DAYS` | `30` | Days a soft-deleted track stays in trash before purge |
 | `stellar.grooves.trash.purgeCron` | `TRASH_PURGE_CRON` | `0 0 3 * * *` | Cron for the trash-purge job (default 3 AM daily) |
 | `stellar.grooves.catalogPath` | — | *(bundled catalog.json)* | Path to a custom artist-genre catalog JSON file |
+
+#### Online cover-art fetch (opt-in)
+
+For albums still missing art after embedded + sidecar resolution, an opt-in job can look covers up online. **Off by default** — enabling it sends your album/artist names to third-party APIs (MusicBrainz, iTunes).
+
+| Property | Env var | Default | Description |
+|----------|---------|---------|-------------|
+| `stellar.grooves.coverArt.external.enabled` | `COVER_ART_EXTERNAL_ENABLED` | `false` | Enable the online "fetch missing art" feature |
+| `stellar.grooves.coverArt.external.providers` | `COVER_ART_EXTERNAL_PROVIDERS` | `musicbrainz,itunes` | Provider order: MusicBrainz + Cover Art Archive, then iTunes |
+| `stellar.grooves.coverArt.external.contact` | `COVER_ART_EXTERNAL_CONTACT` | `stellar-grooves@example.com` | Contact embedded in the MusicBrainz `User-Agent` — set to a real address/URL |
+| `stellar.grooves.coverArt.external.rateLimitMs` | `COVER_ART_EXTERNAL_RATE_LIMIT_MS` | `1100` | Minimum gap between external lookups (MusicBrainz asks for ~1 req/s) |
+| `stellar.grooves.coverArt.external.maxAlbumsPerRun` | `COVER_ART_EXTERNAL_MAX_ALBUMS` | `200` | Max albums processed per fetch run |
+| `stellar.grooves.coverArt.external.retryAfterDays` | `COVER_ART_EXTERNAL_RETRY_DAYS` | `30` | Skip an album that recently came up empty for this many days |
 
 ### Smart Playlists
 
@@ -319,8 +333,8 @@ All settings live in `src/main/resources/application.properties` and can be over
 |----------|---------|-------------|
 | `server.tomcat.max-http-form-post-size` | `2MB` | Maximum form POST size |
 | `server.max-http-request-header-size` | `16KB` | Maximum request header size |
-| `spring.servlet.multipart.max-file-size` | `2MB` | Maximum multipart file size |
-| `spring.servlet.multipart.max-request-size` | `2MB` | Maximum multipart request size |
+| `spring.servlet.multipart.max-file-size` | `12MB` | Maximum multipart file size (sized for cover-art uploads, just above `coverArt.maxBytesPerImage`) |
+| `spring.servlet.multipart.max-request-size` | `13MB` | Maximum multipart request size |
 
 ### Email Verification
 
@@ -669,7 +683,8 @@ src/main/java/com/stellarideas/grooves/
 │   ├── EmailVerificationToken.java      # Email verification tokens (SHA-256 hashed, 24h TTL)
 │   ├── PlaybackQueue.java               # Persisted playback queue (per user)
 │   ├── PlayEvent.java                   # Individual play history events (userId + musicFileId + playedAt + listenedMs + completed)
-│   ├── CoverArt.java                    # Album cover art storage (binary, quota-managed)
+│   ├── CoverArt.java                    # Album cover art storage (binary, quota-managed, with source provenance)
+│   ├── CoverArtMiss.java                # Records albums an online fetch found no art for (skip on re-runs)
 │   ├── BlacklistedToken.java            # Revoked JWT tokens (TTL-indexed)
 │   ├── RefreshToken.java                # Long-lived refresh tokens (TTL-indexed)
 │   ├── PasswordResetToken.java          # One-time password reset tokens (SHA-256 hashed, TTL-indexed)
@@ -708,6 +723,7 @@ src/main/java/com/stellarideas/grooves/
 ├── repository/                          # Spring Data MongoDB repositories
 │   ├── BlacklistedTokenRepository.java
 │   ├── CoverArtRepository.java          # Includes cover art size aggregation for quotas
+│   ├── CoverArtMissRepository.java      # Negative-cache of online-fetch misses
 │   ├── GenreCorrectionRepository.java
 │   ├── MusicFileRepository.java         # Includes regex search, soft-delete filtering
 │   ├── MusicFileRepositoryCustom.java   # Custom aggregation interface (duplicates, hash duplicates, text search, statistics, tags, rediscovery)
@@ -751,10 +767,15 @@ src/main/java/com/stellarideas/grooves/
     ├── SmartPlaylistService.java        # Smart playlist business logic (parse + share/subscribe/fork + preview + materialize)
     ├── TrashPurgeService.java           # Scheduled 30-day purge of soft-deleted tracks
     ├── UserRateLimiter.java             # Per-user request cooldowns (e.g. for materialize)
-    └── scan/                            # Scan-internal helpers (extracted from MusicScannerService)
-        ├── AudioMetadataReader.java     # JAudioTagger reader with per-file timeout
-        ├── CoverArtHandler.java         # Cover art extraction + per-user quota enforcement
-        └── FileHasher.java              # Streaming SHA-256 file hash
+    ├── scan/                            # Scan-internal helpers (extracted from MusicScannerService)
+    │   ├── AudioMetadataReader.java     # JAudioTagger reader with per-file timeout
+    │   ├── CoverArtHandler.java         # Cover art resolve + store (embedded/folder/manual/online) + quota enforcement
+    │   └── FileHasher.java              # Streaming SHA-256 file hash
+    └── coverart/                        # Optional online cover-art fetch (opt-in)
+        ├── ExternalCoverArtService.java # Background job: find missing art, throttle, store hits, cache misses
+        ├── AlbumArtProvider.java        # Provider interface
+        ├── MusicBrainzCoverArtProvider.java # MusicBrainz + Cover Art Archive
+        └── ItunesCoverArtProvider.java  # iTunes Search
 
 src/main/resources/
 ├── application.properties               # Shared configuration
