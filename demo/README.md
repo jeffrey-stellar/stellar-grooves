@@ -8,7 +8,9 @@ play with smart playlists, rate tracks) without anyone being able to break it.
 This is a **try-it demo, not a hosting service** — by design it never stores
 anyone's audio:
 
-- **No music directory is mounted**, so a visitor's *Scan* finds nothing.
+- Only a small set of **Creative-Commons demo tracks** is mounted (read-only);
+  visitors can't add their own music, and anything a *Scan* picks up is wiped on
+  the next reset.
 - The seed ships **without album art**; covers are fetched at runtime from public
   providers, so **no copyrighted images live in this repo**.
 - Whatever a visitor changes is **wiped on the next reset** (frozen via reset,
@@ -16,16 +18,20 @@ anyone's audio:
 
 ## What's in the seed
 
-`seed/stellar-grooves-demo.archive.gz` (~23 KB, a `mongodump --gzip --archive`)
+`seed/stellar-grooves-demo.archive.gz` (~24 KB, a `mongodump --gzip --archive`)
 contains only:
 
-- **243 tracks** across **18 artists** (a curated hard-rock / metal / thrash
+- **249 tracks** across ~20 artists (a curated hard-rock / metal / thrash
   spread), with generic `/music/...` file paths (no real filesystem info).
-- A spread of **ratings**, **play history** (58 play events → Recently Played,
-  Top Tracks/Artists), and Rediscover-friendly data (Forgotten Favorites,
+- A spread of **ratings**, **play history** (Recently Played, Top
+  Tracks/Artists), and Rediscover-friendly data (Forgotten Favorites,
   One-Hit-Wonders).
 - **3 smart playlists** (Heavy Rotation, Forgotten Favorites, Thrash & Heavy)
   and one reusable phrase (`eighties-metal`).
+- **6 playable Creative-Commons tracks** (HoliznaCC0's *Rock Montage*, CC0, and
+  Kevin MacLeod's *Metalmania*, CC BY 4.0) whose audio ships in `audio/` so the
+  jukebox actually plays. The rest of the catalog is browse-only. See
+  [`audio/CREDITS.md`](audio/CREDITS.md).
 - A single user — the demo account below. No personal data.
 
 **Demo login:** `demo` / `GrooveDemo1`

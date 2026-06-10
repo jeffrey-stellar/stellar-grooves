@@ -32,6 +32,10 @@ services:
       # Covers are fetched at runtime so no copyrighted art ships in the repo.
       COVER_ART_EXTERNAL_ENABLED: "true"
       COVER_ART_EXTERNAL_CONTACT: ${COVER_ART_EXTERNAL_CONTACT:-demo@stellargrooves.local}
+    volumes:
+      # A handful of Creative-Commons tracks so the jukebox actually plays.
+      # The seed's playable tracks point at /music/<artist>/<album>/... here.
+      - ./audio:/music:ro
     depends_on:
       mongo:
         condition: service_healthy
