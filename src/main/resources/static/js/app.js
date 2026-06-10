@@ -426,6 +426,62 @@ document.getElementById('albumViewGrid').addEventListener('click', () => setAlbu
 document.getElementById('albumViewList').addEventListener('click', () => setAlbumViewMode('list'));
 document.getElementById('albumViewArt').addEventListener('click', () => setAlbumViewMode('art'));
 
+// ── Online cover-art fetch (opt-in; only shown when enabled server-side) ──
+const fetchArtBtn = document.getElementById('fetchArtBtn');
+let coverFetchPoll = null;
+
+async function initCoverArtFetch() {
+    if (!fetchArtBtn) return;
+    try {
+        const r = await fetch('/api/v1/library/cover-art/fetch/status');
+        if (!r.ok) return;
+        const s = await r.json();
+        if (!s.enabled) return;
+        fetchArtBtn.classList.remove('d-none');
+        if (s.running) startCoverFetchPolling(); else updateFetchArtBtn(s);
+    } catch (e) { /* feature stays hidden */ }
+}
+
+function updateFetchArtBtn(s) {
+    if (!fetchArtBtn) return;
+    if (s && s.running) {
+        fetchArtBtn.disabled = true;
+        fetchArtBtn.textContent = `Fetching… ${s.processed || 0}/${s.total || 0}`;
+    } else {
+        fetchArtBtn.disabled = false;
+        fetchArtBtn.textContent = 'Fetch missing art';
+    }
+}
+
+function startCoverFetchPolling() {
+    if (coverFetchPoll) return;
+    updateFetchArtBtn({ running: true, processed: 0, total: 0 });
+    coverFetchPoll = setInterval(async () => {
+        try {
+            const r = await fetch('/api/v1/library/cover-art/fetch/status');
+            if (!r.ok) return;
+            const s = await r.json();
+            updateFetchArtBtn(s);
+            if (!s.running) {
+                clearInterval(coverFetchPoll); coverFetchPoll = null;
+                showToast(`Fetched ${s.fetched || 0} cover${(s.fetched === 1) ? '' : 's'}`, 'success');
+                if ((s.fetched || 0) > 0) await loadLibrary();
+            }
+        } catch (e) { /* keep polling */ }
+    }, 2500);
+}
+
+fetchArtBtn?.addEventListener('click', async () => {
+    if (!confirm('Look up missing album covers online?\n\nThis sends your album and artist names to MusicBrainz and iTunes. Nothing else is shared.')) return;
+    try {
+        const r = await fetch('/api/v1/library/cover-art/fetch', { method: 'POST', headers: csrfHeaders() });
+        if (r.ok || r.status === 202) { startCoverFetchPolling(); }
+        else showToast(await errorMsg(r, 'Could not start cover-art fetch'));
+    } catch (e) { showToast('Could not start cover-art fetch — check your connection'); }
+});
+
+initCoverArtFetch();
+
 // ── Tracks view ──────────────────────────────────────────
 function getVisibleTracks() {
     let f = allFiles;

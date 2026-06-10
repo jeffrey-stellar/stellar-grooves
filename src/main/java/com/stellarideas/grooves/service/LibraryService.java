@@ -39,6 +39,7 @@ public class LibraryService {
     private final MongoTemplate mongoTemplate;
     private final LibraryStatsCache statsCache;
     private final com.stellarideas.grooves.service.scan.CoverArtHandler coverArtHandler;
+    private final com.stellarideas.grooves.repository.CoverArtMissRepository coverArtMissRepository;
 
     public LibraryService(MusicFileRepository musicFileRepository,
                           PlaylistRepository playlistRepository,
@@ -48,7 +49,8 @@ public class LibraryService {
                           MusicCatalogService catalogService,
                           MongoTemplate mongoTemplate,
                           LibraryStatsCache statsCache,
-                          com.stellarideas.grooves.service.scan.CoverArtHandler coverArtHandler) {
+                          com.stellarideas.grooves.service.scan.CoverArtHandler coverArtHandler,
+                          com.stellarideas.grooves.repository.CoverArtMissRepository coverArtMissRepository) {
         this.musicFileRepository = musicFileRepository;
         this.playlistRepository = playlistRepository;
         this.coverArtRepository = coverArtRepository;
@@ -58,6 +60,7 @@ public class LibraryService {
         this.mongoTemplate = mongoTemplate;
         this.statsCache = statsCache;
         this.coverArtHandler = coverArtHandler;
+        this.coverArtMissRepository = coverArtMissRepository;
     }
 
     public Page<MusicFile> getFiles(String userId, Genre genre, int page, int size) {
@@ -351,6 +354,7 @@ public class LibraryService {
         long fileCount = musicFileRepository.deleteByUserId(userId);
         playlistRepository.deleteByUserId(userId);
         coverArtRepository.deleteByUserId(userId);
+        coverArtMissRepository.deleteByUserId(userId);
         playbackQueueRepository.deleteByUserId(userId);
         playEventRepository.deleteByUserId(userId);
         statsCache.invalidate(userId);

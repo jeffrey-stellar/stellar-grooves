@@ -132,6 +132,17 @@ public class CoverArtHandler {
      * art's size. Throws {@link IllegalArgumentException} on an empty image or a quota breach.
      */
     public void storeManualCover(String userId, String artist, String album, byte[] data, String mime) {
+        storeFetchedCover(userId, artist, album, data, mime, "manual");
+    }
+
+    /**
+     * Store a cover image for an album from any source (manual upload or an external provider),
+     * replacing any existing art for it. {@code source} is recorded for provenance (e.g.
+     * "manual", "musicbrainz", "itunes"). Enforces the per-image and per-user/global byte
+     * quotas, accounting for the replaced art's size. Throws {@link IllegalArgumentException}
+     * on an empty image or a quota breach.
+     */
+    public void storeFetchedCover(String userId, String artist, String album, byte[] data, String mime, String source) {
         if (artist == null || artist.isBlank() || album == null || album.isBlank()) {
             throw new IllegalArgumentException("Track has no album/artist to attach cover art to");
         }
@@ -164,7 +175,7 @@ public class CoverArtHandler {
         art.setAlbum(album);
         art.setMimeType(mime);
         art.setData(data);
-        art.setSource("manual");
+        art.setSource(source);
         repository.save(art);
     }
 

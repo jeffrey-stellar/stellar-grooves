@@ -40,6 +40,7 @@ class LibraryControllerTest {
     private ScanProgressEmitter scanProgressEmitter;
     private UserRateLimiter userRateLimiter;
     private PlayHistoryService playHistoryService;
+    private com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService;
     private User testUser;
 
     @TempDir
@@ -56,6 +57,7 @@ class LibraryControllerTest {
         scanProgressEmitter = mock(ScanProgressEmitter.class);
         userRateLimiter = mock(UserRateLimiter.class);
         playHistoryService = mock(PlayHistoryService.class);
+        externalCoverArtService = mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
@@ -76,7 +78,8 @@ class LibraryControllerTest {
                 auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter,
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase),
                 playHistoryService,
-                mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
+                mock(com.stellarideas.grooves.service.FfmpegAvailability.class),
+                externalCoverArtService);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);
@@ -146,6 +149,49 @@ class LibraryControllerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> controller.uploadCoverArt(testUser, "f1", empty));
         verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    // ---- cover-art fetch ----
+
+    @Test
+    void fetchMissingCoverArtForbiddenWhenDisabled() {
+        when(externalCoverArtService.isEnabled()).thenReturn(false);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(403, response.getStatusCode().value());
+        verify(externalCoverArtService, never()).fetchMissingAsync(anyString());
+    }
+
+    @Test
+    void fetchMissingCoverArtConflictWhenAlreadyRunning() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.isRunning("user1")).thenReturn(true);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(409, response.getStatusCode().value());
+        verify(externalCoverArtService, never()).fetchMissingAsync(anyString());
+    }
+
+    @Test
+    void fetchMissingCoverArtStartsWhenEnabledAndIdle() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.isRunning("user1")).thenReturn(false);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(202, response.getStatusCode().value());
+        verify(externalCoverArtService).fetchMissingAsync("user1");
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.COVER_ART_FETCH), isNull(), anyString());
+    }
+
+    @Test
+    void coverArtFetchStatusIncludesEnabledFlag() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.getStatus("user1"))
+                .thenReturn(new com.stellarideas.grooves.service.coverart.ExternalCoverArtService.Status());
+        ResponseEntity<?> response = controller.coverArtFetchStatus(testUser);
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals(true, body.get("enabled"));
+        assertTrue(body.containsKey("running"));
     }
 
     // ---- getFiles ----

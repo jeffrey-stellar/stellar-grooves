@@ -508,7 +508,11 @@
 
                     <!-- Albums view -->
                     <div id="viewAlbums" class="d-none" role="region" aria-label="Albums">
-                        <div class="d-flex justify-content-end px-3 pt-2 pb-1">
+                        <div class="d-flex justify-content-end align-items-center gap-2 px-3 pt-2 pb-1">
+                            <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="fetchArtBtn"
+                                    title="Look up missing album covers from online sources (MusicBrainz, iTunes). Sends album/artist names to those services.">
+                                Fetch missing art
+                            </button>
                             <div class="btn-group btn-group-sm" role="group" aria-label="Albums view mode">
                                 <button type="button" class="btn btn-outline-secondary active" id="albumViewGrid" title="Grid view" aria-label="Grid view" aria-pressed="true">&#x2637;</button>
                                 <button type="button" class="btn btn-outline-secondary" id="albumViewList" title="List view" aria-label="List view" aria-pressed="false">&#x2630;</button>

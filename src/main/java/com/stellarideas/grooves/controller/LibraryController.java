@@ -74,6 +74,7 @@ public class LibraryController {
     private final ScanPathValidator scanPathValidator;
     private final PlayHistoryService playHistoryService;
     private final FfmpegAvailability ffmpeg;
+    private final com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -86,7 +87,8 @@ public class LibraryController {
                              UserRateLimiter userRateLimiter,
                              ScanPathValidator scanPathValidator,
                              PlayHistoryService playHistoryService,
-                             FfmpegAvailability ffmpeg) {
+                             FfmpegAvailability ffmpeg,
+                             com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -99,6 +101,7 @@ public class LibraryController {
         this.scanPathValidator = scanPathValidator;
         this.playHistoryService = playHistoryService;
         this.ffmpeg = ffmpeg;
+        this.externalCoverArtService = externalCoverArtService;
     }
 
     @PostMapping("/scan")
@@ -621,6 +624,31 @@ public class LibraryController {
         auditService.log(user.getUsername(), AuditService.Action.COVER_ART_UPLOAD, mf.getId(),
                 mf.getArtist() + " - " + mf.getAlbum());
         return ResponseEntity.ok(Map.of("updated", updated, "album", mf.getAlbum() == null ? "" : mf.getAlbum()));
+    }
+
+    @PostMapping("/cover-art/fetch")
+    public ResponseEntity<?> fetchMissingCoverArt(@CurrentUser User user) {
+        if (!externalCoverArtService.isEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(GlobalExceptionHandler.problem(
+                    HttpStatus.FORBIDDEN, "Online cover-art fetch is disabled on this server."));
+        }
+        if (externalCoverArtService.isRunning(user.getId())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(GlobalExceptionHandler.problem(
+                    HttpStatus.CONFLICT, "A cover-art fetch is already running."));
+        }
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "cover-fetch");
+        if (rateLimited != null) return rateLimited;
+
+        externalCoverArtService.fetchMissingAsync(user.getId());
+        auditService.log(user.getUsername(), AuditService.Action.COVER_ART_FETCH, null, "started");
+        return ResponseEntity.accepted().body(Map.of("started", true));
+    }
+
+    @GetMapping("/cover-art/fetch/status")
+    public ResponseEntity<?> coverArtFetchStatus(@CurrentUser User user) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>(externalCoverArtService.getStatus(user.getId()).toMap());
+        body.put("enabled", externalCoverArtService.isEnabled());
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/duplicates")
