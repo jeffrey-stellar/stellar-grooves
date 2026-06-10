@@ -2,6 +2,8 @@
 
 Stellar Grooves is a self-hosted music library for rock and metal collections. This guide walks through the everyday browser flow: signing up, scanning a music directory, and using the curator-focused features (smart playlists, phrases, sharing).
 
+> The app is built and themed for rock and metal, but every feature below works with any collection — only the genre auto-classification is rock/metal-specific (other music imports fully and lands under "Other"; organize it with tags, ratings, and artist/album smart playlists).
+
 For installation and configuration, see [`README.md`](README.md). This document assumes the app is already running at `http://localhost:8089`.
 
 ---

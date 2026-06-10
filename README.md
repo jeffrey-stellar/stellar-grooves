@@ -6,6 +6,8 @@ A self-hosted, multi-user music library for rock and metal collections — built
 
 Built with Spring Boot, MongoDB, and vanilla JavaScript.
 
+> *Built and themed for hard rock, metal, and thrash — but the library, smart-playlist, and playback features work with any collection. Only the genre auto-classification is rock/metal-specific; tracks outside that taxonomy import fully and live under "Other," organized via tags, ratings, and artist/album playlists.*
+
 ![Stellar Grooves library view](docs/screenshots/library-overview.png)
 
 > **A curator's library.** Write a smart playlist, publish the share link, and other curators run your *query* against their *own* libraries — they only ever see tracks they themselves own.
