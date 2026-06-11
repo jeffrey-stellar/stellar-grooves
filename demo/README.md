@@ -52,8 +52,28 @@ docker compose --env-file demo/.env -f demo/docker-compose.demo.yml up -d --buil
 ./demo/scripts/reset-demo.sh        # seed the DB and warm cover art
 ```
 
-The demo is then on `http://<host>:8089` (override with `DEMO_PORT`). Put it
-behind a reverse proxy / TLS for a real public instance.
+The app is published on `127.0.0.1:8089` (override with `DEMO_PORT`) — reachable
+on the host for testing and the reset script, but not public. For a real public
+instance, use the bundled HTTPS below.
+
+## Public HTTPS (one command)
+
+The stack includes an optional **Caddy** reverse proxy that fetches and renews a
+Let's Encrypt certificate automatically. To go live:
+
+1. Point your domain's DNS **A record** at the host.
+2. In `demo/.env` set `DEMO_DOMAIN` (e.g. `demo.stellargrooves.com`),
+   `ACME_EMAIL`, and `CORS_ALLOWED_ORIGINS=https://<your-domain>`.
+3. Bring it up with the `tls` profile (ports 80/443 must be open):
+
+```bash
+docker compose --env-file demo/.env -f demo/docker-compose.demo.yml --profile tls up -d --build
+./demo/scripts/reset-demo.sh
+```
+
+Caddy serves `https://<your-domain>` and proxies to the app; certificates
+persist in the `caddy-data` volume across restarts. For a local trial without a
+domain, set `DEMO_DOMAIN=localhost` (Caddy uses a self-signed internal CA).
 
 ## Keep it frozen (nightly reset)
 

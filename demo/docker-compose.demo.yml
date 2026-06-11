@@ -13,6 +13,11 @@
 #   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml up -d --build
 #   ./demo/scripts/reset-demo.sh     # seed the DB + warm cover art
 #
+# Public HTTPS (one command): set DEMO_DOMAIN + ACME_EMAIL in demo/.env, point
+# the domain's DNS at this host, and add the "tls" profile — Caddy fetches and
+# renews a Let's Encrypt cert automatically:
+#   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml --profile tls up -d --build
+#
 # Then schedule the reset nightly (host crontab), e.g. 4am:
 #   0 4 * * * cd /path/to/stellar-grooves && ./demo/scripts/reset-demo.sh >> /var/log/sg-demo-reset.log 2>&1
 
@@ -22,7 +27,11 @@ services:
       context: ..
       dockerfile: Dockerfile
     ports:
-      - "${DEMO_PORT:-8089}:8089"
+      # Published on the loopback only: reachable on the host for
+      # reset-demo.sh and local testing, but the public entrypoint is Caddy
+      # (the "tls" profile below). Drop the "127.0.0.1:" prefix if you want
+      # to expose the app directly over plain HTTP instead.
+      - "127.0.0.1:${DEMO_PORT:-8089}:8089"
     environment:
       MONGO_URI: mongodb://mongo:27017/stellar_grooves_demo
       JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in demo/.env - generate with openssl rand -base64 32}"
@@ -94,5 +103,30 @@ services:
           cpus: "0.25"
           memory: 256M
 
+  # Optional auto-HTTPS reverse proxy. Enable with the "tls" profile:
+  #   docker compose ... --profile tls up -d
+  # Requires DEMO_DOMAIN (+ ACME_EMAIL) in demo/.env, the domain's DNS pointing
+  # here, and ports 80/443 open. Caddy fetches + renews a Let's Encrypt cert
+  # automatically and proxies to the app. Certs persist in the caddy-data volume.
+  caddy:
+    image: caddy:2
+    profiles: ["tls"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?Set DEMO_DOMAIN in demo/.env to use the tls profile}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in demo/.env to use the tls profile}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   mongo-demo-data:
+  caddy-data:
+  caddy-config:
