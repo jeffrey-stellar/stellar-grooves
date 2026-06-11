@@ -29,6 +29,11 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       MAIL_ENABLED: "false"
       EMAIL_VERIFICATION_REQUIRED: "false"
+      # Disable self-signup and surface/pre-fill the demo login so visitors
+      # land on the seeded account instead of an empty one.
+      DEMO_MODE: "true"
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-GrooveDemo1}
       # Covers are fetched at runtime so no copyrighted art ships in the repo.
       COVER_ART_EXTERNAL_ENABLED: "true"
       COVER_ART_EXTERNAL_CONTACT: ${COVER_ART_EXTERNAL_CONTACT:-demo@stellargrooves.local}

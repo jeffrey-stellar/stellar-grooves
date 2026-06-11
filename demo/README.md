@@ -36,6 +36,11 @@ contains only:
 
 **Demo login:** `demo` / `GrooveDemo1`
 
+The compose sets `DEMO_MODE=true`, which **disables self-signup** and makes the
+sign-in page show and pre-fill these credentials — so visitors land on the
+seeded account in one click instead of creating an empty one. (Override the
+shown credentials with `DEMO_USERNAME` / `DEMO_PASSWORD` if you change them.)
+
 ## Run it
 
 From the repo root:

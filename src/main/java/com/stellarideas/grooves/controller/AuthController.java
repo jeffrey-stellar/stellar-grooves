@@ -70,6 +70,9 @@ public class AuthController {
     @org.springframework.beans.factory.annotation.Value("${stellar.grooves.email.verificationRequired:false}")
     private boolean emailVerificationRequired;
 
+    @org.springframework.beans.factory.annotation.Value("${stellar.grooves.demoMode:false}")
+    private boolean demoMode;
+
     public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository,
                           PasswordEncoder encoder, JwtUtils jwtUtils, MessageHelper msg,
                           LoginAttemptService loginAttemptService, AuditService auditService,
@@ -149,6 +152,11 @@ public class AuthController {
     @Operation(summary = "Sign up", description = "Register a new user account. Sends verification email if enabled.")
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        if (demoMode) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(GlobalExceptionHandler.problem(HttpStatus.FORBIDDEN,
+                            "Sign-up is disabled on the demo. Use the demo account shown on the sign-in page."));
+        }
         String normalizedUsername = signUpRequest.getUsername().toLowerCase(java.util.Locale.ROOT);
         String normalizedEmail = signUpRequest.getEmail().toLowerCase(java.util.Locale.ROOT);
         if (userRepository.existsByUsernameIgnoreCase(normalizedUsername)
