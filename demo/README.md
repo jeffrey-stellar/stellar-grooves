@@ -26,8 +26,9 @@ contains only:
 - A spread of **ratings**, **play history** (Recently Played, Top
   Tracks/Artists), and Rediscover-friendly data (Forgotten Favorites,
   One-Hit-Wonders).
-- **3 smart playlists** (Heavy Rotation, Forgotten Favorites, Thrash & Heavy)
-  and one reusable phrase (`eighties-metal`).
+- **4 smart playlists** (Heavy Rotation, Forgotten Favorites, Thrash & Heavy,
+  and **▶ Playable Demo Tracks** — the CC tracks that actually play, via
+  `tag:playable`) plus one reusable phrase (`eighties-metal`).
 - **6 playable Creative-Commons tracks** (HoliznaCC0's *Rock Montage*, CC0, and
   Kevin MacLeod's *Metalmania*, CC BY 4.0) whose audio ships in `audio/` so the
   jukebox actually plays. The rest of the catalog is browse-only. See
