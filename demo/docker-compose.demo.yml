@@ -40,8 +40,18 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       # Required under the prod profile. Set to your public demo URL.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8089}
+      # Caddy terminates TLS and proxies plain HTTP to the app. Honor its
+      # X-Forwarded-* headers so the app knows requests are HTTPS — otherwise it
+      # emits http:// redirects (e.g. after login) and the http->https bounce
+      # drops the session cookie, yielding a 403 / whitelabel page post-login.
+      SERVER_FORWARD_HEADERS_STRATEGY: "framework"
       MAIL_ENABLED: "false"
       EMAIL_VERIFICATION_REQUIRED: "false"
+      # No Redis or SMTP in this stack — keep their health probes from marking the
+      # app unhealthy (rate limiting is in-memory, mail is off). Also pins the
+      # current published image healthy without needing a rebuild.
+      MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
       # Disable self-signup and surface/pre-fill the demo login so visitors
       # land on the seeded account instead of an empty one.
       DEMO_MODE: "true"
