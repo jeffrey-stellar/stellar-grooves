@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual trigger: publish ghcr.io/<repo>:latest on demand (e.g. to stand up the
+  # public demo) without cutting a version tag.
+  workflow_dispatch:
 
 permissions:
   contents: read

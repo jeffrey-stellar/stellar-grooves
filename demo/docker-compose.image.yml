@@ -1,0 +1,24 @@
+# Production overlay for the public demo.
+#
+# Runs a PREBUILT image pulled from GitHub Container Registry instead of building
+# the app from source on the host — so the demo box stays small and needs no
+# compiler or source checkout. Use it ALONGSIDE the base file:
+#
+#   docker compose --env-file demo/.env \
+#     -f demo/docker-compose.demo.yml -f demo/docker-compose.image.yml \
+#     --profile tls pull
+#   docker compose --env-file demo/.env \
+#     -f demo/docker-compose.demo.yml -f demo/docker-compose.image.yml \
+#     --profile tls up -d
+#
+# SG_IMAGE picks the tag (default: latest). Publish the image first by running the
+# "Release" GitHub Action (Actions -> Release -> Run workflow) or pushing a v* tag,
+# then make the ghcr.io package Public so the host can pull it without credentials.
+#
+# pull_policy:always means `up` always fetches the published image and never falls
+# back to building locally (the base file's build: section is intentionally left
+# inert here). See demo/DEPLOY-LIGHTSAIL.md for the full runbook.
+services:
+  app:
+    image: ${SG_IMAGE:-ghcr.io/jeffrey-stellar/stellar-grooves:latest}
+    pull_policy: always
