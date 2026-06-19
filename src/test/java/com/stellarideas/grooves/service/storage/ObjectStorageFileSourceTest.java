@@ -30,8 +30,11 @@ import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-@Testcontainers
-class ObjectStorageFileSourceIT {
+// Named *Test (not *IT) so surefire actually runs it — this repo has no failsafe
+// plugin, so *IT classes are silently skipped. disabledWithoutDocker skips it
+// cleanly where Docker is absent; it runs (and verifies) in CI and on Docker devs.
+@Testcontainers(disabledWithoutDocker = true)
+class ObjectStorageFileSourceTest {
 
     private static final String BUCKET = "test-library";
     private static final byte[] SONG = "fake-mp3-bytes-0123456789".getBytes(StandardCharsets.UTF_8);
