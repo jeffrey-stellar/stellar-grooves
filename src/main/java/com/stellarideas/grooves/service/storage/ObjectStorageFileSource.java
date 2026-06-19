@@ -1,5 +1,7 @@
 package com.stellarideas.grooves.service.storage;
 
+import com.stellarideas.grooves.model.MusicFile;
+import com.stellarideas.grooves.model.User;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -39,7 +41,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
  * <p>This class is not yet wired into request handling; the scanner and streaming
  * endpoint adopt it in later phases. Build one with {@link #from(StorageProperties.S3)}.</p>
  */
-public class ObjectStorageFileSource {
+public class ObjectStorageFileSource implements FileSource {
 
     private final S3Client s3;
     private final S3Presigner presigner;
@@ -147,6 +149,26 @@ public class ObjectStorageFileSource {
         } catch (NoSuchKeyException e) {
             return false;
         }
+    }
+
+    /**
+     * Stream a track by handing the browser a short-lived presigned URL — the
+     * bytes flow straight from the bucket, never through this server. The track's
+     * owner was already verified by the caller; there is no per-user path scoping
+     * for object storage.
+     */
+    @Override
+    public StreamResolution resolveStream(MusicFile file, User user) {
+        String key = file.getStorageKey();
+        if (key == null || key.isBlank()) {
+            return StreamResolution.notFound();
+        }
+        return StreamResolution.redirect(presignGet(key));
+    }
+
+    @Override
+    public boolean usesObjectKeys() {
+        return true;
     }
 
     private static String stripQuotes(String etag) {

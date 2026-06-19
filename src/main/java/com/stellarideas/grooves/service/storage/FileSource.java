@@ -26,4 +26,13 @@ public interface FileSource {
      *         resolved location on {@code OK}.
      */
     StreamResolution resolveStream(MusicFile file, User user) throws IOException;
+
+    /**
+     * Whether this source addresses content by object key rather than a local
+     * filesystem path. Lets callers (e.g. the scan endpoint) skip filesystem-path
+     * validation when the backend is object storage. Local source: {@code false}.
+     */
+    default boolean usesObjectKeys() {
+        return false;
+    }
 }

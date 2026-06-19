@@ -9,9 +9,8 @@ import org.springframework.context.annotation.Configuration;
  * Selects the active {@link FileSource} from {@code stellar.grooves.storage.type}.
  *
  * <p>Default (and {@code type=local}) → {@link LocalFileSource}: the self-host
- * filesystem backend, unchanged. {@code type=s3} is reserved for the
- * object-storage backend, which lands in a later phase — until then, selecting
- * it fails fast with a clear message instead of a cryptic missing-bean error.</p>
+ * filesystem backend, unchanged. {@code type=s3} → {@link ObjectStorageFileSource}
+ * against the configured S3-compatible bucket.</p>
  */
 @Configuration
 @EnableConfigurationProperties(StorageProperties.class)
@@ -25,10 +24,11 @@ public class StorageConfig {
 
     @Bean
     @ConditionalOnProperty(name = "stellar.grooves.storage.type", havingValue = "s3")
-    public FileSource s3FileSource() {
-        throw new IllegalStateException(
-                "stellar.grooves.storage.type=s3 is not available in this build yet "
-                        + "(the S3-compatible object-storage backend lands in a later release). "
-                        + "Set STORAGE_TYPE=local for now.");
+    public FileSource s3FileSource(StorageProperties properties) {
+        if (properties.getS3().getBucket() == null || properties.getS3().getBucket().isBlank()) {
+            throw new IllegalStateException(
+                    "stellar.grooves.storage.type=s3 requires a bucket — set S3_BUCKET.");
+        }
+        return ObjectStorageFileSource.from(properties.getS3());
     }
 }

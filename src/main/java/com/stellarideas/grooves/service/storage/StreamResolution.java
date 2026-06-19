@@ -5,15 +5,15 @@ import java.nio.file.Path;
 /**
  * Result of resolving how to serve a track's audio bytes.
  *
- * <p>For the local filesystem source this carries a resolved, validated
- * {@link Path} the caller serves directly. Object-storage sources (added in a
- * later phase) will resolve to a short-lived presigned redirect; this type will
- * grow to express that when that path lands.</p>
+ * <p>The local filesystem source resolves to a validated {@link #localPath} the
+ * caller serves directly. The object-storage source resolves to a short-lived
+ * presigned {@link #redirectUrl} the caller 302-redirects to, so the browser
+ * streams straight from the bucket. Exactly one of the two is set on {@code OK}.</p>
  */
-public record StreamResolution(Status status, Path localPath) {
+public record StreamResolution(Status status, Path localPath, String redirectUrl) {
 
     public enum Status {
-        /** The track can be served; {@link #localPath()} is set. */
+        /** The track can be served; {@link #localPath()} or {@link #redirectUrl()} is set. */
         OK,
         /** The underlying file is missing or unreadable. */
         NOT_FOUND,
@@ -22,14 +22,18 @@ public record StreamResolution(Status status, Path localPath) {
     }
 
     public static StreamResolution ok(Path localPath) {
-        return new StreamResolution(Status.OK, localPath);
+        return new StreamResolution(Status.OK, localPath, null);
+    }
+
+    public static StreamResolution redirect(String url) {
+        return new StreamResolution(Status.OK, null, url);
     }
 
     public static StreamResolution notFound() {
-        return new StreamResolution(Status.NOT_FOUND, null);
+        return new StreamResolution(Status.NOT_FOUND, null, null);
     }
 
     public static StreamResolution forbidden() {
-        return new StreamResolution(Status.FORBIDDEN, null);
+        return new StreamResolution(Status.FORBIDDEN, null, null);
     }
 }

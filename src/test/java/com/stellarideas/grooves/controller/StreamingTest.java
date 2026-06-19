@@ -69,11 +69,11 @@ class StreamingTest {
                 .id("f1").fileName("song.mp3").filePath(audioPath.toString()).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals(1024, response.getBody().getCount());
+        assertEquals(1024, ((ResourceRegion) response.getBody()).getCount());
         assertEquals("audio/mpeg", response.getHeaders().getContentType().toString());
     }
 
@@ -87,18 +87,18 @@ class StreamingTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setRange(java.util.List.of(HttpRange.createByteRange(0, 511)));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", headers);
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", headers);
 
         assertEquals(206, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals(512, response.getBody().getCount());
+        assertEquals(512, ((ResourceRegion) response.getBody()).getCount());
     }
 
     @Test
     void streamFileReturns404ForMissingDatabaseEntry() throws IOException {
         when(libraryService.findFileByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "missing", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "missing", new HttpHeaders());
 
         assertEquals(404, response.getStatusCode().value());
     }
@@ -111,7 +111,7 @@ class StreamingTest {
                 .id("f1").fileName("gone.mp3").filePath(missingPath).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(404, response.getStatusCode().value());
     }
@@ -129,7 +129,7 @@ class StreamingTest {
                     .id("f1").fileName("locked.mp3").filePath(audioPath.toString()).build();
             when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-            ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+            ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
             assertEquals(404, response.getStatusCode().value());
         } finally {
@@ -144,7 +144,7 @@ class StreamingTest {
                 .id("f1").fileName("song.flac").filePath(audioPath.toString()).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("audio/flac", response.getHeaders().getContentType().toString());
@@ -157,7 +157,7 @@ class StreamingTest {
                 .id("f1").fileName("song.m4a").filePath(audioPath.toString()).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("audio/mp4", response.getHeaders().getContentType().toString());
@@ -170,7 +170,7 @@ class StreamingTest {
                 .id("f1").fileName("song.wav").filePath(audioPath.toString()).build();
         when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
 
-        ResponseEntity<ResourceRegion> response = controller.streamFile(testUser, "f1", new HttpHeaders());
+        ResponseEntity<?> response = controller.streamFile(testUser, "f1", new HttpHeaders());
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("application/octet-stream", response.getHeaders().getContentType().toString());

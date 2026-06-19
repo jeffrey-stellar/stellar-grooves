@@ -410,6 +410,26 @@ spring.data.redis.port=6379
 
 With Docker Compose, uncomment the `redis` service block.
 
+### Object Storage (Optional — self-host against your own S3 bucket)
+
+By default Stellar Grooves reads music from a local directory (`STORAGE_TYPE=local`). Set `STORAGE_TYPE=s3` to scan and stream from an **S3-compatible bucket** instead — AWS S3, Backblaze B2, Wasabi, or self-hosted MinIO. Your audio stays in your bucket; the app streams it to the browser via short-lived **presigned URLs** (the bytes never pass through the server), and a scan reads tags by briefly fetching each object.
+
+```bash
+STORAGE_TYPE=s3
+S3_BUCKET=my-music
+S3_REGION=us-east-1
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+# For non-AWS providers (Backblaze B2, Wasabi, MinIO), set the endpoint:
+S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com
+# Optional: scope to a key prefix, and tune the presigned-URL lifetime / tag-read cap
+S3_PREFIX=
+S3_PRESIGN_TTL=900
+S3_MAX_TAG_BYTES=52428800
+```
+
+A *Scan* then indexes the bucket (under `S3_PREFIX`) instead of a local folder; re-scans skip already-indexed objects. No bucket CORS configuration is needed for playback.
+
 ### Custom Artist Catalog
 
 The artist-genre mapping is stored in `src/main/resources/catalog.json`. To customize without recompiling, create your own JSON file and point to it:

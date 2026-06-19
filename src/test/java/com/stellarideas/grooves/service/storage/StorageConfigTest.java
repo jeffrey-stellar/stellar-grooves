@@ -27,7 +27,21 @@ class StorageConfigTest {
     }
 
     @Test
-    void s3TypeFailsFastUntilBackendLands() {
+    void s3TypeWithBucketUsesObjectStorage() {
+        runner.withPropertyValues(
+                        "stellar.grooves.storage.type=s3",
+                        "stellar.grooves.storage.s3.bucket=my-bucket",
+                        "stellar.grooves.storage.s3.access-key=ak",
+                        "stellar.grooves.storage.s3.secret-key=sk")
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(FileSource.class);
+                    assertThat(ctx.getBean(FileSource.class)).isInstanceOf(ObjectStorageFileSource.class);
+                    assertThat(ctx.getBean(FileSource.class).usesObjectKeys()).isTrue();
+                });
+    }
+
+    @Test
+    void s3TypeWithoutBucketFailsFast() {
         runner.withPropertyValues("stellar.grooves.storage.type=s3").run(ctx -> {
             assertThat(ctx).hasFailed();
             assertThat(ctx.getStartupFailure()).hasRootCauseInstanceOf(IllegalStateException.class);

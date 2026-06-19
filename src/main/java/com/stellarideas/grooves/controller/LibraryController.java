@@ -120,10 +120,16 @@ public class LibraryController {
         }
         String path = request.getPath();
         try {
-            validateScanPath(path);
-            auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
-            user.setMusicDirectory(path);
-            userRepository.save(user);
+            if (fileSource.usesObjectKeys()) {
+                // Object-storage backend scans the configured bucket; the request
+                // path is not a local directory, so skip filesystem validation.
+                auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, "object-storage");
+            } else {
+                validateScanPath(path);
+                auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
+                user.setMusicDirectory(path);
+                userRepository.save(user);
+            }
             com.stellarideas.grooves.model.ScanJob job = scannerService.startAsyncScan(user, path);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("message", "Scan started");
@@ -254,7 +260,7 @@ public class LibraryController {
     }
 
     @GetMapping("/files/{id}/stream")
-    public ResponseEntity<ResourceRegion> streamFile(
+    public ResponseEntity<?> streamFile(
             @CurrentUser User user,
             @PathVariable String id,
             @RequestHeader HttpHeaders headers) throws IOException {
@@ -269,6 +275,13 @@ public class LibraryController {
         }
         if (resolved.status() == com.stellarideas.grooves.service.storage.StreamResolution.Status.FORBIDDEN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        // Object-storage backend: redirect the browser to a short-lived presigned
+        // URL so the bytes stream straight from the bucket, never through us.
+        if (resolved.redirectUrl() != null) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header(HttpHeaders.LOCATION, resolved.redirectUrl())
+                    .build();
         }
         Resource resource = new FileSystemResource(resolved.localPath());
         long contentLength = resource.contentLength();
