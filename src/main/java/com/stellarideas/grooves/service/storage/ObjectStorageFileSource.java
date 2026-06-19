@@ -41,7 +41,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
  * <p>This class is not yet wired into request handling; the scanner and streaming
  * endpoint adopt it in later phases. Build one with {@link #from(StorageProperties.S3)}.</p>
  */
-public class ObjectStorageFileSource implements FileSource {
+public class ObjectStorageFileSource implements FileSource, AutoCloseable {
 
     private final S3Client s3;
     private final S3Presigner presigner;
@@ -169,6 +169,13 @@ public class ObjectStorageFileSource implements FileSource {
     @Override
     public boolean usesObjectKeys() {
         return true;
+    }
+
+    /** Release the underlying S3 client + presigner. */
+    @Override
+    public void close() {
+        s3.close();
+        presigner.close();
     }
 
     private static String stripQuotes(String etag) {

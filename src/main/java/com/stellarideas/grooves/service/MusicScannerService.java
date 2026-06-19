@@ -451,8 +451,13 @@ public class MusicScannerService {
     }
 
     private ScanResult doScanS3(User user, ScanJob job) throws IOException {
-        ObjectStorageFileSource store = ObjectStorageFileSource.from(storageProperties.getS3());
+        try (ObjectStorageFileSource store = ObjectStorageFileSource.from(storageProperties.getS3())) {
+            return scanObjectStorage(user, job, store);
+        }
+    }
 
+    private ScanResult scanObjectStorage(User user, ScanJob job, ObjectStorageFileSource store)
+            throws IOException {
         List<MusicFile> allUserFiles = repository.findByUserId(user.getId());
         Map<String, String> existingByKey = new HashMap<>();
         for (MusicFile f : allUserFiles) {
