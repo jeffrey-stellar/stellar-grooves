@@ -79,7 +79,8 @@ class LibraryControllerTest {
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase),
                 playHistoryService,
                 mock(com.stellarideas.grooves.service.FfmpegAvailability.class),
-                externalCoverArtService);
+                externalCoverArtService,
+                new com.stellarideas.grooves.service.storage.LocalFileSource());
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);

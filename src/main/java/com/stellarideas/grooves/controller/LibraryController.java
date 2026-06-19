@@ -75,6 +75,7 @@ public class LibraryController {
     private final PlayHistoryService playHistoryService;
     private final FfmpegAvailability ffmpeg;
     private final com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService;
+    private final com.stellarideas.grooves.service.storage.FileSource fileSource;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -88,7 +89,8 @@ public class LibraryController {
                              ScanPathValidator scanPathValidator,
                              PlayHistoryService playHistoryService,
                              FfmpegAvailability ffmpeg,
-                             com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService) {
+                             com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService,
+                             com.stellarideas.grooves.service.storage.FileSource fileSource) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -102,6 +104,7 @@ public class LibraryController {
         this.playHistoryService = playHistoryService;
         this.ffmpeg = ffmpeg;
         this.externalCoverArtService = externalCoverArtService;
+        this.fileSource = fileSource;
     }
 
     @PostMapping("/scan")
@@ -259,22 +262,15 @@ public class LibraryController {
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        Path path = Paths.get(fileOpt.get().getFilePath()).normalize();
-        if (!Files.exists(path) || !Files.isReadable(path)) {
+        com.stellarideas.grooves.service.storage.StreamResolution resolved =
+                fileSource.resolveStream(fileOpt.get(), user);
+        if (resolved.status() == com.stellarideas.grooves.service.storage.StreamResolution.Status.NOT_FOUND) {
             return ResponseEntity.notFound().build();
         }
-        if (user.getMusicDirectory() == null || user.getMusicDirectory().isBlank()) {
-            logger.warn("Streaming blocked: user '{}' has no music directory configured", user.getUsername());
+        if (resolved.status() == com.stellarideas.grooves.service.storage.StreamResolution.Status.FORBIDDEN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        Path musicDir = Paths.get(user.getMusicDirectory()).toRealPath();
-        path = path.toRealPath();
-        if (!path.startsWith(musicDir)) {
-            logger.warn("Path traversal blocked: user '{}' attempted to stream '{}' outside music directory '{}'",
-                    user.getUsername(), path, musicDir);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-        Resource resource = new FileSystemResource(path);
+        Resource resource = new FileSystemResource(resolved.localPath());
         long contentLength = resource.contentLength();
         MediaType mediaType = resolveAudioMediaType(fileOpt.get().getFileName());
 

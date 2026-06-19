@@ -56,7 +56,8 @@ class QueueEdgeCaseTest {
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
                 mock(com.stellarideas.grooves.service.PlayHistoryService.class),
                 mock(com.stellarideas.grooves.service.FfmpegAvailability.class),
-                mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class));
+                mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class),
+                new com.stellarideas.grooves.service.storage.LocalFileSource());
 
         testUser = new User();
         testUser.setId("user1");
