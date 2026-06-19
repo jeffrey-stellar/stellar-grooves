@@ -126,6 +126,11 @@
 			<artifactId>junit-jupiter</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>localstack</artifactId>
+			<scope>test</scope>
+		</dependency>
 		<!-- Audio metadata extraction. net.jthink:jaudiotagger 3.0.1 is the latest
 		     on Maven Central (2021). The library processes only local files from the
 		     user's configured music directory — no untrusted network input. Monitor
