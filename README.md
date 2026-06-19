@@ -16,6 +16,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 
 - **[HOW_TO_USE.md](HOW_TO_USE.md)** — end-to-end walkthrough of the everyday browser flow (signup, scanning, smart playlists, sharing).
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to set up a dev environment, run tests, and submit PRs.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the code fits together: request flow, the smart-playlist query pipeline, and a "where do I change X?" map.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability privately.
 
 ---
@@ -885,6 +886,19 @@ jpackage --type exe `
 ```
 
 > MongoDB must still be running on the target machine.
+
+---
+
+## Contributing
+
+Contributions are welcome — bug fixes, well-scoped features, docs, and tests.
+
+- **New here?** Browse [**good first issues**](https://github.com/jeffrey-stellar/stellar-grooves/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) and [**help wanted**](https://github.com/jeffrey-stellar/stellar-grooves/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22). Adding an artist to [`catalog.json`](src/main/resources/catalog.json) is a great first PR.
+- **Setup, tests, and the PR flow** are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- **How the code fits together** — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a request-flow map and a "where do I change X?" guide.
+- First-time contributors sign a quick one-click [CLA](CLA.md) (the bot comments on your PR). `main` is protected, so all changes land via PR with CI green.
+
+Questions or ideas? Open a [Discussion](https://github.com/jeffrey-stellar/stellar-grooves/discussions).
 
 ---
 
