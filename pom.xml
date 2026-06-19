@@ -16,6 +16,7 @@
 	<properties>
 		<java.version>17</java.version>
 		<testcontainers.version>1.19.7</testcontainers.version>
+		<aws.sdk.version>2.46.7</aws.sdk.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -23,6 +24,13 @@
 				<groupId>org.testcontainers</groupId>
 				<artifactId>testcontainers-bom</artifactId>
 				<version>${testcontainers.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws.sdk.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -90,6 +98,13 @@
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
+		</dependency>
+		<!-- Object-storage backend (S3-compatible: AWS S3, Backblaze B2, Wasabi, MinIO).
+		     Only exercised when stellar.grooves.storage.type=s3; the default local
+		     filesystem path never touches these at runtime. -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

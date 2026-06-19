@@ -4,7 +4,6 @@ import com.stellarideas.grooves.model.MusicFile;
 import com.stellarideas.grooves.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,8 +17,10 @@ import java.nio.file.Paths;
  * live inline in the streaming endpoint: the file must exist and be readable,
  * the user must have a music directory configured, and the (real, symlink-
  * resolved) file path must sit under that directory (path-traversal guard).</p>
+ *
+ * <p>Instantiated via {@link StorageConfig} (not component-scanned) so the active
+ * backend can be selected by configuration.</p>
  */
-@Component
 public class LocalFileSource implements FileSource {
 
     private static final Logger logger = LoggerFactory.getLogger(LocalFileSource.class);
