@@ -41,6 +41,26 @@ $DC exec -T mongo mongosh --quiet "$DB" --eval 'db.dropDatabase()' >/dev/null
 $DC exec -T mongo mongorestore --quiet --gzip --archive="$ARCHIVE" >/dev/null
 echo "[reset] seed restored."
 
+# Keep the demo evergreen: the seed's play dates are fixed at build time, but the
+# smart playlists use relative windows (e.g. "lastPlayed:<14d", "lastPlayed:>6mo").
+# Shift every play date forward by (now - seededAt) so those playlists keep
+# returning results no matter how long ago the seed was built. demo_meta.seededAt
+# is stamped when the seed is generated; it is restored fresh each reset, so the
+# delta is always measured from the original build date (idempotent).
+echo "[reset] re-stamping play dates so relative-date playlists stay fresh…"
+$DC exec -T mongo mongosh --quiet "$DB" --eval '
+  const m = db.demo_meta.findOne({_id:"seed"});
+  if (m && m.seededAt) {
+    const delta = Date.now() - new Date(m.seededAt).getTime();
+    if (delta > 0) {
+      db.music_files.updateMany({lastPlayedAt:{$exists:true,$ne:null}},
+        [{$set:{lastPlayedAt:{$add:["$lastPlayedAt", delta]}}}]);
+      db.play_events.updateMany({}, [{$set:{playedAt:{$add:["$playedAt", delta]}}}]);
+    }
+  }
+' >/dev/null
+echo "[reset] play dates re-stamped."
+
 echo "[reset] waiting for app on ${BASE}…"
 for _ in $(seq 1 60); do
   if curl -sf "$BASE/login" >/dev/null 2>&1; then break; fi
