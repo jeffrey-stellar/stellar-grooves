@@ -16,7 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * indexes, or aggregation pipelines against MongoDB.</p>
  */
 @SpringBootTest
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 public abstract class BaseIntegrationTest {
 
     @Container

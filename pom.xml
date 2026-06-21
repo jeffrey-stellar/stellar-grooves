@@ -188,6 +188,28 @@
 					<argLine>@{argLine} -Dnet.bytebuddy.experimental=true</argLine>
 				</configuration>
 			</plugin>
+			<!--
+				Runs the *IT integration tests (Testcontainers-backed) in the
+				integration-test/verify phases. Surefire's default includes only
+				match *Test, so without failsafe the *IT suites never executed.
+				Failsafe runs with its own argLine (no JaCoCo agent) so it does
+				not interfere with the unit-test coverage gate.
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<argLine>-Dnet.bytebuddy.experimental=true</argLine>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
