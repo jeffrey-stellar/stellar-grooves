@@ -28,7 +28,11 @@ jobs:
         with:
           path-to-signatures: 'signatures/v1/cla.json'
           path-to-document: 'https://github.com/jeffrey-stellar/stellar-grooves/blob/main/CLA.md'
-          branch: 'main'
+          # Signatures are committed to a dedicated, unprotected branch. The
+          # bot can't push the signatures file to 'main' because branch
+          # protection requires PRs + status checks, which a bot commit can't
+          # satisfy (fails with "Changes must be made through a pull request").
+          branch: 'cla-signatures'
           allowlist: jeffrey-stellar,dependabot[bot]
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All Contributors have signed the CLA.'
