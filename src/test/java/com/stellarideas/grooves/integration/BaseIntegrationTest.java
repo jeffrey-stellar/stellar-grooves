@@ -46,5 +46,9 @@ public abstract class BaseIntegrationTest {
         // Provide a dummy JWT secret for the app context to start
         registry.add("stellar.grooves.jwtSecret", () ->
                 "dGVzdC1zZWNyZXQta2V5LWZvci1pbnRlZ3JhdGlvbi10ZXN0cy1vbmx5LXBsZWFzZS1jaGFuZ2U=");
+        // Allow scans of JUnit @TempDir paths. With no allowlist the validator falls back
+        // to a blocklist that rejects system temp dirs, which would fail scan-based ITs.
+        registry.add("stellar.grooves.scan.allowedBaseDirs", () ->
+                System.getProperty("java.io.tmpdir"));
     }
 }
