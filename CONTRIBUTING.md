@@ -58,6 +58,48 @@ subject line ("fix decade rollup for years before 1900") helps.
 - JavaScript: no formatter is enforced — match the surrounding file.
 - Don't add comments that restate the code. Comments should explain *why*, not
   *what*.
+  
+  ### Extending the artist catalog
+
+One of the easiest ways for new contributors to get started is by adding or correcting 
+artist-to-genre mappings in the catalog used for automatic genre classification.
+
+Artist-to-genre mappings are stored in:
+
+```text
+src/main/resources/catalog.json
+```
+
+Each artist maps to one or more genre values:
+
+```json
+{
+  "Metallica": ["THRASH_METAL"],
+  "Guns N' Roses": ["HARD_ROCK", "HAIR_METAL"]
+}
+```
+
+Valid genre values are:
+
+* `CLASSIC_ROCK`
+* `HARD_ROCK`
+* `HAIR_METAL`
+* `HEAVY_METAL`
+* `THRASH_METAL`
+* `OTHER`
+
+If an artist belongs to multiple genres, place the primary genre first in the array.
+
+Artist names are matched case-insensitively, so avoid creating duplicate entries that differ only by capitalization.
+
+Before submitting a pull request, verify that your changes do not break existing functionality:
+
+```bash
+mvn test
+npm test
+```
+
+  
 
 ## Reporting bugs
 
