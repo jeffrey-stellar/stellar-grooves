@@ -1,3 +1,12 @@
 {
-   "signedContributors": []
+  "signedContributors": [
+    {
+      "name": "sanidhyanith-del",
+      "id": 258509159,
+      "comment_id": 4748901044,
+      "created_at": "2026-06-19T05:58:27Z",
+      "repoId": 1178482304,
+      "pullRequestNo": 110
+    }
+  ]
 }
