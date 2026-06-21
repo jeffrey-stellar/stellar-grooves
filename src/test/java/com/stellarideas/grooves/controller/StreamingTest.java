@@ -11,10 +11,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.core.MethodParameter;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.support.WebDataBinderFactory;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,12 +31,16 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class StreamingTest {
 
     private LibraryController controller;
     private LibraryService libraryService;
     private User testUser;
+    private MockMvc mvc;
 
     @TempDir
     Path tempDir;
@@ -54,6 +65,61 @@ class StreamingTest {
         testUser.setId("user1");
         testUser.setUsername("testuser");
         testUser.setMusicDirectory(tempDir.toString());
+
+        // Standalone MockMvc so the streaming endpoint is exercised through the real HTTP
+        // message-conversion layer. The plain unit tests above call the controller method
+        // directly and only inspect the returned ResponseEntity, so they CANNOT catch
+        // converter-selection bugs (e.g. a ResponseEntity<?> wildcard that leaves Spring
+        // unable to write a ResourceRegion). These MockMvc tests do.
+        HandlerMethodArgumentResolver currentUserResolver = new HandlerMethodArgumentResolver() {
+            @Override
+            public boolean supportsParameter(MethodParameter parameter) {
+                return parameter.getParameterType().equals(User.class);
+            }
+            @Override
+            public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
+                                          NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
+                return testUser;
+            }
+        };
+        mvc = MockMvcBuilders.standaloneSetup(controller)
+                .setCustomArgumentResolvers(currentUserResolver)
+                .build();
+    }
+
+    @Test
+    void streamOverHttpReturnsFullContent() throws Exception {
+        Path audioPath = createTempAudioFile("song.mp3", 1024);
+        MusicFile file = MusicFile.builder()
+                .id("f1").fileName("song.mp3").filePath(audioPath.toString()).build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+
+        mvc.perform(get("/api/v1/library/files/{id}/stream", "f1"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "audio/mpeg"))
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().longValue("Content-Length", 1024L));
+    }
+
+    @Test
+    void streamOverHttpReturnsPartialContentForRange() throws Exception {
+        Path audioPath = createTempAudioFile("song.mp3", 2048);
+        MusicFile file = MusicFile.builder()
+                .id("f1").fileName("song.mp3").filePath(audioPath.toString()).build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+
+        mvc.perform(get("/api/v1/library/files/{id}/stream", "f1").header(HttpHeaders.RANGE, "bytes=0-511"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Content-Type", "audio/mpeg"))
+                .andExpect(header().longValue("Content-Length", 512L));
+    }
+
+    @Test
+    void streamOverHttpReturns404ForMissingEntry() throws Exception {
+        when(libraryService.findFileByIdAndUserId("missing", "user1")).thenReturn(Optional.empty());
+
+        mvc.perform(get("/api/v1/library/files/{id}/stream", "missing"))
+                .andExpect(status().isNotFound());
     }
 
     private Path createTempAudioFile(String name, int sizeBytes) throws IOException {

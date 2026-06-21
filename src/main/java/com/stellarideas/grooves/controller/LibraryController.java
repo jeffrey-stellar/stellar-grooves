@@ -259,8 +259,15 @@ public class LibraryController {
         return ResponseEntity.ok(body);
     }
 
+    // NOTE: the return type MUST stay concretely typed as ResponseEntity<ResourceRegion>.
+    // ResourceRegionHttpMessageConverter is a *generic* converter whose canWrite only
+    // matches when the declared body type is ResourceRegion (or List<ResourceRegion>).
+    // Widening this to ResponseEntity<?> makes the wildcard match no converter and every
+    // Range request (i.e. all <audio> playback) 500s with HttpMessageNotWritableException
+    // ("No converter for ResourceRegion"). The bodyless branches below (404/403/302) work
+    // fine under the concrete type since they carry no body to convert.
     @GetMapping("/files/{id}/stream")
-    public ResponseEntity<?> streamFile(
+    public ResponseEntity<ResourceRegion> streamFile(
             @CurrentUser User user,
             @PathVariable String id,
             @RequestHeader HttpHeaders headers) throws IOException {
