@@ -15,6 +15,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 ## Documentation
 
 - **[HOW_TO_USE.md](HOW_TO_USE.md)** — end-to-end walkthrough of the everyday browser flow (signup, scanning, smart playlists, sharing).
+- **[docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md)** — reach your library from your phone or another device (Tailscale for HTTPS + the installable PWA, plain LAN, or any reverse proxy).
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to set up a dev environment, run tests, and submit PRs.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the code fits together: request flow, the smart-playlist query pipeline, and a "where do I change X?" map.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability privately.
