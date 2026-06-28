@@ -7,6 +7,10 @@
     <title>Stellar Grooves — Sign In</title>
     <link rel="icon" th:href="@{/images/logo.png}" type="image/png">
     <link rel="apple-touch-icon" th:href="@{/images/icon-192.png}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Stellar Grooves">
     <link rel="manifest" th:href="@{/manifest.json}">
     <link rel="stylesheet" th:href="@{/vendor/bootstrap/css/bootstrap.min.css}">
     <link rel="stylesheet" th:href="@{/css/main.css}">
@@ -48,21 +52,30 @@
                     You have been signed out.
                 </div>
 
+                <div th:if="${demoMode}" class="alert alert-info" role="alert">
+                    <strong>Demo access</strong> — already filled in below, just hit
+                    <em>Drop the Needle</em>.<br>
+                    Username <code th:text="${demoUsername}">demo</code> ·
+                    Password <code th:text="${demoPassword}">GrooveDemo1</code>
+                </div>
+
                 <form th:action="@{/login}" method="post" novalidate>
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" id="username" name="username" class="form-control"
-                               required autofocus autocomplete="username">
+                               required autofocus autocomplete="username"
+                               th:value="${demoMode} ? ${demoUsername} : ''">
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
                         <input type="password" id="password" name="password" class="form-control"
-                               required autocomplete="current-password">
+                               required autocomplete="current-password"
+                               th:value="${demoMode} ? ${demoPassword} : ''">
                     </div>
                     <button class="btn btn-primary w-100 mt-2 btn-lg" type="submit">Drop the Needle</button>
                 </form>
 
-                <div class="sg-auth-card-foot">
+                <div class="sg-auth-card-foot" th:unless="${demoMode}">
                     New here? <a href="/signup">Open an account</a>
                 </div>
                 <div class="sg-auth-card-foot sg-auth-card-foot-small">

@@ -149,6 +149,19 @@ describe('decadeFromYear()', () => {
     it('returns em dash for tiny numeric years', () => {
         expect(decadeFromYear(99)).toBe('—');
     });
+
+    // Numeric and string years take different code paths (magnitude check vs.
+    // length check), so confirm they agree at the boundary between rejected and
+    // accepted values.
+    it('rejects sub-1000 years identically for number and string', () => {
+        expect(decadeFromYear(999)).toBe('—');
+        expect(decadeFromYear('999')).toBe('—');
+    });
+
+    it('accepts the 1000 boundary identically for number and string', () => {
+        expect(decadeFromYear(1000)).toBe('1000s');
+        expect(decadeFromYear('1000')).toBe('1000s');
+    });
 });
 
 // ── crossfadeVolumes() ──────────────────────────────────────

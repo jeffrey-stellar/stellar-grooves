@@ -8,8 +8,9 @@ the **target filename**, what to show, and the recommended window size.
 - **Window size: 1440 × 900** — keep it consistent so the images don't jitter
   in size when stacked. macOS: ⌘+Option+I in DevTools to dimension the window,
   or use [Rectangle](https://rectangleapp.com) presets.
-- **Theme: dark** (project's default — don't toggle to light unless the shot
-  is specifically the light-theme variant).
+- **Theme: light** (the "screen-print" theme) for the current README hero set —
+  toggle with the navbar sun/moon and confirm `data-theme="light"` before shooting.
+  Keep a shot in dark if you're specifically showing the dark jukebox idiom.
 - **Real data, not placeholders.** Use a 100+ track demo library so virtual
   scrolling, cover art grids, and sort headers actually have content.
 - **No personal info.** No email addresses, no real usernames. Sign in as a

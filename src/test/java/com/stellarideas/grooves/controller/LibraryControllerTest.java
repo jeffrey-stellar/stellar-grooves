@@ -40,6 +40,7 @@ class LibraryControllerTest {
     private ScanProgressEmitter scanProgressEmitter;
     private UserRateLimiter userRateLimiter;
     private PlayHistoryService playHistoryService;
+    private com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService;
     private User testUser;
 
     @TempDir
@@ -56,6 +57,7 @@ class LibraryControllerTest {
         scanProgressEmitter = mock(ScanProgressEmitter.class);
         userRateLimiter = mock(UserRateLimiter.class);
         playHistoryService = mock(PlayHistoryService.class);
+        externalCoverArtService = mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class);
 
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
         messageSource.setBasename("messages");
@@ -76,7 +78,9 @@ class LibraryControllerTest {
                 auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, userRateLimiter,
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase),
                 playHistoryService,
-                mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
+                mock(com.stellarideas.grooves.service.FfmpegAvailability.class),
+                externalCoverArtService,
+                new com.stellarideas.grooves.service.storage.LocalFileSource());
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxQueueTracks", 5000);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "transcodeTimeoutSeconds", 300);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "maxTranscodeFileSize", 500L * 1024 * 1024);
@@ -86,6 +90,109 @@ class LibraryControllerTest {
         testUser.setId("user1");
         testUser.setUsername("testuser");
         testUser.setMusicDirectory(tempDir.toString());
+    }
+
+    // ---- uploadCoverArt ----
+
+    private static org.springframework.mock.web.MockMultipartFile pngUpload() {
+        byte[] png = new byte[16];
+        byte[] head = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+        System.arraycopy(head, 0, png, 0, head.length);
+        return new org.springframework.mock.web.MockMultipartFile("file", "cover.png", "image/png", png);
+    }
+
+    @Test
+    void uploadCoverArtStoresAndReturnsCount() throws IOException {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        when(libraryService.setAlbumCoverArt(eq("user1"), eq(file), any(), eq("image/png"))).thenReturn(7);
+
+        ResponseEntity<?> response = controller.uploadCoverArt(testUser, "f1", pngUpload());
+
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals(7, body.get("updated"));
+        verify(libraryService).setAlbumCoverArt(eq("user1"), eq(file), any(), eq("image/png"));
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.COVER_ART_UPLOAD), eq("f1"), anyString());
+    }
+
+    @Test
+    void uploadCoverArtReturns404WhenFileMissing() throws IOException {
+        when(libraryService.findFileByIdAndUserId("nope", "user1")).thenReturn(Optional.empty());
+
+        ResponseEntity<?> response = controller.uploadCoverArt(testUser, "nope", pngUpload());
+
+        assertEquals(404, response.getStatusCode().value());
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadCoverArtRejectsNonImage() {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        var notImage = new org.springframework.mock.web.MockMultipartFile(
+                "file", "evil.png", "image/png", "%PDF-1.4 not really an image".getBytes());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.uploadCoverArt(testUser, "f1", notImage));
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadCoverArtRejectsEmptyFile() {
+        MusicFile file = MusicFile.builder().id("f1").artist("Artist").album("Album").build();
+        when(libraryService.findFileByIdAndUserId("f1", "user1")).thenReturn(Optional.of(file));
+        var empty = new org.springframework.mock.web.MockMultipartFile(
+                "file", "cover.png", "image/png", new byte[0]);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.uploadCoverArt(testUser, "f1", empty));
+        verify(libraryService, never()).setAlbumCoverArt(any(), any(), any(), any());
+    }
+
+    // ---- cover-art fetch ----
+
+    @Test
+    void fetchMissingCoverArtForbiddenWhenDisabled() {
+        when(externalCoverArtService.isEnabled()).thenReturn(false);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(403, response.getStatusCode().value());
+        verify(externalCoverArtService, never()).fetchMissingAsync(anyString());
+    }
+
+    @Test
+    void fetchMissingCoverArtConflictWhenAlreadyRunning() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.isRunning("user1")).thenReturn(true);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(409, response.getStatusCode().value());
+        verify(externalCoverArtService, never()).fetchMissingAsync(anyString());
+    }
+
+    @Test
+    void fetchMissingCoverArtStartsWhenEnabledAndIdle() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.isRunning("user1")).thenReturn(false);
+        ResponseEntity<?> response = controller.fetchMissingCoverArt(testUser);
+        assertEquals(202, response.getStatusCode().value());
+        verify(externalCoverArtService).fetchMissingAsync("user1");
+        verify(auditService).log(eq("testuser"), eq(AuditService.Action.COVER_ART_FETCH), isNull(), anyString());
+    }
+
+    @Test
+    void coverArtFetchStatusIncludesEnabledFlag() {
+        when(externalCoverArtService.isEnabled()).thenReturn(true);
+        when(externalCoverArtService.getStatus("user1"))
+                .thenReturn(new com.stellarideas.grooves.service.coverart.ExternalCoverArtService.Status());
+        ResponseEntity<?> response = controller.coverArtFetchStatus(testUser);
+        assertEquals(200, response.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals(true, body.get("enabled"));
+        assertTrue(body.containsKey("running"));
     }
 
     // ---- getFiles ----

@@ -1,8 +1,12 @@
+<img src="src/main/resources/static/images/icon-512-notes.png" alt="Stellar Grooves" align="right" width="160">
+
 # Stellar Grooves
 
 A self-hosted, multi-user music library for rock and metal collections — built around **smart playlists you can share as queries**. Scan local directories for audio files, auto-categorize tracks by sub-genre, build smart playlists with a focused query DSL (and reusable `@phrase` fragments), publish them so other curators can run your queries against their own libraries, manage regular playlists with drag-drop reordering, rate your favorites, resolve duplicates, and stream everything in the browser with a retro jukebox-themed UI. Installable as a Progressive Web App on desktop and mobile.
 
 Built with Spring Boot, MongoDB, and vanilla JavaScript.
+
+> *Built and themed for hard rock, metal, and thrash — but the library, smart-playlist, and playback features work with any collection. Only the genre auto-classification is rock/metal-specific; tracks outside that taxonomy import fully and live under "Other," organized via tags, ratings, and artist/album playlists.*
 
 ![Stellar Grooves library view](docs/screenshots/library-overview.png)
 
@@ -11,7 +15,9 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 ## Documentation
 
 - **[HOW_TO_USE.md](HOW_TO_USE.md)** — end-to-end walkthrough of the everyday browser flow (signup, scanning, smart playlists, sharing).
+- **[docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md)** — reach your library from your phone or another device (Tailscale for HTTPS + the installable PWA, plain LAN, or any reverse proxy).
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to set up a dev environment, run tests, and submit PRs.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the code fits together: request flow, the smart-playlist query pipeline, and a "where do I change X?" map.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability privately.
 
 ---
@@ -110,7 +116,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Per-user scan locking** — only one scan can run per user at a time; concurrent scan attempts are rejected, preventing cover art quota race conditions
 - **Security** — CSRF protection (HttpOnly cookies with meta-tag delivery), rate limiting on auth and scan endpoints (with proxy-aware IP detection, trusted proxy validation, and `Retry-After` header), stricter IP-based rate limiting on login/signup endpoints (separate bucket, default 5 req/min), configurable CORS origins (explicit origins, not patterns), path traversal prevention on scan and stream endpoints, symlink detection, server-side input validation with typed DTOs and `@Size`/`@Pattern` constraints on search and scan parameters, Content Security Policy headers (no `unsafe-inline` for scripts), Permissions-Policy header (disables geolocation, microphone, camera, payment, USB), password complexity requirements (enforced on both signup and password reset), case-insensitive username normalization (prevents `User`/`user` duplicates), JWT with `jti`/`iss` claims and full role propagation on token refresh, token blacklisting on both logout and refresh, regex search query timeout (5s) and length limit (200 chars)
 - **RFC 7807 error responses** — all API error responses follow the Problem Details standard (`type`, `title`, `status`, `detail`) with backwards-compatible `error` property
-- **Audit logging** — dedicated `AUDIT` logger routed to a separate `logs/audit.log` file with 90-day retention; structured MDC context tracks all security-sensitive operations: logins, signups, password resets, file deletions, genre changes, playlist modifications, and admin actions
+- **Audit logging** — dedicated `AUDIT` logger with structured MDC context tracking all security-sensitive operations: logins, signups, password resets, file deletions, genre changes, playlist modifications, and admin actions; emitted to stdout under `prod`, or to a rolling `logs/audit.log` (90-day retention) when file logging is enabled
 - **API documentation** — interactive Swagger UI at `/swagger-ui.html` with OpenAPI 3.0 spec at `/api-docs`; JWT bearer auth support; disabled in production profile
 - **API versioning** — all REST endpoints under `/api/v1/` for forward compatibility
 - **Structured logging** — correlation IDs on every request (`X-Correlation-Id` header), MDC-based log pattern for request tracing; optional JSON log output for production via Logstash encoder (activate with `json-logging` profile); client-side correlation IDs automatically sent in fetch headers for end-to-end tracing
@@ -123,7 +129,7 @@ Built with Spring Boot, MongoDB, and vanilla JavaScript.
 - **Light mode** — full light theme with manual toggle (sun/moon button in navbar); respects `prefers-color-scheme` media query; preference saved to localStorage
 - **Loading states** — spinner feedback on genre changes, rating updates, bulk delete, add-to-playlist, and search operations
 - **Toast notifications** — non-intrusive error and success toasts for all async operations (genre changes, rating updates, deletions, playlist actions, search failures)
-- **Album art** — embedded cover art extracted during scan, displayed in the player bar, album grid view, and available via API
+- **Album art** — resolved in priority order: embedded tag artwork, then a sidecar image (`cover`/`folder`/`front`…) next to the track when there's no embedded art; curators can upload/replace a cover by hand (📷 on album cards), and an optional opt-in job can fetch missing covers online (MusicBrainz + Cover Art Archive, then iTunes — off by default). Displayed in the player bar, album grid, art gallery, and lightbox, and available via API
 - **Accessibility** — ARIA labels on all interactive elements, `aria-sort` on sortable columns, `aria-pressed` on toggle buttons, `aria-live` regions for status updates and toast notifications, `aria-hidden` on decorative elements (equalizer canvas), `role="group"` on star rating widget, `role="button"` with keyboard handlers on drill-down rows and jukebox side items, modal focus management (auto-focus first element on open), `:focus-visible` outlines for keyboard navigation, keyboard-navigable sort headers, `prefers-reduced-motion` support
 - **Performance monitoring** — Web Vitals reporting (LCP, FID, CLS) via PerformanceObserver API; virtual scrolling for libraries with 250+ tracks
 - **Responsive design** — mobile-first layout with Bootstrap 5.3; columns hide on small screens; track action buttons visible on touch devices (no hover required)
@@ -189,7 +195,7 @@ $env:JWT_SECRET = [Convert]::ToBase64String((1..64 | ForEach-Object { Get-Random
 mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
-The app starts at **http://localhost:8080**.
+The app starts at **http://localhost:8089**.
 
 ### Docker
 
@@ -251,13 +257,13 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.jwtExpirationMs` | `JWT_EXPIRATION_MS` | `900000` (15 min) | Access token lifetime in milliseconds |
 | `stellar.grooves.refreshTokenExpirationMs` | `REFRESH_TOKEN_EXPIRATION_MS` | `604800000` (7 days) | Refresh token lifetime in milliseconds |
 | `stellar.grooves.swagger.enabled` | — | `false` | Enable/disable Swagger UI and OpenAPI endpoints (enable explicitly in dev) |
-| `server.port` | `PORT` | `8080` | HTTP listen port |
+| `server.port` | `PORT` | `8089` | HTTP listen port |
 
 ### Security & Rate Limiting
 
 | Property | Env var | Default | Description |
 |----------|---------|---------|-------------|
-| `stellar.grooves.cors.allowedOrigins` | `CORS_ALLOWED_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | Comma-separated CORS origin patterns |
+| `stellar.grooves.cors.allowedOrigins` | `CORS_ALLOWED_ORIGINS` | `http://localhost:8089,http://127.0.0.1:8089` | Comma-separated CORS origin patterns |
 | `stellar.grooves.login.maxFailedAttempts` | `LOGIN_MAX_FAILED_ATTEMPTS` | `5` | Failed login attempts before account lockout |
 | `stellar.grooves.login.lockoutDurationMinutes` | `LOGIN_LOCKOUT_MINUTES` | `15` | Minutes before a locked account auto-unlocks |
 | `stellar.grooves.rateLimit.maxRequests` | — | `10` | Max general auth requests per IP per window |
@@ -290,9 +296,23 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.coverArt.maxBytesPerUser` | `COVER_ART_QUOTA_BYTES` | `524288000` (500 MB) | Per-user cover art storage quota |
 | `stellar.grooves.coverArt.maxBytesPerImage` | `COVER_ART_MAX_BYTES_PER_IMAGE` | `10485760` (10 MB) | Max bytes per individual cover art image |
 | `stellar.grooves.coverArt.maxBytesGlobal` | `COVER_ART_GLOBAL_QUOTA_BYTES` | `10737418240` (10 GB) | Global cap across all users |
+| `stellar.grooves.coverArt.folderImageEnabled` | `COVER_ART_FOLDER_IMAGE_ENABLED` | `true` | When a track has no embedded art, fall back to a sidecar image (`cover`/`folder`/`front`/`albumart`…) in the same directory. Local-only |
 | `stellar.grooves.trash.retentionDays` | `TRASH_RETENTION_DAYS` | `30` | Days a soft-deleted track stays in trash before purge |
 | `stellar.grooves.trash.purgeCron` | `TRASH_PURGE_CRON` | `0 0 3 * * *` | Cron for the trash-purge job (default 3 AM daily) |
 | `stellar.grooves.catalogPath` | — | *(bundled catalog.json)* | Path to a custom artist-genre catalog JSON file |
+
+#### Online cover-art fetch (opt-in)
+
+For albums still missing art after embedded + sidecar resolution, an opt-in job can look covers up online. **Off by default** — enabling it sends your album/artist names to third-party APIs (MusicBrainz, iTunes).
+
+| Property | Env var | Default | Description |
+|----------|---------|---------|-------------|
+| `stellar.grooves.coverArt.external.enabled` | `COVER_ART_EXTERNAL_ENABLED` | `false` | Enable the online "fetch missing art" feature |
+| `stellar.grooves.coverArt.external.providers` | `COVER_ART_EXTERNAL_PROVIDERS` | `musicbrainz,itunes` | Provider order: MusicBrainz + Cover Art Archive, then iTunes |
+| `stellar.grooves.coverArt.external.contact` | `COVER_ART_EXTERNAL_CONTACT` | `stellar-grooves@example.com` | Contact embedded in the MusicBrainz `User-Agent` — set to a real address/URL |
+| `stellar.grooves.coverArt.external.rateLimitMs` | `COVER_ART_EXTERNAL_RATE_LIMIT_MS` | `1100` | Minimum gap between external lookups (MusicBrainz asks for ~1 req/s) |
+| `stellar.grooves.coverArt.external.maxAlbumsPerRun` | `COVER_ART_EXTERNAL_MAX_ALBUMS` | `200` | Max albums processed per fetch run |
+| `stellar.grooves.coverArt.external.retryAfterDays` | `COVER_ART_EXTERNAL_RETRY_DAYS` | `30` | Skip an album that recently came up empty for this many days |
 
 ### Smart Playlists
 
@@ -317,8 +337,8 @@ All settings live in `src/main/resources/application.properties` and can be over
 |----------|---------|-------------|
 | `server.tomcat.max-http-form-post-size` | `2MB` | Maximum form POST size |
 | `server.max-http-request-header-size` | `16KB` | Maximum request header size |
-| `spring.servlet.multipart.max-file-size` | `2MB` | Maximum multipart file size |
-| `spring.servlet.multipart.max-request-size` | `2MB` | Maximum multipart request size |
+| `spring.servlet.multipart.max-file-size` | `12MB` | Maximum multipart file size (sized for cover-art uploads, just above `coverArt.maxBytesPerImage`) |
+| `spring.servlet.multipart.max-request-size` | `13MB` | Maximum multipart request size |
 
 ### Email Verification
 
@@ -327,7 +347,7 @@ All settings live in `src/main/resources/application.properties` and can be over
 | `stellar.grooves.email.verificationRequired` | `EMAIL_VERIFICATION_REQUIRED` | `false` | Require email verification before login |
 | `stellar.grooves.mail.enabled` | `MAIL_ENABLED` | `false` | Enable sending emails (verification + password reset) |
 | `stellar.grooves.mail.from` | `MAIL_FROM` | `noreply@stellargrooves.local` | Sender address for emails |
-| `stellar.grooves.baseUrl` | `BASE_URL` | `http://localhost:8080` | Base URL used in email links |
+| `stellar.grooves.baseUrl` | `BASE_URL` | `http://localhost:8089` | Base URL used in email links |
 
 When `EMAIL_VERIFICATION_REQUIRED=true`, new users receive a verification email with a 24-hour link. Login is blocked until the email is verified. When disabled (default), accounts are automatically verified on creation for backward compatibility.
 
@@ -337,10 +357,10 @@ When `EMAIL_VERIFICATION_REQUIRED=true`, new users receive a verification email 
 
 | Profile | Activate with | Description |
 |---------|--------------|-------------|
-| `dev` | `--spring.profiles.active=dev` | Debug logging, Thymeleaf cache disabled, CORS allows `localhost:8080`, Swagger enabled |
-| `prod` | `--spring.profiles.active=prod` | INFO logging, requires `CORS_ALLOWED_ORIGINS` env var, trusts proxy headers from configured IPs, Swagger disabled, audit + app logs written to files |
+| `dev` | `--spring.profiles.active=dev` | Debug logging, Thymeleaf cache disabled, CORS allows `localhost:8089`, Swagger enabled; app + audit logs written to rolling files in `./logs` |
+| `prod` | `--spring.profiles.active=prod` | INFO logging, requires `CORS_ALLOWED_ORIGINS` env var, trusts proxy headers from configured IPs, Swagger disabled; logs to stdout only (file appenders off — add `file-logging` to also write `./logs`) |
 | `json-logging` | `--spring.profiles.active=prod,json-logging` | Structured JSON console output via Logstash encoder; use with `prod` for centralized log aggregation (ELK, Grafana Loki) |
-| `file-logging` | `--spring.profiles.active=dev,file-logging` | Force rolling file appenders for app + audit logs even outside `prod` (useful in dev when you need persistent logs without enabling the full prod profile) |
+| `file-logging` | `--spring.profiles.active=prod,file-logging` | Force rolling file appenders for app + audit logs under `prod` (which otherwise logs only to stdout); requires a writable `./logs` volume, since the prod container is read-only |
 
 When no profile is active, the base `application.properties` defaults apply.
 
@@ -391,6 +411,26 @@ spring.data.redis.port=6379
 
 With Docker Compose, uncomment the `redis` service block.
 
+### Object Storage (Optional — self-host against your own S3 bucket)
+
+By default Stellar Grooves reads music from a local directory (`STORAGE_TYPE=local`). Set `STORAGE_TYPE=s3` to scan and stream from an **S3-compatible bucket** instead — AWS S3, Backblaze B2, Wasabi, or self-hosted MinIO. Your audio stays in your bucket; the app streams it to the browser via short-lived **presigned URLs** (the bytes never pass through the server), and a scan reads tags by briefly fetching each object.
+
+```bash
+STORAGE_TYPE=s3
+S3_BUCKET=my-music
+S3_REGION=us-east-1
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+# For non-AWS providers (Backblaze B2, Wasabi, MinIO), set the endpoint:
+S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com
+# Optional: scope to a key prefix, and tune the presigned-URL lifetime / tag-read cap
+S3_PREFIX=
+S3_PRESIGN_TTL=900
+S3_MAX_TAG_BYTES=52428800
+```
+
+A *Scan* then indexes the bucket (under `S3_PREFIX`) instead of a local folder; re-scans skip already-indexed objects. No bucket CORS configuration is needed for playback.
+
 ### Custom Artist Catalog
 
 The artist-genre mapping is stored in `src/main/resources/catalog.json`. To customize without recompiling, create your own JSON file and point to it:
@@ -414,8 +454,8 @@ The JSON format maps artist names to arrays of genre values:
 
 ## First Use
 
-1. Open **http://localhost:8080/signup** and create an account.
-2. Log in at **http://localhost:8080/login**.
+1. Open **http://localhost:8089/signup** and create an account.
+2. Log in at **http://localhost:8089/login**.
 3. Enter the absolute path to a music directory (e.g. `/home/user/Music`) and click **Start Scan**.
 4. Watch real-time progress as files are scanned, imported, and categorized.
 5. Tracks appear in the library with extracted metadata, genre classification, and album art.
@@ -451,7 +491,7 @@ The JSON format maps artist names to arrays of genre values:
 A health endpoint is available at `/actuator/health` (no authentication required). It reports basic application status. Detailed health information (including MongoDB connectivity) is only shown to authenticated users (`show-details=when-authorized`).
 
 ```bash
-curl http://localhost:8080/actuator/health
+curl http://localhost:8089/actuator/health
 # {"status":"UP"}
 ```
 
@@ -459,9 +499,40 @@ Prometheus metrics are exposed at `/actuator/prometheus` for scraping, and JSON 
 
 ---
 
+## Operations & Hardening
+
+A short checklist for self-hosters running Stellar Grooves on a public network.
+
+**Required before exposing the app to the internet:**
+
+- **Run with the `prod` profile**: `--spring.profiles.active=prod` (or `SPRING_PROFILES_ACTIVE=prod`). This disables Swagger/OpenAPI, tightens logging, and trusts proxy headers from the configured trusted-proxy list.
+- **Set `JWT_SECRET`** to a Base64-encoded value of at least 256 bits. The app refuses to start in `prod` without it. Generate one with `openssl rand -base64 32`.
+- **Set `CORS_ALLOWED_ORIGINS`** to the exact origins that should be allowed (comma-separated). The app refuses to start in `prod` if this is empty.
+- **Set `MONGO_URI`** to a MongoDB instance with authentication enabled. Don't expose MongoDB to the public internet.
+- **Set `ADMIN_PASSWORD`** on first startup so the bootstrap admin user has a strong password (the bootstrap process logs whether it created a new admin or promoted an existing user).
+- **Set `SCAN_ALLOWED_BASE_DIRS`** (comma-separated) to restrict where the scanner can read from — paths outside the allowlist are rejected. Recommended even on single-tenant deployments.
+
+**Reverse proxy and TLS:**
+
+- Terminate TLS at a reverse proxy (Caddy, nginx, Traefik). HSTS is already enabled by the application security config; the proxy should also send HSTS headers and redirect HTTP → HTTPS.
+- **Restrict `/actuator/*`** at the proxy. The app exposes `/actuator/health` (anonymous, basic status only) and `/actuator/prometheus` + `/actuator/metrics`. Restrict the latter two to trusted IPs (your scrape target) or strip them from public traffic.
+- Configure `RATE_LIMIT_TRUSTED_PROXIES` to your reverse-proxy IPs so the rate limiter sees real client IPs from `X-Forwarded-For` instead of the proxy's IP.
+
+**Container and process:**
+
+- The provided `Dockerfile` already runs as a non-root user. If you build your own image, preserve that.
+- Mount music libraries **read-only** (`:ro`) into the container; the scanner doesn't need write access.
+- Persist MongoDB data on a backed-up volume. The library catalog can be rescanned, but user accounts, playlists, listening history, and smart-playlist definitions cannot.
+
+**Updates:**
+
+- Watch GitHub releases for security patches. Dependabot is enabled in this repo for Maven, npm, and GitHub Actions ecosystems.
+
+---
+
 ## REST API
 
-> **Interactive docs:** Browse the full API at [/swagger-ui.html](http://localhost:8080/swagger-ui.html) when the app is running. The OpenAPI spec is available at `/api-docs`.
+> **Interactive docs:** Browse the full API at [/swagger-ui.html](http://localhost:8089/swagger-ui.html) when the app is running. The OpenAPI spec is available at `/api-docs`.
 
 All endpoints under `/api/v1/library/*`, `/api/v1/playlists/*`, and `/api/v1/admin/*` require authentication. Use the session cookie from form login, or pass a JWT via the `Authorization: Bearer <token>` header (obtained from `/api/v1/auth/signin`).
 
@@ -636,7 +707,8 @@ src/main/java/com/stellarideas/grooves/
 │   ├── EmailVerificationToken.java      # Email verification tokens (SHA-256 hashed, 24h TTL)
 │   ├── PlaybackQueue.java               # Persisted playback queue (per user)
 │   ├── PlayEvent.java                   # Individual play history events (userId + musicFileId + playedAt + listenedMs + completed)
-│   ├── CoverArt.java                    # Album cover art storage (binary, quota-managed)
+│   ├── CoverArt.java                    # Album cover art storage (binary, quota-managed, with source provenance)
+│   ├── CoverArtMiss.java                # Records albums an online fetch found no art for (skip on re-runs)
 │   ├── BlacklistedToken.java            # Revoked JWT tokens (TTL-indexed)
 │   ├── RefreshToken.java                # Long-lived refresh tokens (TTL-indexed)
 │   ├── PasswordResetToken.java          # One-time password reset tokens (SHA-256 hashed, TTL-indexed)
@@ -675,6 +747,7 @@ src/main/java/com/stellarideas/grooves/
 ├── repository/                          # Spring Data MongoDB repositories
 │   ├── BlacklistedTokenRepository.java
 │   ├── CoverArtRepository.java          # Includes cover art size aggregation for quotas
+│   ├── CoverArtMissRepository.java      # Negative-cache of online-fetch misses
 │   ├── GenreCorrectionRepository.java
 │   ├── MusicFileRepository.java         # Includes regex search, soft-delete filtering
 │   ├── MusicFileRepositoryCustom.java   # Custom aggregation interface (duplicates, hash duplicates, text search, statistics, tags, rediscovery)
@@ -718,10 +791,15 @@ src/main/java/com/stellarideas/grooves/
     ├── SmartPlaylistService.java        # Smart playlist business logic (parse + share/subscribe/fork + preview + materialize)
     ├── TrashPurgeService.java           # Scheduled 30-day purge of soft-deleted tracks
     ├── UserRateLimiter.java             # Per-user request cooldowns (e.g. for materialize)
-    └── scan/                            # Scan-internal helpers (extracted from MusicScannerService)
-        ├── AudioMetadataReader.java     # JAudioTagger reader with per-file timeout
-        ├── CoverArtHandler.java         # Cover art extraction + per-user quota enforcement
-        └── FileHasher.java              # Streaming SHA-256 file hash
+    ├── scan/                            # Scan-internal helpers (extracted from MusicScannerService)
+    │   ├── AudioMetadataReader.java     # JAudioTagger reader with per-file timeout
+    │   ├── CoverArtHandler.java         # Cover art resolve + store (embedded/folder/manual/online) + quota enforcement
+    │   └── FileHasher.java              # Streaming SHA-256 file hash
+    └── coverart/                        # Optional online cover-art fetch (opt-in)
+        ├── ExternalCoverArtService.java # Background job: find missing art, throttle, store hits, cache misses
+        ├── AlbumArtProvider.java        # Provider interface
+        ├── MusicBrainzCoverArtProvider.java # MusicBrainz + Cover Art Archive
+        └── ItunesCoverArtProvider.java  # iTunes Search
 
 src/main/resources/
 ├── application.properties               # Shared configuration
@@ -770,7 +848,7 @@ src/main/resources/
     └── shared-smart-playlist.html       # Public shared smart-playlist landing page
 
 src/test/js/
-└── helpers.test.js                      # Vitest frontend unit tests (60 tests)
+└── helpers.test.js                      # Vitest unit tests for pure helpers module
 
 package.json                             # Frontend vendor dependency management + test scripts
 vitest.config.js                         # Vitest configuration (jsdom environment)
@@ -779,7 +857,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 .dockerignore                            # Build context exclusions
 ```
 
-**763 tests** (703 backend + 60 frontend) across all layers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase.
+**700+ tests** across backend (controllers, services, security, smart-playlist DSL) and a focused Vitest suite for pure-utility frontend helpers. JaCoCo coverage reports generated at `target/site/jacoco/index.html` with a **60% minimum line coverage** threshold enforced at the `verify` phase. Broader frontend test coverage (DOM-level integration) is open for contribution.
 
 ---
 
@@ -799,7 +877,7 @@ docker-compose.yml                       # App + MongoDB (optional Redis)
 | Containerization | Docker (multi-stage) + Docker Compose |
 | Build | Maven 3 |
 | Runtime | Java 17 |
-| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (763 tests) |
+| Testing | JUnit 5 + Mockito + JaCoCo (60% min) + Testcontainers + Vitest (700+ tests) |
 | Code quality | Spotless (Google Java Format) + OWASP Dependency Check (build lifecycle) |
 | Observability | Logstash encoder (structured JSON logs) + correlation IDs + Web Vitals |
 
@@ -832,10 +910,29 @@ jpackage --type exe `
 
 ---
 
+## Contributing
+
+Contributions are welcome — bug fixes, well-scoped features, docs, and tests.
+
+- **New here?** Browse [**good first issues**](https://github.com/jeffrey-stellar/stellar-grooves/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) and [**help wanted**](https://github.com/jeffrey-stellar/stellar-grooves/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22). Adding an artist to [`catalog.json`](src/main/resources/catalog.json) is a great first PR.
+- **Setup, tests, and the PR flow** are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- **How the code fits together** — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a request-flow map and a "where do I change X?" guide.
+- First-time contributors sign a quick one-click [CLA](CLA.md) (the bot comments on your PR). `main` is protected, so all changes land via PR with CI green.
+
+Questions or ideas? Open a [Discussion](https://github.com/jeffrey-stellar/stellar-grooves/discussions).
+
+---
+
 ## License
 
 Stellar Grooves is licensed under the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later). See [`LICENSE`](LICENSE) for the full text.
 
 The AGPL's network-use clause means anyone who hosts a modified version as a service must publish their source. If you want to contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md) — the project uses a Contributor License Agreement (see [`CLA.md`](CLA.md)) that grants the maintainer the right to relicense contributions, so a future commercial license remains an option.
+
+**Documentation** in this repository (README.md, CONTRIBUTING.md, and files under `docs/`) is additionally licensed under the [Creative Commons Attribution 4.0 International License (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/), so it can be quoted or adapted in tutorials and articles independently of AGPL terms.
+
+**Trademarks.** "Stellar Grooves", the Stellar Grooves wordmark, and the project logo are trademarks of Stellar Ideas LLC and are **not** covered by the AGPL. See [`TRADEMARKS.md`](TRADEMARKS.md) for the brand-usage policy and forking guidelines.
+
+**Third-party attribution.** A complete inventory of dependencies and their licenses is in [`THIRD-PARTY.txt`](THIRD-PARTY.txt); see [`NOTICE`](NOTICE) for the consolidated attribution summary.
 
 For security issues, see [`SECURITY.md`](SECURITY.md).

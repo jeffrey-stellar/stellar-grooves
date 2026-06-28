@@ -355,4 +355,9 @@ SG.openBulkTagEditor = openBulkEditor;
 SG.renderTagsSidebar = renderSidebar;
 SG.getAllTags = getAllTags;
 
+// Export pure helpers for unit tests (Node/Vitest); no-op in the browser.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.normalizeInput = normalizeInput;
+}
+
 })();

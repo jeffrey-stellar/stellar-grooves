@@ -13,6 +13,15 @@ public class ViewController {
     @org.springframework.beans.factory.annotation.Value("${app.version:dev}")
     private String appVersion;
 
+    @org.springframework.beans.factory.annotation.Value("${stellar.grooves.demoMode:false}")
+    private boolean demoMode;
+
+    @org.springframework.beans.factory.annotation.Value("${stellar.grooves.demo.username:demo}")
+    private String demoUsername;
+
+    @org.springframework.beans.factory.annotation.Value("${stellar.grooves.demo.password:}")
+    private String demoPassword;
+
     @GetMapping("/")
     public String index(@CurrentUser User user, Model model) {
         model.addAttribute("userId", user.getId());
@@ -21,12 +30,22 @@ public class ViewController {
     }
 
     @GetMapping("/login")
-    public String login() {
+    public String login(Model model) {
+        model.addAttribute("demoMode", demoMode);
+        if (demoMode) {
+            model.addAttribute("demoUsername", demoUsername);
+            model.addAttribute("demoPassword", demoPassword);
+        }
         return "login";
     }
 
     @GetMapping("/signup")
     public String signup() {
+        // Self-signup is disabled on public demo instances — send visitors to
+        // the (pre-filled) demo login instead of a dead-end empty account.
+        if (demoMode) {
+            return "redirect:/login";
+        }
         return "signup";
     }
 

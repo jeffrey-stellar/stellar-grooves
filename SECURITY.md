@@ -10,9 +10,8 @@ Report vulnerabilities through GitHub's private vulnerability reporting:
 2. Click **Report a vulnerability**.
 3. Fill in the form. The maintainer will be notified privately.
 
-If GitHub private reporting is not available to you, you can email the
-maintainer directly — see the repository's `package.json` `bugs` URL for the
-project's contact path.
+If GitHub private reporting is not available to you, email
+**security@stellargrooves.com** instead.
 
 ## What to include
 

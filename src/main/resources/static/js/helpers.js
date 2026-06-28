@@ -43,6 +43,9 @@ function decadeFromYear(y) {
         if (s.length < 4) return '\u2014';
         n = parseInt(s.substring(0, 4), 10);
     }
+    // Dual guard: string years are rejected by the length check above (< 4 chars),
+    // numeric years by the magnitude check here (< 1000) \u2014 so e.g. "99" and 99 are
+    // both rejected, just via different branches.
     if (isNaN(n) || n < 1000) return '\u2014';
     return Math.floor(n / 10) * 10 + 's';
 }

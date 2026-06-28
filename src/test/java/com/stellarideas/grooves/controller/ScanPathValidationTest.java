@@ -64,7 +64,7 @@ class ScanPathValidationTest {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase), mock(com.stellarideas.grooves.service.PlayHistoryService.class), mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
+        controller = new LibraryController(scannerService, libraryService, msgHelper, auditService, userRepository, scanRateLimiter, playbackQueueRepository, scanProgressEmitter, mock(com.stellarideas.grooves.service.UserRateLimiter.class), new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, allowedBase), mock(com.stellarideas.grooves.service.PlayHistoryService.class), mock(com.stellarideas.grooves.service.FfmpegAvailability.class), mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class), new com.stellarideas.grooves.service.storage.LocalFileSource());
 
         testUser = new User();
         testUser.setId("user1");

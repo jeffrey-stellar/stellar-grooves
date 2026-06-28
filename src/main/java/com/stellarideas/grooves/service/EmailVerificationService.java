@@ -20,7 +20,7 @@ public class EmailVerificationService {
     @Value("${stellar.grooves.mail.enabled:false}")
     private boolean mailEnabled;
 
-    @Value("${stellar.grooves.baseUrl:http://localhost:8080}")
+    @Value("${stellar.grooves.baseUrl:http://localhost:8089}")
     private String baseUrl;
 
     public EmailVerificationService(JavaMailSender mailSender) {

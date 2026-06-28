@@ -1,0 +1,20 @@
+# Automatic-HTTPS reverse proxy for the Stellar Grooves demo.
+#
+# Caddy obtains and renews a Let's Encrypt certificate for $DEMO_DOMAIN with no
+# extra setup. Set DEMO_DOMAIN (and ACME_EMAIL) in demo/.env, point that
+# domain's DNS A record at this host, then start the stack with the "tls"
+# profile:
+#
+#   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml --profile tls up -d
+#
+# For a local trial without a public domain, set DEMO_DOMAIN=localhost — Caddy
+# serves HTTPS using its own internal CA (the browser will warn; that's normal).
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DEMO_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8089
+}
