@@ -1,4 +1,4 @@
-(function() {
+(function(exports) {
 'use strict';
 
 // Public viewer for /shared/smart-playlists/{token}. Fetches the curator's
@@ -129,4 +129,10 @@ async function onSubscribe() {
 }
 
 document.addEventListener('DOMContentLoaded', load);
-})();
+
+// Export for both module (tests) and browser (IIFE) — mirrors helpers.js.
+exports.escapeText = escapeText;
+exports.csrfToken = csrfToken;
+exports.csrfHeaderName = csrfHeaderName;
+
+})(typeof module !== 'undefined' && module.exports ? module.exports : (window.SGSharedPlaylist = {}));
