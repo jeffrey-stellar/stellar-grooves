@@ -145,7 +145,7 @@ async function playAllFromEndpoint(url, label) {
         SG.setPlaylistContext('rediscover:' + label, label, tracks);
         SG.playTrack(tracks[0]);
     } catch (e) {
-        SG.showToast('Network error');
+        SG.showToast('A network error occurred. Please try again.');
     }
 }
 
