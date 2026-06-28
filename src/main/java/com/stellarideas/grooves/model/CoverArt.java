@@ -22,6 +22,9 @@ public class CoverArt {
     private String mimeType;
     private byte[] data;
 
+    /** Where the art came from: "embedded" (tag), "folder" (sidecar image), etc. May be null for legacy docs. */
+    private String source;
+
     public CoverArt() {}
 
     public String getId() { return id; }
@@ -41,6 +44,9 @@ public class CoverArt {
 
     public byte[] getData() { return data; }
     public void setData(byte[] data) { this.data = data; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 
     @Override
     public boolean equals(Object o) {

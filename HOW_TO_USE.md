@@ -2,16 +2,18 @@
 
 Stellar Grooves is a self-hosted music library for rock and metal collections. This guide walks through the everyday browser flow: signing up, scanning a music directory, and using the curator-focused features (smart playlists, phrases, sharing).
 
-For installation and configuration, see [`README.md`](README.md). This document assumes the app is already running at `http://localhost:8080`.
+> The app is built and themed for rock and metal, but every feature below works with any collection — only the genre auto-classification is rock/metal-specific (other music imports fully and lands under "Other"; organize it with tags, ratings, and artist/album smart playlists).
+
+For installation and configuration, see [`README.md`](README.md). This document assumes the app is already running at `http://localhost:8089`.
 
 ---
 
 ## 1. Create your account
 
-1. Open <http://localhost:8080/signup>.
+1. Open <http://localhost:8089/signup>.
 2. Pick a username, enter your email, and choose a password (min 8 characters, with at least one uppercase letter, one lowercase letter, and one digit).
 3. If email verification is enabled (`EMAIL_VERIFICATION_REQUIRED=true`), check your inbox for a verification link before logging in.
-4. Log in at <http://localhost:8080/login>.
+4. Log in at <http://localhost:8089/login>.
 
 > Form login uses a session cookie + CSRF token automatically. You only need a JWT if you're calling the API from a script or a non-browser client — see the API section in `README.md`.
 
@@ -27,7 +29,7 @@ The scanner:
 
 - Recurses into subdirectories (configurable depth, default 20).
 - Reads `.mp3`, `.flac`, and `.m4a` by default — extend with `SCAN_SUPPORTED_EXTENSIONS`.
-- Extracts artist, album, title, year, and embedded cover art via JAudioTagger.
+- Extracts artist, album, title, year, and cover art via JAudioTagger — embedded artwork first, then a sidecar image (`cover.jpg`, `folder.jpg`, `front.jpg`, `albumart.jpg`…) next to the track when none is embedded.
 - Computes a SHA-256 hash of each file for exact-duplicate detection.
 - Auto-classifies tracks against the bundled artist→genre catalog (Classic Rock, Hard Rock, Hair Metal, Heavy Metal, Thrash Metal). Anything unmatched lands as **Other**.
 - Skips files already imported by path or by `(title, artist)`.
@@ -42,6 +44,8 @@ Tracks land in the main library table. From there you can:
 - **Search** with the full-text search box — title, artist, and album are weighted.
 - **Sort** by clicking column headers (title, artist, album, genre, year, rating, last played).
 - **Switch views**: list view or album-grid view (toggle in the toolbar). Album grid shows cover art thumbnails.
+- **Set cover art**: hover an album in the grid and click the 📷 button to upload or replace its cover from an image file (JPEG, PNG, WebP, GIF, or BMP). The chosen image applies to every track on that album.
+- **Fetch missing art online** *(only if the admin has enabled it)*: a **Fetch missing art** button in the album toolbar looks up covers for albums that don't have any, using MusicBrainz and iTunes. It asks for confirmation first, because it sends your album and artist names to those services.
 - **Drill down** by clicking an artist or album row to filter to that scope.
 - **Rate** tracks with the 5-star widget on each row. Sort by rating to find favorites.
 - **Tag** tracks with custom labels (e.g. `live`, `acoustic`, `road-trip`). Tags are listed in the **Tags** sidebar entry with usage counts.
@@ -169,7 +173,7 @@ Sun/moon button in the navbar toggles between the dark jukebox theme and the lig
 
 ## 11. Admin
 
-Admin users can open <http://localhost:8080/admin> for:
+Admin users can open <http://localhost:8089/admin> for:
 
 - System stats (total users, files, playlists).
 - Paginated user list with per-user file counts.
@@ -179,8 +183,8 @@ To create an admin on first start, set `ADMIN_PASSWORD` (and optionally `ADMIN_U
 
 ## 12. Help & API docs
 
-- Built-in user guide: <http://localhost:8080/help> (no login required, also linked from login/signup pages).
-- Interactive API docs: <http://localhost:8080/swagger-ui.html> (dev profile only).
+- Built-in user guide: <http://localhost:8089/help> (no login required, also linked from login/signup pages).
+- Interactive API docs: <http://localhost:8089/swagger-ui.html> (dev profile only).
 - OpenAPI spec: `/api-docs`.
 
 For full endpoint reference, profile configuration, and deployment notes, see [`README.md`](README.md).

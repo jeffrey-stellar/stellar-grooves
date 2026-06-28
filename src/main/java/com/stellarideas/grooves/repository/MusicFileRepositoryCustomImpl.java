@@ -296,19 +296,19 @@ public class MusicFileRepositoryCustomImpl implements MusicFileRepositoryCustom 
                         new Document("$sort", new Document("count", -1))))
                 .append("topArtists", List.of(
                         new Document("$match", new Document("artist",
-                                new Document("$nin", List.of("", null)))),
+                                new Document("$nin", Arrays.asList("", null)))),
                         new Document("$group", new Document("_id", "$artist")
                                 .append("count", new Document("$sum", 1))),
                         new Document("$sort", new Document("count", -1)),
                         new Document("$limit", 10)))
                 .append("totalArtists", List.of(
                         new Document("$match", new Document("artist",
-                                new Document("$nin", List.of("", null)))),
+                                new Document("$nin", Arrays.asList("", null)))),
                         new Document("$group", new Document("_id", "$artist")),
                         new Document("$count", "n")))
                 .append("totalAlbums", List.of(
                         new Document("$match", new Document("album",
-                                new Document("$nin", List.of("", null)))),
+                                new Document("$nin", Arrays.asList("", null)))),
                         new Document("$group", new Document("_id", "$album")),
                         new Document("$count", "n")))
                 .append("decades", List.of(

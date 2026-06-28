@@ -35,7 +35,7 @@ public class WebSecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtUtils jwtUtils;
 
-    @Value("${stellar.grooves.cors.allowedOrigins:http://localhost:8080,http://127.0.0.1:8080}")
+    @Value("${stellar.grooves.cors.allowedOrigins:http://localhost:8089,http://127.0.0.1:8089}")
     private String allowedOrigins;
 
     @Value("${stellar.grooves.swagger.enabled:false}")

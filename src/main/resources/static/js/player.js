@@ -23,6 +23,15 @@ let _crossfadeTriggered = false;
 let audioCtx = null, analyser = null, eqAnimId = null, eqConnected = false;
 const eqSources = new Map();
 
+// iOS (including iPadOS, which reports a desktop Safari UA but exposes touch)
+// suspends the Web Audio AudioContext whenever the screen locks or the PWA is
+// backgrounded. The visual equalizer routes the <audio> element through that
+// context (createMediaElementSource), so on iOS playback goes silent on lock.
+// We detect iOS and skip the equalizer there so audio plays straight to the
+// system output and keeps going in the background — see initEqualizer().
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.userAgent.includes('Macintosh') && 'ontouchend' in document);
+
 // ── Play history accumulator ────────────────────────────
 // Track listened time per play. Seeks don't count — we only add time when
 // currentTime advanced roughly in real time since the last tick.
@@ -317,6 +326,13 @@ if ('mediaSession' in navigator) {
 // ── Visual Equalizer (Web Audio API) ────────────────────
 function initEqualizer() {
     if (eqConnected) return;
+    // On iOS, routing audio through the AudioContext breaks lock-screen/background
+    // playback (the context is suspended on lock). Skip the visualizer entirely so
+    // the <audio> element keeps playing in the background; hide the empty canvas.
+    if (IS_IOS) {
+        if (eqCanvas) eqCanvas.style.display = 'none';
+        return;
+    }
     try {
         audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioCtx.createAnalyser();

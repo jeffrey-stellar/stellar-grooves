@@ -53,6 +53,7 @@ final class ScannerTestFactory {
         MusicScannerService service = new MusicScannerService(
                 catalogService, musicFileRepository, scanJobRepository, userRepository,
                 progressEmitter, pathValidator, metadataReader, coverArtHandler, new FileHasher(),
+                new com.stellarideas.grooves.service.storage.StorageProperties(),
                 new LibraryStatsCache(), new SimpleMeterRegistry());
         ReflectionTestUtils.setField(service, "maxDepth", 20);
         ReflectionTestUtils.setField(service, "hardMaxDepth", 50);

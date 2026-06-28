@@ -54,6 +54,12 @@ public class MusicFile {
 
     private String fileHash; // SHA-256 of file content
 
+    // Where this file's bytes live. "local" (default) = filePath on disk;
+    // "s3" = storageKey in an object-storage bucket. Set by the scanner.
+    private String sourceType = "local";
+    @JsonIgnore
+    private String storageKey; // object key when sourceType="s3"; null for local
+
     @Min(value = 0, message = "Rating must be between 0 and 5")
     @Max(value = 5, message = "Rating must be between 0 and 5")
     private int rating; // 0-5, 0 = unrated
@@ -137,6 +143,13 @@ public class MusicFile {
     public String getFileHash() { return fileHash; }
     public void setFileHash(String fileHash) { this.fileHash = fileHash; }
 
+    public String getSourceType() { return sourceType; }
+    public void setSourceType(String sourceType) { this.sourceType = sourceType; }
+
+    @JsonIgnore
+    public String getStorageKey() { return storageKey; }
+    public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+
     public int getRating() { return rating; }
     public void setRating(int rating) { this.rating = Math.max(0, Math.min(5, rating)); }
 
@@ -196,6 +209,8 @@ public class MusicFile {
         private java.util.List<Genre> additionalGenres;
         private String userId;
         private String fileHash;
+        private String sourceType = "local";
+        private String storageKey;
         private int rating;
         private boolean hasCoverArt;
         private boolean deleted = false;
@@ -219,6 +234,8 @@ public class MusicFile {
         public MusicFileBuilder additionalGenres(java.util.List<Genre> additionalGenres) { this.additionalGenres = additionalGenres; return this; }
         public MusicFileBuilder userId(String userId) { this.userId = userId; return this; }
         public MusicFileBuilder fileHash(String fileHash) { this.fileHash = fileHash; return this; }
+        public MusicFileBuilder sourceType(String sourceType) { this.sourceType = sourceType; return this; }
+        public MusicFileBuilder storageKey(String storageKey) { this.storageKey = storageKey; return this; }
         public MusicFileBuilder rating(int rating) { this.rating = rating; return this; }
         public MusicFileBuilder hasCoverArt(boolean hasCoverArt) { this.hasCoverArt = hasCoverArt; return this; }
         public MusicFileBuilder deleted(boolean deleted) { this.deleted = deleted; return this; }
@@ -230,9 +247,12 @@ public class MusicFile {
         public MusicFileBuilder updatedAt(Instant updatedAt) { this.updatedAt = updatedAt; return this; }
 
         public MusicFile build() {
-            return new MusicFile(id, filePath, fileName, artist, album, title, year, genre, additionalGenres,
+            MusicFile mf = new MusicFile(id, filePath, fileName, artist, album, title, year, genre, additionalGenres,
                     userId, fileHash, rating, hasCoverArt, deleted, deletedAt, playCount, lastPlayedAt,
                     customTags, createdAt, updatedAt);
+            mf.setSourceType(sourceType);
+            mf.setStorageKey(storageKey);
+            return mf;
         }
     }
 }

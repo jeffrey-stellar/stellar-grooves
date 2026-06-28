@@ -34,6 +34,8 @@ public class AuditService {
         GENRE_UPDATE,
         RATING_UPDATE,
         TAGS_UPDATE,
+        COVER_ART_UPLOAD,
+        COVER_ART_FETCH,
         PLAYLIST_CREATE,
         PLAYLIST_DELETE,
         PLAYLIST_TRACK_ADD,

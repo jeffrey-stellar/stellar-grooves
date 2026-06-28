@@ -11,6 +11,9 @@ import com.stellarideas.grooves.repository.UserRepository;
 import com.stellarideas.grooves.service.scan.AudioMetadataReader;
 import com.stellarideas.grooves.service.scan.CoverArtHandler;
 import com.stellarideas.grooves.service.scan.FileHasher;
+import com.stellarideas.grooves.service.storage.ObjectStorageFileSource;
+import com.stellarideas.grooves.service.storage.RemoteObject;
+import com.stellarideas.grooves.service.storage.StorageProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -30,7 +33,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -91,6 +96,7 @@ public class MusicScannerService {
     private final AudioMetadataReader metadataReader;
     private final CoverArtHandler coverArtHandler;
     private final FileHasher fileHasher;
+    private final StorageProperties storageProperties;
     private final Timer scanTimer;
     private final Counter filesScannedCounter;
     private final Counter scanErrorsCounter;
@@ -105,6 +111,7 @@ public class MusicScannerService {
                                AudioMetadataReader metadataReader,
                                CoverArtHandler coverArtHandler,
                                FileHasher fileHasher,
+                               StorageProperties storageProperties,
                                LibraryStatsCache statsCache,
                                MeterRegistry meterRegistry) {
         this.catalogService = catalogService;
@@ -116,6 +123,7 @@ public class MusicScannerService {
         this.metadataReader = metadataReader;
         this.coverArtHandler = coverArtHandler;
         this.fileHasher = fileHasher;
+        this.storageProperties = storageProperties;
         this.statsCache = statsCache;
         this.scanTimer = Timer.builder("grooves.scan.duration")
                 .description("Time spent scanning directories")
@@ -146,11 +154,15 @@ public class MusicScannerService {
      * @throws IllegalStateException    if another scan is already active for this user
      */
     public ScanJob startAsyncScan(User user, String directoryPath) throws IOException {
-        pathValidator.validate(directoryPath);
+        if (isObjectStorage()) {
+            requireObjectStorageConfigured();
+        } else {
+            pathValidator.validate(directoryPath);
+        }
         if (scanJobRepository.countByUserIdAndStatusIn(user.getId(), ACTIVE_STATUSES) > 0) {
             throw new IllegalStateException("A scan is already in progress for this user");
         }
-        ScanJob job = newJob(user, directoryPath, ScanJob.Type.MANUAL, ScanJob.Status.QUEUED);
+        ScanJob job = newJob(user, scanLabel(directoryPath), ScanJob.Type.MANUAL, ScanJob.Status.QUEUED);
         job = scanJobRepository.save(job);
         runAsync(job.getId());
         return job;
@@ -161,6 +173,17 @@ public class MusicScannerService {
      * scan path which needs to know when the scan finishes to update user state.
      */
     public ScanResult scanDirectorySync(User user, String directoryPath, ScanJob.Type type) throws IOException {
+        if (isObjectStorage()) {
+            requireObjectStorageConfigured();
+            if (scanJobRepository.countByUserIdAndStatusIn(user.getId(), ACTIVE_STATUSES) > 0) {
+                throw new IllegalStateException("A scan is already in progress for this user");
+            }
+            ScanJob job = newJob(user, objectStorageLabel(), type, ScanJob.Status.RUNNING);
+            job.setStartedAt(Instant.now());
+            job = scanJobRepository.save(job);
+            ScanJob runJob = job;
+            return executeScan(user, job, () -> doScanS3(user, runJob));
+        }
         Path validatedRoot = pathValidator.validate(directoryPath);
         if (scanJobRepository.countByUserIdAndStatusIn(user.getId(), ACTIVE_STATUSES) > 0) {
             throw new IllegalStateException("A scan is already in progress for this user");
@@ -168,7 +191,8 @@ public class MusicScannerService {
         ScanJob job = newJob(user, directoryPath, type, ScanJob.Status.RUNNING);
         job.setStartedAt(Instant.now());
         job = scanJobRepository.save(job);
-        return executeScan(user, validatedRoot, job);
+        ScanJob runJob = job;
+        return executeScan(user, job, () -> doScan(user, validatedRoot, runJob));
     }
 
     /** Return the user's most recent scan job (active or terminal), if any. */
@@ -203,12 +227,21 @@ public class MusicScannerService {
         try {
             MDC.put("correlationId", UUID.randomUUID().toString());
             MDC.put("audit.user", user.getUsername());
-            Path validatedRoot = pathValidator.validate(job.getPath());
-            job.setStatus(ScanJob.Status.RUNNING);
-            job.setStartedAt(Instant.now());
-            job.setUpdatedAt(Instant.now());
-            scanJobRepository.save(job);
-            executeScan(user, validatedRoot, job);
+            if (isObjectStorage()) {
+                requireObjectStorageConfigured();
+                job.setStatus(ScanJob.Status.RUNNING);
+                job.setStartedAt(Instant.now());
+                job.setUpdatedAt(Instant.now());
+                scanJobRepository.save(job);
+                executeScan(user, job, () -> doScanS3(user, job));
+            } else {
+                Path validatedRoot = pathValidator.validate(job.getPath());
+                job.setStatus(ScanJob.Status.RUNNING);
+                job.setStartedAt(Instant.now());
+                job.setUpdatedAt(Instant.now());
+                scanJobRepository.save(job);
+                executeScan(user, job, () -> doScan(user, validatedRoot, job));
+            }
         } catch (IllegalArgumentException e) {
             finishJob(job, ScanJob.Status.FAILED, e.getMessage());
             progressEmitter.sendError(user.getId(), e.getMessage());
@@ -226,7 +259,12 @@ public class MusicScannerService {
 
     // ─── Core scan loop (shared by sync + async paths) ─────────
 
-    private ScanResult executeScan(User user, Path root, ScanJob job) throws IOException {
+    @FunctionalInterface
+    private interface ScanWork {
+        ScanResult run() throws IOException;
+    }
+
+    private ScanResult executeScan(User user, ScanJob job, ScanWork work) throws IOException {
         ReentrantLock lock = userScanLocks.computeIfAbsent(user.getId(), k -> new ReentrantLock());
         if (!lock.tryLock()) {
             String msg = "A scan is already in progress for this user";
@@ -236,7 +274,7 @@ public class MusicScannerService {
         try {
             return scanTimer.record(() -> {
                 try {
-                    ScanResult result = doScan(user, root, job);
+                    ScanResult result = work.run();
                     filesScannedCounter.increment(result.getSaved());
                     scanErrorsCounter.increment(result.getErrors());
                     return result;
@@ -248,9 +286,9 @@ public class MusicScannerService {
             finishJob(job, ScanJob.Status.FAILED, e.getCause().getMessage());
             throw e.getCause();
         } catch (RuntimeException e) {
-            // RuntimeException from doScan would otherwise leave the ScanJob stuck in RUNNING.
+            // RuntimeException from the scan would otherwise leave the ScanJob stuck in RUNNING.
             // Critical for scanDirectorySync (scheduled scans), where no caller marks the job FAILED.
-            logger.error("Scan failed for user '{}' on path '{}': {}", user.getUsername(), root, e.getMessage(), e);
+            logger.error("Scan failed for user '{}' (job '{}'): {}", user.getUsername(), job.getPath(), e.getMessage(), e);
             finishJob(job, ScanJob.Status.FAILED, e.getMessage());
             throw e;
         } finally {
@@ -364,7 +402,7 @@ public class MusicScannerService {
                 ? genres.stream().filter(g -> g != primary).collect(Collectors.toList())
                 : null;
 
-        boolean hasCover = coverArtHandler.process(meta.tag(), userId, meta.artist(), meta.album(), artBudget);
+        boolean hasCover = coverArtHandler.process(meta.tag(), path, userId, meta.artist(), meta.album(), artBudget);
         String hash = fileHasher.sha256(path);
 
         MusicFile file = MusicFile.builder()
@@ -386,6 +424,166 @@ public class MusicScannerService {
             existingTitleArtist.add(meta.title() + "\0" + meta.artist());
         }
         return file;
+    }
+
+    // ─── Object-storage (S3) scan path ─────────────────────────
+
+    private boolean isObjectStorage() {
+        return "s3".equalsIgnoreCase(storageProperties.getType());
+    }
+
+    private void requireObjectStorageConfigured() {
+        String bucket = storageProperties.getS3().getBucket();
+        if (bucket == null || bucket.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Object storage is selected but no bucket is configured (set S3_BUCKET).");
+        }
+    }
+
+    private String objectStorageLabel() {
+        StorageProperties.S3 s3 = storageProperties.getS3();
+        String prefix = s3.getPrefix() == null ? "" : s3.getPrefix();
+        return "s3://" + s3.getBucket() + "/" + prefix;
+    }
+
+    private String scanLabel(String directoryPath) {
+        return isObjectStorage() ? objectStorageLabel() : directoryPath;
+    }
+
+    private ScanResult doScanS3(User user, ScanJob job) throws IOException {
+        try (ObjectStorageFileSource store = ObjectStorageFileSource.from(storageProperties.getS3())) {
+            return scanObjectStorage(user, job, store);
+        }
+    }
+
+    private ScanResult scanObjectStorage(User user, ScanJob job, ObjectStorageFileSource store)
+            throws IOException {
+        List<MusicFile> allUserFiles = repository.findByUserId(user.getId());
+        Map<String, String> existingByKey = new HashMap<>();
+        for (MusicFile f : allUserFiles) {
+            if ("s3".equals(f.getSourceType()) && f.getStorageKey() != null) {
+                existingByKey.put(f.getStorageKey(), f.getFileHash() == null ? "" : f.getFileHash());
+            }
+        }
+        Set<String> existingTitleArtist = allUserFiles.stream()
+                .filter(f -> f.getTitle() != null && !f.getTitle().isBlank()
+                        && f.getArtist() != null && !f.getArtist().isBlank())
+                .map(f -> f.getTitle() + "\0" + f.getArtist())
+                .collect(Collectors.toSet());
+
+        CoverArtHandler.Budget artBudget = coverArtHandler.newBudget(user.getId());
+        ScanResult result = new ScanResult();
+        List<MusicFile> batch = new ArrayList<>(batchSize);
+        Instant deadline = Instant.now().plus(Duration.ofMinutes(scanTimeoutMinutes));
+        boolean timedOut = false;
+
+        var it = store.list().stream()
+                .filter(o -> {
+                    String name = o.key().toLowerCase();
+                    return supportedExtensions.stream().anyMatch(name::endsWith);
+                })
+                .iterator();
+
+        while (it.hasNext()) {
+            if (Instant.now().isAfter(deadline)) {
+                logger.warn("S3 scan timed out after {} minutes for user '{}' on '{}'",
+                        scanTimeoutMinutes, user.getUsername(), job.getPath());
+                timedOut = true;
+                break;
+            }
+            RemoteObject obj = it.next();
+            try {
+                if (existingByKey.containsKey(obj.key())) {
+                    result.incrementSkipped();
+                } else {
+                    MusicFile file = processObject(store, obj, user.getId(),
+                            existingByKey, existingTitleArtist, artBudget, result);
+                    if (file != null) {
+                        batch.add(file);
+                        if (batch.size() >= batchSize) {
+                            repository.saveAll(batch);
+                            result.addSaved(batch.size());
+                            batch.clear();
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                logger.warn("Skipping object '{}': {}", obj.key(), e.getMessage());
+                result.addError(obj.key(), e.getMessage());
+            } catch (RuntimeException e) {
+                logger.error("Unexpected error processing '{}': {}", obj.key(), e.getMessage(), e);
+                result.addError(obj.key(), e.getMessage());
+            }
+
+            int total = result.getSaved() + result.getSkipped() + result.getErrors();
+            if (total % PROGRESS_EMIT_EVERY_N == 0) {
+                emitProgress(job, result, obj.key());
+            }
+        }
+
+        if (!batch.isEmpty()) {
+            repository.saveAll(batch);
+            result.addSaved(batch.size());
+        }
+        if (result.getSaved() > 0) statsCache.invalidate(user.getId());
+
+        logger.info("S3 scan complete for user '{}': {} saved, {} skipped, {} errors",
+                user.getUsername(), result.getSaved(), result.getSkipped(), result.getErrors());
+
+        ScanJob.Status finalStatus = timedOut ? ScanJob.Status.TIMED_OUT : ScanJob.Status.COMPLETED;
+        String timeoutMessage = timedOut ? "Scan exceeded " + scanTimeoutMinutes + "-minute timeout" : null;
+        finalizeJob(job, finalStatus, result, timeoutMessage);
+        progressEmitter.sendComplete(user.getId(), result.getSaved(), result.getSkipped(), result.getErrors());
+        return result;
+    }
+
+    private MusicFile processObject(ObjectStorageFileSource store, RemoteObject obj, String userId,
+                                    Map<String, String> existingByKey, Set<String> existingTitleArtist,
+                                    CoverArtHandler.Budget artBudget, ScanResult result) throws IOException {
+        Path tmp = store.downloadToTemp(obj.key());
+        try {
+            AudioMetadataReader.AudioMetadata meta = metadataReader.read(tmp);
+
+            if (meta.hasArtistAndTitle()
+                    && existingTitleArtist.contains(meta.title() + "\0" + meta.artist())) {
+                result.incrementSkipped();
+                return null;
+            }
+
+            Set<Genre> genres = catalogService.identifyGenres(meta.artist());
+            Genre primary = genres.isEmpty() ? Genre.OTHER : genres.iterator().next();
+            List<Genre> additional = genres.size() > 1
+                    ? genres.stream().filter(g -> g != primary).collect(Collectors.toList())
+                    : null;
+
+            boolean hasCover = coverArtHandler.process(meta.tag(), tmp, userId, meta.artist(), meta.album(), artBudget);
+            String hash = obj.etag() == null ? "" : obj.etag();
+            String fileName = obj.key().substring(obj.key().lastIndexOf('/') + 1);
+
+            MusicFile file = MusicFile.builder()
+                    .userId(userId)
+                    .sourceType("s3")
+                    .storageKey(obj.key())
+                    .filePath(obj.key())
+                    .fileName(fileName)
+                    .artist(meta.artist())
+                    .album(meta.album())
+                    .title(meta.title())
+                    .year(com.stellarideas.grooves.util.YearParser.parse(meta.year()))
+                    .genre(primary)
+                    .additionalGenres(additional)
+                    .fileHash(hash)
+                    .hasCoverArt(hasCover)
+                    .build();
+
+            existingByKey.put(obj.key(), hash);
+            if (meta.hasArtistAndTitle()) {
+                existingTitleArtist.add(meta.title() + "\0" + meta.artist());
+            }
+            return file;
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
     }
 
     // ─── ScanJob lifecycle helpers ─────────────────────────────

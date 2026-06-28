@@ -55,7 +55,9 @@ class QueueEdgeCaseTest {
                 playbackQueueRepository, scanProgressEmitter, userRateLimiter,
                 new com.stellarideas.grooves.service.ScanPathValidator(msgHelper, ""),
                 mock(com.stellarideas.grooves.service.PlayHistoryService.class),
-                mock(com.stellarideas.grooves.service.FfmpegAvailability.class));
+                mock(com.stellarideas.grooves.service.FfmpegAvailability.class),
+                mock(com.stellarideas.grooves.service.coverart.ExternalCoverArtService.class),
+                new com.stellarideas.grooves.service.storage.LocalFileSource());
 
         testUser = new User();
         testUser.setId("user1");

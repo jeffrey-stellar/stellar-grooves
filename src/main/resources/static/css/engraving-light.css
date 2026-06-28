@@ -1104,3 +1104,205 @@
     padding-top: 4px;
     margin-top: 4px;
 }
+
+/* ============================================================
+   MULTI-COLOR SCREEN-PRINT — gig-poster spot inks layered over
+   the bone-engraving base. The engraving (bone paper + iron line
+   work + cross-hatch) stays; this adds 2 more silkscreen inks —
+   peacock teal + mustard gold — alongside the existing thrash red,
+   plus poster mis-registration on the big display headings.
+   Loaded after the engraving rules above so it wins by source order.
+   ============================================================ */
+
+/* ── Spot-ink tokens ──────────────────────────────────────── */
+[data-theme="light"],
+:root:not([data-theme="dark"]) {
+    /* Fills/blocks — vivid poster inks (never used as small text) */
+    --print-teal:      #1a8c82;
+    --print-gold:      #cf9b22;
+    /* Text-safe inks — darkened to clear AA on bone (#f5f0e3) */
+    --print-teal-deep: #0d4f49;   /* ~9:1  */
+    --print-gold-deep: #8a6510;   /* ~5:1  */
+    --print-red:       var(--thrash-red);   /* ~8:1 */
+}
+
+/* ── Hero — poster headline, no ported MTV neon ───────────── */
+[data-theme="light"] .sg-hero,
+:root:not([data-theme="dark"]) .sg-hero {
+    background:
+        var(--xhatch-fine),
+        linear-gradient(180deg, var(--bone-bright) 0%, var(--bone-light) 100%);
+    border: 1.5px solid var(--iron-black);
+    border-radius: 0;
+    box-shadow:
+        inset 0 0 0 3px var(--bone-bright),
+        inset 0 0 0 4px var(--tarnished),
+        0 1px 0 rgba(0, 0, 0, 0.1);
+}
+/* Kill the VHS scanline wash — it's a dark-mode motif */
+[data-theme="light"] .sg-hero::before,
+:root:not([data-theme="dark"]) .sg-hero::before { display: none; }
+/* Three-ink poster underline (was magenta/purple/electric) */
+[data-theme="light"] .sg-hero::after,
+:root:not([data-theme="dark"]) .sg-hero::after {
+    height: 5px;
+    background: linear-gradient(90deg,
+        var(--print-red)  0%,  var(--print-red)  40%,
+        var(--print-gold) 40%, var(--print-gold) 68%,
+        var(--print-teal) 68%, var(--print-teal) 100%);
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+/* Headline — iron-black with a crisp teal mis-register */
+[data-theme="light"] .sg-hero-title,
+:root:not([data-theme="dark"]) .sg-hero-title {
+    color: var(--iron-black);
+    text-shadow:
+        2px 2px 0 var(--print-teal),
+        0 1px 0 rgba(255, 255, 255, 0.4);
+}
+/* The colored hero word — flat thrash-red, gold off-register */
+[data-theme="light"] .sg-hero-title em,
+:root:not([data-theme="dark"]) .sg-hero-title em {
+    color: var(--print-red);
+    -webkit-text-fill-color: var(--print-red);
+    background: none;
+    text-shadow:
+        2px 2px 0 var(--print-gold),
+        0 1px 0 rgba(255, 255, 255, 0.4);
+}
+/* Kicker, meta, stamp — re-cast off the neon palette */
+[data-theme="light"] .sg-hero-kicker,
+:root:not([data-theme="dark"]) .sg-hero-kicker {
+    color: var(--print-teal-deep);
+    text-shadow: none;
+}
+[data-theme="light"] .sg-hero-meta,
+:root:not([data-theme="dark"]) .sg-hero-meta {
+    color: var(--iron-soft);
+    text-shadow: none;
+}
+[data-theme="light"] .sg-hero-meta b,
+:root:not([data-theme="dark"]) .sg-hero-meta b {
+    color: var(--print-red);
+    text-shadow: none;
+}
+[data-theme="light"] .sg-hero-stamp,
+:root:not([data-theme="dark"]) .sg-hero-stamp {
+    background: var(--print-red);
+    border: 1.5px solid var(--iron-black);
+    box-shadow: inset 0 1px 0 rgba(255, 200, 200, 0.35), 0 2px 0 rgba(0, 0, 0, 0.2);
+    text-shadow: 0 1px 0 var(--thrash-deep);
+}
+/* Hero image — drop the magenta glow (dark-mode motif), ink frame */
+[data-theme="light"] .sg-hero-image,
+:root:not([data-theme="dark"]) .sg-hero-image {
+    border: 1.5px solid var(--iron-black);
+    border-radius: 0;
+    box-shadow:
+        inset 0 0 0 2px var(--bone-bright),
+        0 2px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* ── Jukebox crown — poster rainbow (black / gold / teal / red) ─ */
+[data-theme="light"] .wurl-arch-amber,
+:root:not([data-theme="dark"]) .wurl-arch-amber {
+    background: var(--print-gold);
+    background-image: var(--xhatch-med);
+}
+[data-theme="light"] .wurl-arch-inner,
+:root:not([data-theme="dark"]) .wurl-arch-inner {
+    background: var(--print-teal);
+    background-image: var(--xhatch-med);
+}
+/* arch-outer / arch-gold stay iron-black (frame + separator);
+   arch-pink stays thrash-red (innermost ring). */
+
+/* Chrome divider deco dot strip — alternate to gold for variety */
+[data-theme="light"] .wurl-chrome-deco,
+:root:not([data-theme="dark"]) .wurl-chrome-deco {
+    background: var(--print-gold);
+    border: 1.5px solid var(--iron-black);
+    box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.4);
+}
+
+/* ── Bubble tubes → teal glass; grille glow → gold wash ───── */
+[data-theme="light"] .wurl-tube-glass,
+:root:not([data-theme="dark"]) .wurl-tube-glass {
+    background: linear-gradient(180deg,
+        rgba(26, 140, 130, 0.20) 0%,
+        rgba(13, 79, 73, 0.34) 50%,
+        rgba(13, 79, 73, 0.46) 100%);
+}
+[data-theme="light"] .wurl-grille-glow,
+:root:not([data-theme="dark"]) .wurl-grille-glow {
+    background: radial-gradient(ellipse at 50% 50%,
+        rgba(207, 155, 34, 0.30), transparent 70%);
+}
+
+/* Selection panel — colored silkscreen frame + thrash-red marquee title */
+[data-theme="light"] .wurl-selection,
+:root:not([data-theme="dark"]) .wurl-selection {
+    box-shadow:
+        inset 0 1.5px 0 var(--iron-black),
+        inset 0 -1.5px 0 var(--iron-black),
+        inset 0 4px 0 var(--bone-bright),
+        inset 0 -4px 0 var(--bone-bright),
+        inset 0 5px 0 var(--print-gold),
+        inset 0 -5px 0 var(--print-teal);
+}
+[data-theme="light"] .wurl-title,
+:root:not([data-theme="dark"]) .wurl-title {
+    color: var(--print-red) !important;
+    -webkit-text-fill-color: var(--print-red);
+    text-shadow:
+        1px 1px 0 var(--print-gold),
+        0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Selection-panel title rule + side-panel header rule → teal/gold */
+[data-theme="light"] .wurl-side-header::after,
+:root:not([data-theme="dark"]) .wurl-side-header::after {
+    background: var(--print-teal);
+}
+[data-theme="light"] .speaker-badge,
+:root:not([data-theme="dark"]) .speaker-badge {
+    color: var(--print-gold-deep);
+}
+
+/* ── Stat numerals — alternating poster inks ──────────────── */
+[data-theme="light"] #statsRow > [class*="col"]:nth-child(3n+1) .stat-value,
+:root:not([data-theme="dark"]) #statsRow > [class*="col"]:nth-child(3n+1) .stat-value {
+    color: var(--print-red) !important;
+}
+[data-theme="light"] #statsRow > [class*="col"]:nth-child(3n+2) .stat-value,
+:root:not([data-theme="dark"]) #statsRow > [class*="col"]:nth-child(3n+2) .stat-value {
+    color: var(--print-teal-deep) !important;
+}
+[data-theme="light"] #statsRow > [class*="col"]:nth-child(3n+3) .stat-value,
+:root:not([data-theme="dark"]) #statsRow > [class*="col"]:nth-child(3n+3) .stat-value {
+    color: var(--print-gold-deep) !important;
+}
+/* Stat-label rules alternate to match their numeral */
+[data-theme="light"] #statsRow > [class*="col"]:nth-child(3n+2) .stat-label,
+:root:not([data-theme="dark"]) #statsRow > [class*="col"]:nth-child(3n+2) .stat-label {
+    border-top-color: var(--print-teal);
+}
+[data-theme="light"] #statsRow > [class*="col"]:nth-child(3n+3) .stat-label,
+:root:not([data-theme="dark"]) #statsRow > [class*="col"]:nth-child(3n+3) .stat-label {
+    border-top-color: var(--print-gold);
+}
+
+/* ── Secondary CTAs — teal silkscreen outline ─────────────── */
+[data-theme="light"] .btn-outline-primary,
+:root:not([data-theme="dark"]) .btn-outline-primary {
+    color: var(--print-teal-deep);
+    border: 1.5px solid var(--print-teal-deep);
+    border-radius: 0;
+    background: transparent;
+}
+[data-theme="light"] .btn-outline-primary:hover,
+:root:not([data-theme="dark"]) .btn-outline-primary:hover {
+    color: var(--bone-bright);
+    background: var(--print-teal);
+    border-color: var(--iron-black);
+}

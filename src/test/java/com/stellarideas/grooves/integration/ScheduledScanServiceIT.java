@@ -42,7 +42,7 @@ class ScheduledScanServiceIT extends BaseIntegrationTest {
     }
 
     @Test
-    void scheduledScanUpdatesLastScanTimestamp() {
+    void scheduledScanUpdatesLastScanTimestamp() throws InterruptedException {
         User user = new User();
         user.setUsername("scanuser");
         user.setEmail("scan@test.com");
@@ -52,12 +52,23 @@ class ScheduledScanServiceIT extends BaseIntegrationTest {
         user.setLastScheduledScan(Instant.now().minus(1, ChronoUnit.HOURS));
         user.setRoles(Set.of(com.stellarideas.grooves.model.Role.ROLE_USER));
         userRepository.save(user);
+        Instant before = user.getLastScheduledScan();
 
         scheduledScanService.checkScheduledScans();
 
-        User updated = userRepository.findByUsername("scanuser").orElseThrow();
+        // Scans are dispatched to an async executor, so the timestamp update is not
+        // visible synchronously — poll (up to ~10s) until it advances.
+        User updated = user;
+        for (int i = 0; i < 100; i++) {
+            updated = userRepository.findByUsername("scanuser").orElseThrow();
+            if (updated.getLastScheduledScan() != null
+                    && updated.getLastScheduledScan().isAfter(before)) {
+                break;
+            }
+            Thread.sleep(100);
+        }
         assertNotNull(updated.getLastScheduledScan(), "lastScheduledScan should be set after scan");
-        assertTrue(updated.getLastScheduledScan().isAfter(user.getLastScheduledScan()),
+        assertTrue(updated.getLastScheduledScan().isAfter(before),
                 "lastScheduledScan should be updated to a newer timestamp");
     }
 
@@ -95,7 +106,9 @@ class ScheduledScanServiceIT extends BaseIntegrationTest {
         scheduledScanService.checkScheduledScans();
 
         User updated = userRepository.findByUsername("notdue").orElseThrow();
-        assertEquals(before, updated.getLastScheduledScan(),
+        // MongoDB stores Instants at millisecond precision, so compare the in-memory
+        // value truncated to millis (it must be unchanged since the scan isn't due).
+        assertEquals(before.truncatedTo(ChronoUnit.MILLIS), updated.getLastScheduledScan(),
                 "lastScheduledScan should not change when scan is not due");
     }
 

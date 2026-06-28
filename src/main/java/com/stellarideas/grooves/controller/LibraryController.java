@@ -74,6 +74,8 @@ public class LibraryController {
     private final ScanPathValidator scanPathValidator;
     private final PlayHistoryService playHistoryService;
     private final FfmpegAvailability ffmpeg;
+    private final com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService;
+    private final com.stellarideas.grooves.service.storage.FileSource fileSource;
 
     public LibraryController(MusicScannerService scannerService,
                              LibraryService libraryService,
@@ -86,7 +88,9 @@ public class LibraryController {
                              UserRateLimiter userRateLimiter,
                              ScanPathValidator scanPathValidator,
                              PlayHistoryService playHistoryService,
-                             FfmpegAvailability ffmpeg) {
+                             FfmpegAvailability ffmpeg,
+                             com.stellarideas.grooves.service.coverart.ExternalCoverArtService externalCoverArtService,
+                             com.stellarideas.grooves.service.storage.FileSource fileSource) {
         this.scannerService = scannerService;
         this.libraryService = libraryService;
         this.msg = msg;
@@ -99,6 +103,8 @@ public class LibraryController {
         this.scanPathValidator = scanPathValidator;
         this.playHistoryService = playHistoryService;
         this.ffmpeg = ffmpeg;
+        this.externalCoverArtService = externalCoverArtService;
+        this.fileSource = fileSource;
     }
 
     @PostMapping("/scan")
@@ -114,10 +120,16 @@ public class LibraryController {
         }
         String path = request.getPath();
         try {
-            validateScanPath(path);
-            auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
-            user.setMusicDirectory(path);
-            userRepository.save(user);
+            if (fileSource.usesObjectKeys()) {
+                // Object-storage backend scans the configured bucket; the request
+                // path is not a local directory, so skip filesystem validation.
+                auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, "object-storage");
+            } else {
+                validateScanPath(path);
+                auditService.log(user.getUsername(), AuditService.Action.SCAN_DIRECTORY, path);
+                user.setMusicDirectory(path);
+                userRepository.save(user);
+            }
             com.stellarideas.grooves.model.ScanJob job = scannerService.startAsyncScan(user, path);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("message", "Scan started");
@@ -247,6 +259,13 @@ public class LibraryController {
         return ResponseEntity.ok(body);
     }
 
+    // NOTE: the return type MUST stay concretely typed as ResponseEntity<ResourceRegion>.
+    // ResourceRegionHttpMessageConverter is a *generic* converter whose canWrite only
+    // matches when the declared body type is ResourceRegion (or List<ResourceRegion>).
+    // Widening this to ResponseEntity<?> makes the wildcard match no converter and every
+    // Range request (i.e. all <audio> playback) 500s with HttpMessageNotWritableException
+    // ("No converter for ResourceRegion"). The bodyless branches below (404/403/302) work
+    // fine under the concrete type since they carry no body to convert.
     @GetMapping("/files/{id}/stream")
     public ResponseEntity<ResourceRegion> streamFile(
             @CurrentUser User user,
@@ -256,22 +275,22 @@ public class LibraryController {
         if (fileOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        Path path = Paths.get(fileOpt.get().getFilePath()).normalize();
-        if (!Files.exists(path) || !Files.isReadable(path)) {
+        com.stellarideas.grooves.service.storage.StreamResolution resolved =
+                fileSource.resolveStream(fileOpt.get(), user);
+        if (resolved.status() == com.stellarideas.grooves.service.storage.StreamResolution.Status.NOT_FOUND) {
             return ResponseEntity.notFound().build();
         }
-        if (user.getMusicDirectory() == null || user.getMusicDirectory().isBlank()) {
-            logger.warn("Streaming blocked: user '{}' has no music directory configured", user.getUsername());
+        if (resolved.status() == com.stellarideas.grooves.service.storage.StreamResolution.Status.FORBIDDEN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        Path musicDir = Paths.get(user.getMusicDirectory()).toRealPath();
-        path = path.toRealPath();
-        if (!path.startsWith(musicDir)) {
-            logger.warn("Path traversal blocked: user '{}' attempted to stream '{}' outside music directory '{}'",
-                    user.getUsername(), path, musicDir);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        // Object-storage backend: redirect the browser to a short-lived presigned
+        // URL so the bytes stream straight from the bucket, never through us.
+        if (resolved.redirectUrl() != null) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header(HttpHeaders.LOCATION, resolved.redirectUrl())
+                    .build();
         }
-        Resource resource = new FileSystemResource(path);
+        Resource resource = new FileSystemResource(resolved.localPath());
         long contentLength = resource.contentLength();
         MediaType mediaType = resolveAudioMediaType(fileOpt.get().getFileName());
 
@@ -594,6 +613,58 @@ public class LibraryController {
                 .contentType(MediaType.parseMediaType(art.getMimeType()))
                 .cacheControl(CacheControl.maxAge(java.time.Duration.ofDays(30)))
                 .body(art.getData());
+    }
+
+    @PostMapping(value = "/files/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadCoverArt(@CurrentUser User user, @PathVariable String id,
+                                            @RequestParam(value = "file", required = false) org.springframework.web.multipart.MultipartFile file)
+            throws IOException {
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "cover-upload");
+        if (rateLimited != null) return rateLimited;
+
+        Optional<MusicFile> fileOpt = libraryService.findFileByIdAndUserId(id, user.getId());
+        if (fileOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("No image uploaded");
+        }
+        byte[] data = file.getBytes();
+        String mime = com.stellarideas.grooves.util.ImageTypeDetector.detectMime(data);
+        if (mime == null) {
+            throw new IllegalArgumentException("File is not a supported image (JPEG, PNG, WebP, GIF, or BMP)");
+        }
+
+        MusicFile mf = fileOpt.get();
+        int updated = libraryService.setAlbumCoverArt(user.getId(), mf, data, mime);
+        auditService.log(user.getUsername(), AuditService.Action.COVER_ART_UPLOAD, mf.getId(),
+                mf.getArtist() + " - " + mf.getAlbum());
+        return ResponseEntity.ok(Map.of("updated", updated, "album", mf.getAlbum() == null ? "" : mf.getAlbum()));
+    }
+
+    @PostMapping("/cover-art/fetch")
+    public ResponseEntity<?> fetchMissingCoverArt(@CurrentUser User user) {
+        if (!externalCoverArtService.isEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(GlobalExceptionHandler.problem(
+                    HttpStatus.FORBIDDEN, "Online cover-art fetch is disabled on this server."));
+        }
+        if (externalCoverArtService.isRunning(user.getId())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(GlobalExceptionHandler.problem(
+                    HttpStatus.CONFLICT, "A cover-art fetch is already running."));
+        }
+        ResponseEntity<?> rateLimited = rateLimitResponse(user.getId(), "cover-fetch");
+        if (rateLimited != null) return rateLimited;
+
+        externalCoverArtService.fetchMissingAsync(user.getId());
+        auditService.log(user.getUsername(), AuditService.Action.COVER_ART_FETCH, null, "started");
+        return ResponseEntity.accepted().body(Map.of("started", true));
+    }
+
+    @GetMapping("/cover-art/fetch/status")
+    public ResponseEntity<?> coverArtFetchStatus(@CurrentUser User user) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>(externalCoverArtService.getStatus(user.getId()).toMap());
+        body.put("enabled", externalCoverArtService.isEnabled());
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping("/duplicates")

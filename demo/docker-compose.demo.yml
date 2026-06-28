@@ -1,0 +1,142 @@
+# Frozen public demo for Stellar Grooves.
+#
+# This stack runs the app against an isolated demo database that is seeded from
+# demo/seed/ and reset on a schedule (see demo/scripts/reset-demo.sh). It is
+# meant for a public "try it" instance — NOT for hosting real libraries:
+#   * No music directory is mounted, so a visitor's "Scan" finds nothing.
+#   * The seed ships WITHOUT album art; covers are fetched at runtime from
+#     public providers (no copyrighted images live in this repo).
+#   * Anything a visitor changes (ratings, playlists) is wiped on the next reset.
+#
+# Quick start (from the repo root):
+#   cp demo/.env.example demo/.env   # then set JWT_SECRET
+#   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml up -d --build
+#   ./demo/scripts/reset-demo.sh     # seed the DB + warm cover art
+#
+# Public HTTPS (one command): set DEMO_DOMAIN + ACME_EMAIL in demo/.env, point
+# the domain's DNS at this host, and add the "tls" profile — Caddy fetches and
+# renews a Let's Encrypt cert automatically:
+#   docker compose --env-file demo/.env -f demo/docker-compose.demo.yml --profile tls up -d --build
+#
+# Then schedule the reset nightly (host crontab), e.g. 4am:
+#   0 4 * * * cd /path/to/stellar-grooves && ./demo/scripts/reset-demo.sh >> /var/log/sg-demo-reset.log 2>&1
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      # Published on the loopback only: reachable on the host for
+      # reset-demo.sh and local testing, but the public entrypoint is Caddy
+      # (the "tls" profile below). Drop the "127.0.0.1:" prefix if you want
+      # to expose the app directly over plain HTTP instead.
+      - "127.0.0.1:${DEMO_PORT:-8089}:8089"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/stellar_grooves_demo
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in demo/.env - generate with openssl rand -base64 32}"
+      # prod profile keeps file-logging off (the container is read-only) and
+      # applies secure defaults (Swagger disabled, proxy-aware rate limiting).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # Required under the prod profile. Set to your public demo URL.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8089}
+      # Caddy terminates TLS and proxies plain HTTP to the app. Honor its
+      # X-Forwarded-* headers so the app knows requests are HTTPS — otherwise it
+      # emits http:// redirects (e.g. after login) and the http->https bounce
+      # drops the session cookie, yielding a 403 / whitelabel page post-login.
+      SERVER_FORWARD_HEADERS_STRATEGY: "framework"
+      MAIL_ENABLED: "false"
+      EMAIL_VERIFICATION_REQUIRED: "false"
+      # No Redis or SMTP in this stack — keep their health probes from marking the
+      # app unhealthy (rate limiting is in-memory, mail is off). Also pins the
+      # current published image healthy without needing a rebuild.
+      MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+      # Disable self-signup and surface/pre-fill the demo login so visitors
+      # land on the seeded account instead of an empty one.
+      DEMO_MODE: "true"
+      DEMO_USERNAME: ${DEMO_USERNAME:-demo}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-GrooveDemo1}
+      # Covers are fetched at runtime so no copyrighted art ships in the repo.
+      COVER_ART_EXTERNAL_ENABLED: "true"
+      COVER_ART_EXTERNAL_CONTACT: ${COVER_ART_EXTERNAL_CONTACT:-admin@stellargrooves.com}
+    volumes:
+      # A handful of Creative-Commons tracks so the jukebox actually plays.
+      # The seed's playable tracks point at /music/<artist>/<album>/... here.
+      - ./audio:/music:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  mongo:
+    image: mongo:7
+    # The seed archive is mounted read-only so reset-demo.sh can restore it.
+    volumes:
+      - mongo-demo-data:/data/db
+      - ./seed:/seed:ro
+    healthcheck:
+      test: mongosh --eval "db.adminCommand('ping')" --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  # Optional auto-HTTPS reverse proxy. Enable with the "tls" profile:
+  #   docker compose ... --profile tls up -d
+  # Requires DEMO_DOMAIN (+ ACME_EMAIL) in demo/.env, the domain's DNS pointing
+  # here, and ports 80/443 open. Caddy fetches + renews a Let's Encrypt cert
+  # automatically and proxies to the app. Certs persist in the caddy-data volume.
+  caddy:
+    image: caddy:2
+    profiles: ["tls"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?Set DEMO_DOMAIN in demo/.env to use the tls profile}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in demo/.env to use the tls profile}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  mongo-demo-data:
+  caddy-data:
+  caddy-config:
