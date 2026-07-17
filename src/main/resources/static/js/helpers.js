@@ -106,6 +106,62 @@ function getVisibleTracksPure(allFiles, nav, filters, sortState) {
 }
 
 /**
+ * Human-readable "time ago" for an ISO timestamp, bucketed seconds → minutes →
+ * hours → days, falling back to a locale date string beyond a week. Used by the
+ * listening-history view. Deliberately finer-grained than formatRelative().
+ * @param {string} iso - ISO-8601 timestamp
+ * @param {number} [now] - reference "now" in ms (defaults to Date.now()); injectable for tests
+ */
+function formatRelativeTime(iso, now) {
+    if (!iso) return '';
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return '';
+    const ref = (now === undefined) ? Date.now() : now;
+    const diff = Math.max(0, ref - then);
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return s + 's ago';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    const d = Math.floor(h / 24);
+    if (d < 7) return d + 'd ago';
+    return new Date(iso).toLocaleDateString();
+}
+
+/**
+ * Format a duration in milliseconds as m:ss. Em dash for null/zero/negative.
+ * @param {number} ms
+ */
+function formatMs(ms) {
+    if (!ms || ms < 0) return '\u2014';
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const ss = String(s % 60).padStart(2, '0');
+    return `${m}:${ss}`;
+}
+
+/**
+ * Coarser "time ago" for the rediscover view: 'never' / 'today', then days →
+ * months → years. Distinct buckets and wording from formatRelativeTime() by
+ * design — rediscover cares about staleness in days, not recency in seconds.
+ * @param {string} iso - ISO-8601 timestamp
+ * @param {number} [now] - reference "now" in ms (defaults to Date.now()); injectable for tests
+ */
+function formatRelative(iso, now) {
+    if (!iso) return 'never';
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return '\u2014';
+    const ref = (now === undefined) ? Date.now() : now;
+    const days = Math.floor((ref - then) / 86400000);
+    if (days < 1) return 'today';
+    if (days < 30) return days + 'd ago';
+    const months = Math.floor(days / 30);
+    if (months < 12) return months + 'mo ago';
+    return Math.floor(months / 12) + 'y ago';
+}
+
+/**
  * Compute virtual scroll indices for a given scroll position.
  * @param {number} totalItems - total number of items
  * @param {number} scrollTop - current scroll position
@@ -128,5 +184,8 @@ exports.decadeFromYear = decadeFromYear;
 exports.crossfadeVolumes = crossfadeVolumes;
 exports.getVisibleTracksPure = getVisibleTracksPure;
 exports.virtualScrollRange = virtualScrollRange;
+exports.formatRelativeTime = formatRelativeTime;
+exports.formatMs = formatMs;
+exports.formatRelative = formatRelative;
 
 })(typeof module !== 'undefined' && module.exports ? module.exports : (window.SGHelpers = {}));

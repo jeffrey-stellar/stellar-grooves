@@ -95,11 +95,11 @@ function buildRecentRow(entry) {
     tdPlay.appendChild(playBtn);
     tr.appendChild(tdPlay);
 
-    tr.appendChild(td(formatRelativeTime(entry.playedAt), 'small text-secondary-themed'));
+    tr.appendChild(td(SGHelpers.formatRelativeTime(entry.playedAt), 'small text-secondary-themed'));
     tr.appendChild(td(entry.track.title || '\u2014'));
     tr.appendChild(td(entry.track.artist || '\u2014'));
     tr.appendChild(td(entry.track.album || '\u2014', 'hide-xs'));
-    tr.appendChild(td(entry.completed ? 'Completed' : formatMs(entry.listenedMs), 'hide-xs small'));
+    tr.appendChild(td(entry.completed ? 'Completed' : SGHelpers.formatMs(entry.listenedMs), 'hide-xs small'));
     return tr;
 }
 
@@ -224,29 +224,8 @@ function emptyState(icon, title, subtitle) {
     return `<div class="empty-state"><div class="empty-state-icon">${icon}</div><p><strong>${title}</strong><br><span class="small text-secondary-themed">${subtitle}</span></p></div>`;
 }
 
-function formatRelativeTime(iso) {
-    if (!iso) return '';
-    const then = new Date(iso).getTime();
-    if (isNaN(then)) return '';
-    const diff = Math.max(0, Date.now() - then);
-    const s = Math.floor(diff / 1000);
-    if (s < 60) return s + 's ago';
-    const m = Math.floor(s / 60);
-    if (m < 60) return m + 'm ago';
-    const h = Math.floor(m / 60);
-    if (h < 24) return h + 'h ago';
-    const d = Math.floor(h / 24);
-    if (d < 7) return d + 'd ago';
-    return new Date(iso).toLocaleDateString();
-}
-
-function formatMs(ms) {
-    if (!ms || ms < 0) return '\u2014';
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const ss = String(s % 60).padStart(2, '0');
-    return `${m}:${ss}`;
-}
+// Relative-time / duration formatters live in helpers.js (SGHelpers) \u2014 see
+// formatRelativeTime() and formatMs() there. Referenced at the call sites above.
 
 /**
  * Play a track from history. The DTO we receive from /history/* has all the fields
