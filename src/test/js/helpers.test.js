@@ -9,7 +9,10 @@ import {
     decadeFromYear,
     crossfadeVolumes,
     getVisibleTracksPure,
-    virtualScrollRange
+    virtualScrollRange,
+    formatRelativeTime,
+    formatMs,
+    formatRelative
 } from '../../main/resources/static/js/helpers.js';
 
 // ── text() ──────────────────────────────────────────────────
@@ -374,5 +377,134 @@ describe('virtualScrollRange()', () => {
         // Without buffer: rows 50-60. With buffer of 20: rows 30-80
         expect(startIndex).toBe(30);
         expect(endIndex).toBe(80);
+    });
+});
+
+// ── formatRelativeTime() ────────────────────────────────────
+
+describe('formatRelativeTime()', () => {
+    // Fixed reference "now" so buckets are deterministic. All ISO inputs below
+    // are computed as offsets back from this instant.
+    const NOW = Date.parse('2026-01-15T12:00:00Z');
+    const ago = (ms) => new Date(NOW - ms).toISOString();
+    const SEC = 1000, MIN = 60 * SEC, HOUR = 60 * MIN, DAY = 24 * HOUR;
+
+    it('returns empty string for null/undefined/empty', () => {
+        expect(formatRelativeTime(null, NOW)).toBe('');
+        expect(formatRelativeTime(undefined, NOW)).toBe('');
+        expect(formatRelativeTime('', NOW)).toBe('');
+    });
+
+    it('returns empty string for an invalid ISO string', () => {
+        expect(formatRelativeTime('not-a-date', NOW)).toBe('');
+    });
+
+    it('clamps a future timestamp to "0s ago"', () => {
+        expect(formatRelativeTime(ago(-5 * SEC), NOW)).toBe('0s ago');
+    });
+
+    it('formats seconds', () => {
+        expect(formatRelativeTime(ago(0), NOW)).toBe('0s ago');
+        expect(formatRelativeTime(ago(59 * SEC), NOW)).toBe('59s ago');
+    });
+
+    it('rolls over to minutes at 60s', () => {
+        expect(formatRelativeTime(ago(60 * SEC), NOW)).toBe('1m ago');
+        expect(formatRelativeTime(ago(59 * MIN), NOW)).toBe('59m ago');
+    });
+
+    it('rolls over to hours at 60m', () => {
+        expect(formatRelativeTime(ago(60 * MIN), NOW)).toBe('1h ago');
+        expect(formatRelativeTime(ago(23 * HOUR), NOW)).toBe('23h ago');
+    });
+
+    it('rolls over to days at 24h', () => {
+        expect(formatRelativeTime(ago(24 * HOUR), NOW)).toBe('1d ago');
+        expect(formatRelativeTime(ago(6 * DAY), NOW)).toBe('6d ago');
+    });
+
+    it('falls back to a locale date string beyond a week', () => {
+        const iso = ago(8 * DAY);
+        expect(formatRelativeTime(iso, NOW)).toBe(new Date(iso).toLocaleDateString());
+    });
+
+    it('defaults the reference time to now when omitted', () => {
+        // A just-created timestamp is within the seconds bucket regardless of the
+        // real wall clock, so this exercises the Date.now() default deterministically.
+        expect(formatRelativeTime(new Date().toISOString())).toMatch(/^\d+s ago$/);
+    });
+});
+
+// ── formatMs() ──────────────────────────────────────────────
+
+describe('formatMs()', () => {
+    it('returns em dash for null/undefined/zero', () => {
+        expect(formatMs(null)).toBe('—');
+        expect(formatMs(undefined)).toBe('—');
+        expect(formatMs(0)).toBe('—');
+    });
+
+    it('returns em dash for negative and NaN', () => {
+        expect(formatMs(-1000)).toBe('—');
+        expect(formatMs(NaN)).toBe('—');
+    });
+
+    it('floors sub-second durations to 0:00', () => {
+        expect(formatMs(500)).toBe('0:00');
+    });
+
+    it('formats seconds with zero-padding', () => {
+        expect(formatMs(1000)).toBe('0:01');
+        expect(formatMs(9000)).toBe('0:09');
+    });
+
+    it('formats minutes and seconds', () => {
+        expect(formatMs(65000)).toBe('1:05');
+        expect(formatMs(600000)).toBe('10:00');
+    });
+});
+
+// ── formatRelative() ────────────────────────────────────────
+
+describe('formatRelative()', () => {
+    const NOW = Date.parse('2026-01-15T12:00:00Z');
+    const DAY = 24 * 60 * 60 * 1000;
+    const agoDays = (d) => new Date(NOW - d * DAY).toISOString();
+
+    it('returns "never" for null/undefined/empty', () => {
+        expect(formatRelative(null, NOW)).toBe('never');
+        expect(formatRelative(undefined, NOW)).toBe('never');
+        expect(formatRelative('', NOW)).toBe('never');
+    });
+
+    it('returns em dash for an invalid ISO string', () => {
+        expect(formatRelative('not-a-date', NOW)).toBe('—');
+    });
+
+    it('treats a future timestamp as "today"', () => {
+        expect(formatRelative(agoDays(-3), NOW)).toBe('today');
+    });
+
+    it('returns "today" for less than a day', () => {
+        expect(formatRelative(agoDays(0), NOW)).toBe('today');
+    });
+
+    it('formats days below 30', () => {
+        expect(formatRelative(agoDays(1), NOW)).toBe('1d ago');
+        expect(formatRelative(agoDays(29), NOW)).toBe('29d ago');
+    });
+
+    it('rolls over to months at 30 days', () => {
+        expect(formatRelative(agoDays(30), NOW)).toBe('1mo ago');
+        expect(formatRelative(agoDays(359), NOW)).toBe('11mo ago');
+    });
+
+    it('rolls over to years at 12 months', () => {
+        expect(formatRelative(agoDays(360), NOW)).toBe('1y ago');
+        expect(formatRelative(agoDays(800), NOW)).toBe('2y ago');
+    });
+
+    it('defaults the reference time to now when omitted', () => {
+        expect(formatRelative(new Date().toISOString())).toBe('today');
     });
 });

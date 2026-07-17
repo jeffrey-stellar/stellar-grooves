@@ -124,7 +124,7 @@ function buildTrackRow(track, sectionTracks) {
     tr.appendChild(cell(track.artist || '\u2014'));
     tr.appendChild(cell(track.album || '\u2014', 'hide-xs'));
     tr.appendChild(cell(track.rating ? '\u2605'.repeat(track.rating) : '', 'hide-xs'));
-    tr.appendChild(cell(formatRelative(track.lastPlayedAt), 'hide-xs small text-secondary-themed'));
+    tr.appendChild(cell(SGHelpers.formatRelative(track.lastPlayedAt), 'hide-xs small text-secondary-themed'));
     return tr;
 }
 
@@ -230,17 +230,8 @@ function buildOneHitArtist(item) {
 
 // ── Helpers ──────────────────────────────────────────────
 
-function formatRelative(iso) {
-    if (!iso) return 'never';
-    const then = new Date(iso).getTime();
-    if (isNaN(then)) return '\u2014';
-    const days = Math.floor((Date.now() - then) / 86400000);
-    if (days < 1) return 'today';
-    if (days < 30) return days + 'd ago';
-    const months = Math.floor(days / 30);
-    if (months < 12) return months + 'mo ago';
-    return Math.floor(months / 12) + 'y ago';
-}
+// The formatRelative() staleness formatter lives in helpers.js (SGHelpers) \u2014
+// referenced at the call site above.
 
 // ── Wire DOM ─────────────────────────────────────────────
 
