@@ -448,6 +448,8 @@ The JSON format maps artist names to arrays of genre values:
 }
 ```
 
+**Valid genre values** (case-sensitive, must match exactly): `CLASSIC_ROCK`, `HARD_ROCK`, `HAIR_METAL`, `HEAVY_METAL`, `THRASH_METAL`, `OTHER`. Any other string (e.g. `"ROCK"`) is skipped with a warning in the logs.
+
 **Genre corrections:** When a user changes a track's genre in the UI, that correction is stored in MongoDB and takes precedence over the static catalog for future scans. This means the catalog effectively "learns" from user corrections without editing the JSON file.
 
 ---
